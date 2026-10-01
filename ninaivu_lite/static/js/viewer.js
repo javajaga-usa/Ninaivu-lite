@@ -397,6 +397,9 @@ export class Viewer extends EventTarget {
       video.playsInline = true;
       video.preload = 'metadata';
       video.onended = () => this.slideshow && this.advanceSlideshow();
+      if (!item.has_thumb) {
+        this.dispatchEvent(new CustomEvent('poster-source', { detail: { id: item.id, video } }));
+      }
       this.media = video;
       this.stage.appendChild(video);
       return;

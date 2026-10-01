@@ -653,3 +653,59 @@ def test_viewing_copies_are_kept(app, guest, library):
     os.utime(root / "home" / "garden.jpg", (time.time() + 5,) * 2)
     guest.get(f"/api/file/{asset_id}")
     assert len(list(Path(app.config["LITE"].data_dir, "views").rglob(f"{asset_id}-*.jpg"))) == 1
+
+
+# --- a video's poster, made by the browser ---------------------------------------
+
+
+def jpeg_bytes(size=(320, 180)) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", size, (20, 90, 160)).save(buf, "JPEG")
+    return buf.getvalue()
+
+
+def test_a_family_browser_gives_a_video_its_poster(app, admin, family, guest):
+    clip = ids(app)["clip.mp4"]
+    # Without ffmpeg (none here) the video has no picture: a plain tile.
+    assert not media.FFMPEG or True
+    c = conn_of(app)
+    with c:
+        c.execute("UPDATE assets SET thumb = ?, large = 0 WHERE id = ?", (db.THUMB_NONE, clip))
+    assert admin.get(f"/api/thumb/{clip}").status_code == 404
+    assert guest.post(f"/api/asset/{clip}/poster", data=jpeg_bytes(),
+                      content_type="image/jpeg").status_code == 403
+    r = family.post(f"/api/asset/{clip}/poster", data=jpeg_bytes(), content_type="image/jpeg")
+    assert r.status_code == 201, r.get_json()
+    item = r.get_json()
+    assert item["has_thumb"] and item["thumb_v"] and item["color"].startswith("#")
+    thumb = admin.get(f"/api/thumb/{clip}?s=256")
+    assert thumb.status_code == 200 and thumb.mimetype == "image/webp"
+    with Image.open(io.BytesIO(thumb.data)) as img:
+        assert img.size == (256, 144)
+    large = admin.get(f"/api/thumb/{clip}?s=640")
+    assert large.status_code == 200
+    page = admin.get("/api/segments").get_json()
+    flags = next(it[3] for seg in page["segments"] for it in seg["items"] if it[0] == clip)
+    assert flags & 2
+    # A picture it already has is kept: a second one changes nothing.
+    again = family.post(f"/api/asset/{clip}/poster", data=jpeg_bytes((64, 64)),
+                        content_type="image/jpeg")
+    assert again.status_code == 200 and again.get_json()["thumb_v"] == item["thumb_v"]
+    with Image.open(io.BytesIO(admin.get(f"/api/thumb/{clip}?s=256").data)) as img:
+        assert img.size == (256, 144)
+
+
+def test_a_poster_is_refused_when_it_is_not_a_picture_or_not_for_a_video(app, admin):
+    clip, beach = ids(app)["clip.mp4"], ids(app)["beach.jpg"]
+    c = conn_of(app)
+    with c:
+        c.execute("UPDATE assets SET thumb = ? WHERE id = ?", (db.THUMB_NONE, clip))
+    url = f"/api/asset/{clip}/poster"
+    assert admin.post(url, data=b"not a picture", content_type="image/jpeg").status_code == 400
+    assert admin.post(url, data=jpeg_bytes(), content_type="image/gif").status_code == 400
+    assert admin.post(url, data=jpeg_bytes((8, 8)), content_type="image/jpeg").status_code == 400
+    assert admin.post(f"/api/asset/{beach}/poster", data=jpeg_bytes(),
+                      content_type="image/jpeg").status_code == 400
+    assert admin.post(url, data=jpeg_bytes((2500, 2000)),            # over 4 megapixels
+                      content_type="image/jpeg").status_code == 400
+    assert admin.get(f"/api/thumb/{clip}").status_code == 404

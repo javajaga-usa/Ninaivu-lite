@@ -4,6 +4,7 @@ The file is never changed."""
 
 from __future__ import annotations
 
+import io
 import os
 
 from PIL import Image
@@ -82,6 +83,9 @@ def test_faces_turn_a_sideways_photograph_during_the_scan(app, library, monkeypa
 def test_an_administrator_turns_by_hand_and_the_turn_outlives_a_rescan(app, admin, family, library):
     root, _ = library
     target = ids(app)["beach.jpg"]
+    # Both thumbnails exist the old way up before the turn.
+    assert admin.get(f"/api/thumb/{target}?s=640").status_code == 200
+    assert thumb_size(app, target) == (256, 192)
     assert family.post(f"/api/asset/{target}/rotate", json={}).status_code == 403
     r = admin.post(f"/api/asset/{target}/rotate", json={})
     assert r.status_code == 200
@@ -89,6 +93,13 @@ def test_an_administrator_turns_by_hand_and_the_turn_outlives_a_rescan(app, admi
     assert (item["rotation"], item["rotation_source"]) == (90, "manual")
     assert (item["width"], item["height"]) == (480, 640)
     assert thumb_size(app, target) == (192, 256)
+    # Both sizes are remade at once: the big tiles and the viewer's stand-in
+    # read the 640 one, which used to keep the old way up until the next scan.
+    large = media.thumb_path(app.config["SCANNER"].thumbs_dir, target, "l")
+    with Image.open(large) as img:
+        assert img.size == (480, 640)
+    with Image.open(io.BytesIO(admin.get(f"/api/thumb/{target}?s=640").data)) as img:
+        assert img.size == (480, 640)
     assert admin.post(f"/api/asset/{target}/rotate", json={"rotation": 45}).status_code == 400
     assert admin.post(f"/api/asset/{ids(app)['clip.mp4']}/rotate", json={}).status_code == 400
     # The file changed on disk (re-saved); the scan keeps the person's answer.
