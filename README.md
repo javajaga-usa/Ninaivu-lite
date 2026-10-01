@@ -12,7 +12,7 @@ them to your family on phones, tablets and computers on the same Wi-Fi. Nothing 
 It uses **Ninaivu's own screens** — the family gallery, the admin console and the share
 page — over a much lighter engine: no AI, no cloud, three small dependencies.
 
-> **Status: 1.1.0.** See the [changelog](CHANGELOG.md) and the [user guide](docs/USER-GUIDE.md)
+> **Status: 1.2.0.** See the [changelog](CHANGELOG.md) and the [user guide](docs/USER-GUIDE.md)
 > ([தமிழில்](docs/USER-GUIDE.ta.md)).
 
 ## Why Lite
@@ -45,7 +45,23 @@ page — over a much lighter engine: no AI, no cloud, three small dependencies.
 - **Moves up to Ninaivu** if you ever need more: `--export` writes one file that Ninaivu can
   read ([details](docs/UPGRADE.md)). Optional — Lite is complete on its own.
 
-## Start
+## Install
+
+The simplest way is an **installer** from the
+[releases page](https://github.com/javajaga-usa/Ninaivu-lite/releases): it needs no Python
+and downloads nothing.
+
+| | |
+| --- | --- |
+| Windows 10 / 11 | `Ninaivu-Lite-<version>-windows-x64.exe` — the Control Panel opens when it finishes |
+| Linux PC | `sh Ninaivu-Lite-<version>-linux-amd64.sh` |
+| Raspberry Pi 4 / 5 (64-bit OS) | `sh Ninaivu-Lite-<version>-linux-arm64.sh` |
+| macOS | the `.dmg` for Apple silicon (`arm64`) or Intel (`x86_64`) |
+| Docker | `docker compose -f installers/docker/docker-compose.yml up -d` |
+
+How they are built: [installers/README.md](installers/README.md).
+
+## Start from a download of this repository
 
 You need **Python 3.10 or newer** (3.13 recommended) — from [python.org](https://www.python.org/downloads/);
 on Windows tick *Add python.exe to PATH*.

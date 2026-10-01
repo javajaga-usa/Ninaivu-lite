@@ -1,0 +1,8 @@
+# The build needs only requirements.txt, ninaivu_lite/, README.md and LICENSE.
+*
+!requirements.txt
+!README.md
+!LICENSE
+!ninaivu_lite
+ninaivu_lite/**/__pycache__
+ninaivu_lite/static/fonts

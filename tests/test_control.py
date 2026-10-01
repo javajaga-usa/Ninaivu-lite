@@ -89,3 +89,17 @@ def test_package_import_does_not_load_the_web_app():
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
                          cwd=os.path.dirname(os.path.dirname(__file__)), check=True)
     assert out.stdout.split() == ["False", "False"]
+
+
+def test_command_line_for_installers(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
+    data = str(tmp_path / "data")
+    assert control.main(["--data", data, "--stop", "--status"]) == 0
+    out = capsys.readouterr().out
+    assert "not running" in out and "stopped" in out
+    if control.Controller.autostart_supported():
+        assert control.main(["--data", data, "--autostart", "on"]) == 0
+        assert control.Controller(data).autostart_enabled()
+        assert control.main(["--data", data, "--autostart", "off"]) == 0
+        assert not control.Controller(data).autostart_enabled()

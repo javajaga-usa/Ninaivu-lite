@@ -2,7 +2,7 @@
 
 **நினைவு லைட்** · Your family's photographs, at home — the small, steady edition.
 
-> **Status:** 1.1.0 (phases 0–4 done; Control Panel and copyright added). See [CHANGELOG](../CHANGELOG.md).
+> **Status:** 1.2.0 (phases 0–4 done; Control Panel, copyright and installers added). See [CHANGELOG](../CHANGELOG.md).
 
 ## 1. What Lite is
 
@@ -49,6 +49,8 @@ ruff targets `py310`.
 - **Console**: first-day guide, overview (with role preview), library settings, people,
   visibility, settings, backup download.
 - **Launcher** `start.cmd` / `start.sh`; start with Windows; systemd unit; daily index backups.
+- **Installers** with their own Python: Windows (.exe), Linux / Raspberry Pi (.sh), macOS (.dmg),
+  Docker; a release workflow builds them on a tag.
 - **Control Panel** (Ninaivu's, lighter; Tk only): start/stop/restart, addresses, start at sign-in,
   log; opens after the first-time setup.
 - **Optional move to Ninaivu** via `--export` ([UPGRADE.md](UPGRADE.md)); Ninaivu itself is not changed.

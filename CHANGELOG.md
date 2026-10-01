@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.2.0 — 2026-10-01
+
+- **Installers** (`installers/`), each with its own Python and every package, so the computer
+  needs neither Python nor the internet to install:
+  - **Windows** — `Ninaivu-Lite-<version>-windows-x64.exe`: Start-menu and Desktop shortcuts
+    for the Control Panel, a *Start at sign-in* box, and the Control Panel opened when the
+    installer finishes. Carries Noto Sans Tamil.
+  - **Linux and Raspberry Pi** — one `.sh` file per architecture (amd64, arm64): commands,
+    a desktop entry, a systemd service, upgrade in place, an uninstaller.
+  - **macOS** — `Ninaivu Lite.app` in a disk image, for Apple silicon and Intel.
+  - **Docker** — an image and a compose file; the photos are mounted read-only.
+  - A release workflow builds them all on a version tag and attaches them to the release.
+- `python -m ninaivu_lite.control --stop | --autostart on|off | --status`, used by the
+  installers to stop a running Ninaivu Lite before an upgrade or an uninstall.
+
 ## 1.1.0 — 2026-10-01
 
 - **Control Panel** — Ninaivu's Control Panel, lighter: one small window showing whether

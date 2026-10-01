@@ -8,6 +8,12 @@ deletes a photograph.
 
 ## 1. Start it
 
+**With an installer** (from the releases page): run it. On Windows the Control Panel opens when
+it finishes — press **Start**, then **Open the family app**. Nothing else is needed; skip to
+*The Control Panel* below.
+
+**Without an installer:**
+
 1. Install **Python 3.10 or newer** from python.org. On Windows, tick *Add python.exe to PATH*.
 2. Download Ninaivu Lite and unzip it somewhere permanent (for example `C:\Ninaivu-lite`).
 3. Double-click **`start.cmd`** (Windows) or run **`./start.sh`** (macOS, Linux).

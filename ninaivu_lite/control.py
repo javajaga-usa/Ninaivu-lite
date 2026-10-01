@@ -241,3 +241,31 @@ class Controller:
             subprocess.Popen(["open", str(path)])  # noqa: S603, S607
         else:
             subprocess.Popen(["xdg-open", str(path)])  # noqa: S603, S607
+
+
+def main(argv: list[str] | None = None) -> int:
+    """For the installers: ``python -m ninaivu_lite.control --autostart on|off``,
+    ``--stop`` (before an upgrade or an uninstall) and ``--status``."""
+    import argparse
+    parser = argparse.ArgumentParser(prog="ninaivu_lite.control")
+    parser.add_argument("--data", help="the data folder Ninaivu Lite uses")
+    parser.add_argument("--autostart", choices=["on", "off"])
+    parser.add_argument("--stop", action="store_true")
+    parser.add_argument("--status", action="store_true")
+    args = parser.parse_args(argv)
+    controller = Controller(args.data)
+    if args.stop:
+        print(controller.stop())
+    if args.autostart and controller.autostart_supported():
+        try:
+            controller.set_autostart(args.autostart == "on")
+        except OSError as exc:
+            print(f"Could not change starting at sign-in: {exc}", file=sys.stderr)
+            return 1
+    if args.status:
+        print(f"running at {controller.url()}" if controller.running() else "stopped")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

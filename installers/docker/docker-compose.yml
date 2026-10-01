@@ -1,0 +1,29 @@
+# Ninaivu Lite with Docker.
+#
+#   MEDIA_DIR=/path/to/Photos docker compose -f installers/docker/docker-compose.yml up -d
+#
+# Then open http://<this computer>:8080. The first visit makes the
+# administrator; from another device it asks for the setup code, which is in
+#   docker logs ninaivu-lite
+services:
+  ninaivu-lite:
+    image: ninaivu-lite:latest
+    build:
+      context: ../..
+      dockerfile: installers/docker/Dockerfile
+    container_name: ninaivu-lite
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ${MEDIA_DIR:-./photos}:/photos:ro
+      - ninaivu_lite_data:/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  ninaivu_lite_data:
+    name: ninaivu_lite_data
