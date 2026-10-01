@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import sys
 import zipfile
 
 import pytest
@@ -133,7 +135,8 @@ def test_browse(admin, library, tmp_path):
     assert [d["name"] for d in data.get_json()["dirs"]] == ["pongal"]
     r = admin.get("/api/library/browse", query_string={"path": str(tmp_path / "nope")})
     assert r.status_code == 404 and r.get_json()["error"] == "Not a directory"
-    assert admin.get("/api/library/browse?path=/proc").status_code == 403
+    if sys.platform != "win32":      # /proc, /sys and /dev exist only there
+        assert admin.get("/api/library/browse?path=/proc").status_code == 403
     # Inside an existing library folder: can't be added on its own.
     data = admin.get("/api/library/browse", query_string={"path": str(root / "2019")})
     assert data.get_json()["selectable"] is False
@@ -174,7 +177,8 @@ def test_add_library_refusals(admin, library, tmp_path):
     r = admin.post("/api/library/root", json={"path": str(tmp_path / "missing")})
     assert r.status_code == 400
     assert r.get_json()["error"] == "That folder does not exist on this computer."
-    r = admin.post("/api/library/root", json={"path": "/etc"})
+    system = os.environ.get("SystemRoot", "C:\\Windows") if sys.platform == "win32" else "/etc"
+    r = admin.post("/api/library/root", json={"path": system})
     assert r.status_code == 403
     assert r.get_json()["error"].startswith("That is a system folder")
     data_dir.mkdir(exist_ok=True)

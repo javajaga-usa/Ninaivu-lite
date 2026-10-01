@@ -40,7 +40,7 @@ jobs:
           import pathlib, sys
           sys.stdout.reconfigure(encoding="utf-8", errors="replace")
           text = pathlib.Path("pytest.log").read_text(encoding="utf-8", errors="replace")
-          tail = "\n".join(text.splitlines()[-70:])
+          tail = "\n".join(text.splitlines()[-45:])[-3500:]
           print("::error title=pytest::" + tail.replace("%", "%25").replace("\r", "").replace("\n", "%0A"))
           PY
       - name: The server starts and answers

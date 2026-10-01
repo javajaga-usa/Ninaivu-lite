@@ -33,6 +33,13 @@ def _key(path: str) -> str:
     return text
 
 
+if sys.platform == "win32":
+    # Wherever Windows itself really is on this computer, not only on C:.
+    for _name in ("SystemRoot", "ProgramFiles", "ProgramFiles(x86)", "ProgramData", "SystemDrive"):
+        if os.environ.get(_name):
+            FORBIDDEN_KEYS.add(_key(os.environ[_name]))
+
+
 def _windows_drives() -> list[str]:
     """Drive letters, without touching them: a sleeping network drive or an
     empty card reader would otherwise stall the picker."""
