@@ -12,7 +12,7 @@ them to your family on phones, tablets and computers on the same Wi-Fi. Nothing 
 It uses **Ninaivu's own screens** — the family gallery, the admin console and the share
 page — over a much lighter engine: no AI, no cloud, three small dependencies.
 
-> **Status: 1.2.0.** See the [changelog](CHANGELOG.md) and the [user guide](docs/USER-GUIDE.md)
+> **Status: 1.2.1.** See the [changelog](CHANGELOG.md) and the [user guide](docs/USER-GUIDE.md)
 > ([தமிழில்](docs/USER-GUIDE.ta.md)).
 
 ## Why Lite
