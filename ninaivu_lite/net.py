@@ -87,12 +87,32 @@ def lan_addresses() -> list[str]:
 
     for target in ("192.0.2.1", "192.168.0.1", "192.168.1.1", "10.0.0.1", "172.16.0.1"):
         note(_probe(target))
-    try:
-        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
-            note(str(info[4][0]))
-    except OSError:
-        pass
+    if not found:
+        # Only when the probes found nothing, and never for long: resolving this
+        # computer's own name can stall for half a minute on a Mac (its .local
+        # name goes out to the network), and the server must not wait for that.
+        for address in _addresses_by_name(timeout=2.0):
+            note(address)
     return sorted(found, key=lambda a: (_rank(a), a))
+
+
+def _addresses_by_name(timeout: float) -> list[str]:
+    """This computer's addresses by its own name, or nothing if that takes too long."""
+    import threading
+
+    result: list[str] = []
+
+    def look() -> None:
+        try:
+            for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+                result.append(str(info[4][0]))
+        except OSError:
+            pass
+
+    thread = threading.Thread(target=look, name="own-name", daemon=True)
+    thread.start()
+    thread.join(timeout)
+    return list(result) if not thread.is_alive() else []
 
 
 def already_running(port: int) -> bool:

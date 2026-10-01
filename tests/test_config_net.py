@@ -1,6 +1,8 @@
 import json
 import socket
 
+import pytest
+
 from ninaivu_lite import net
 from ninaivu_lite.__main__ import parse_args
 from ninaivu_lite.config import DEFAULT_PORT, Config
@@ -117,3 +119,19 @@ def test_reset_password_from_the_command_line(app, monkeypatch, capsys):
     assert auth.authenticate(conn, "appa", "a brand new phrase") is not None
     assert cli.reset_password(cfg, "nobody") == 2
     assert "appa" in capsys.readouterr().err
+
+
+def test_a_slow_name_lookup_does_not_hold_up_the_start(monkeypatch):
+    import time
+
+    monkeypatch.setattr(net, "_probe", lambda target: None)          # no network found
+    monkeypatch.setattr(net.socket, "getaddrinfo", lambda *a, **k: time.sleep(30))
+    started = time.time()
+    assert net._addresses_by_name(timeout=0.2) == []
+    assert time.time() - started < 2
+
+
+def test_no_name_lookup_when_the_address_is_already_known(monkeypatch):
+    monkeypatch.setattr(net, "_probe", lambda target: "192.168.1.20")
+    monkeypatch.setattr(net, "_addresses_by_name", lambda timeout: pytest.fail("looked up the name"))
+    assert net.lan_addresses() == ["192.168.1.20"]

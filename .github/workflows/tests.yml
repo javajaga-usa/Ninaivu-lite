@@ -46,9 +46,12 @@ jobs:
       - name: The server starts and answers
         shell: bash
         run: |
-          python -m ninaivu_lite --no-browser --port 8080 --data "$RUNNER_TEMP/nl-data" &
+          python -m ninaivu_lite --no-browser --port 8080 --data "$RUNNER_TEMP/nl-data" > server.log 2>&1 &
           for i in $(seq 1 30); do
             curl -fsS http://127.0.0.1:8080/api/health && exit 0
             sleep 1
           done
-          echo "server did not answer" && exit 1
+          # Said as an annotation, so the reason is readable without the full log.
+          tail=$( (cat server.log; tail -n 20 "$RUNNER_TEMP/nl-data/logs/ninaivu-lite.log" 2>/dev/null) | tail -n 40 | tr '\n' '~' | sed 's/~/%0A/g')
+          echo "::error title=server did not answer::$tail"
+          exit 1
