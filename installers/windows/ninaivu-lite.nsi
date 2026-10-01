@@ -9,11 +9,11 @@
   !insertmacro MUI_PAGE_COMPONENTS
   ; The last page offers to open the Control Panel (ticked): from there
   ; Ninaivu Lite is started, and the console walks through the first day.
-  [% for scname, sc in ib.shortcuts.items() %][% if loop.first %]
-  !define MUI_FINISHPAGE_RUN "[[ sc['target'] ]]"
-  !define MUI_FINISHPAGE_RUN_PARAMETERS '[[ sc['parameters'] ]]'
+  ; Through a function: the shortcut's parameters carry their own quotes,
+  ; which MUI_FINISHPAGE_RUN_PARAMETERS cannot hold.
+  !define MUI_FINISHPAGE_RUN
   !define MUI_FINISHPAGE_RUN_TEXT "Open the Ninaivu Lite Control Panel"
-  [% endif %][% endfor %]
+  !define MUI_FINISHPAGE_RUN_FUNCTION OpenControlPanel
   [[ super() ]]
 [% endblock %]
 
@@ -48,6 +48,12 @@
 
 [% block sections %]
   [[ super() ]]
+  Function OpenControlPanel
+    [% for scname, sc in ib.shortcuts.items() %][% if loop.first %]
+    Exec '"[[ sc['target'] ]]" [[ sc['parameters'] ]]'
+    [% endif %][% endfor %]
+  FunctionEnd
+
   Section "Start Ninaivu Lite at sign-in" sec_autostart
     ; The same switch as the box in the Control Panel.
     ExecWait '"$INSTDIR\Python\pythonw.exe" -m ninaivu_lite.control --autostart on'
