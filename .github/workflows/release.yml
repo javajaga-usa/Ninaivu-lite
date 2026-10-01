@@ -1,0 +1,195 @@
+name: Release installers
+
+# On a version tag: the Windows installer (pynsist), the macOS app and disk
+# image for both architectures, and the Linux / Raspberry Pi installer for both
+# architectures, all attached to the GitHub release with their checksums.
+# Every installer carries its own Python and every package.
+#
+# Signing is real only when the secrets exist. Without them every job still
+# builds, unsigned, and the release notes say so.
+#
+#   WINDOWS_SIGN_PFX_BASE64, WINDOWS_SIGN_PFX_PASSWORD   a code-signing certificate
+#   MAC_SIGN_P12_BASE64, MAC_SIGN_P12_PASSWORD           a Developer ID Application certificate
+#   MAC_SIGN_IDENTITY                                    its name, "Developer ID Application: … (TEAMID)"
+#   MAC_NOTARY_APPLE_ID, MAC_NOTARY_TEAM_ID, MAC_NOTARY_PASSWORD   an app-specific password
+#
+# A tag push (v1.2.0) is the usual way. "Run workflow" on a branch builds the
+# same installers and publishes them as the release for the version in
+# ninaivu_lite/version.py, making that tag at the commit it ran on.
+# A push that changes the installers on any branch builds them too (and tries
+# the Linux one), without publishing anything: the release job runs only for a
+# tag or "Run workflow".
+on:
+  push:
+    tags: ["v*"]
+    branches: ["**"]
+    paths: ["installers/**", ".github/workflows/release.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows installer
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      HAS_PFX: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pynsist and NSIS
+        run: |
+          pip install pynsist
+          choco install nsis -y --no-progress
+      - name: Import the signing certificate
+        if: env.HAS_PFX == 'true'
+        shell: pwsh
+        env:
+          PFX: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.WINDOWS_SIGN_PFX_PASSWORD }}
+        run: |
+          $path = Join-Path $env:RUNNER_TEMP "sign.pfx"
+          [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($env:PFX))
+          $cert = Import-PfxCertificate -FilePath $path -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString $env:PFX_PASSWORD -AsPlainText -Force)
+          Remove-Item $path
+          "NINAIVU_SIGN_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
+      - name: Build
+        shell: pwsh
+        run: |
+          & installers\windows\build.ps1 -Sign:([bool]$env:NINAIVU_SIGN_THUMBPRINT)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: installers/windows/build/nsis/*.exe
+
+  macos:
+    name: macOS app (${{ matrix.arch }})
+    strategy:
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-14
+          - arch: x86_64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      HAS_P12: ${{ secrets.MAC_SIGN_P12_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Import the signing certificate
+        if: env.HAS_P12 == 'true'
+        env:
+          P12: ${{ secrets.MAC_SIGN_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.MAC_SIGN_P12_PASSWORD }}
+          APPLE_ID: ${{ secrets.MAC_NOTARY_APPLE_ID }}
+          TEAM_ID: ${{ secrets.MAC_NOTARY_TEAM_ID }}
+          APP_PASSWORD: ${{ secrets.MAC_NOTARY_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/build.keychain-db"
+          security create-keychain -p "" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "" "$keychain"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/sign.p12"
+          security import "$RUNNER_TEMP/sign.p12" -P "$P12_PASSWORD" -A -f pkcs12 -k "$keychain"
+          rm "$RUNNER_TEMP/sign.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$keychain"
+          security list-keychain -d user -s "$keychain" login.keychain-db
+          xcrun notarytool store-credentials ninaivu-lite --apple-id "$APPLE_ID" --team-id "$TEAM_ID" \
+            --password "$APP_PASSWORD" --keychain "$keychain"
+          echo "NINAIVU_MAC_SIGN_IDENTITY=${{ secrets.MAC_SIGN_IDENTITY }}" >> "$GITHUB_ENV"
+          echo "NINAIVU_NOTARY_PROFILE=ninaivu-lite" >> "$GITHUB_ENV"
+          echo "NINAIVU_NOTARY_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+      - name: Build
+        run: bash installers/macos/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: installers/macos/build/*.dmg
+
+  linux:
+    name: Linux and Raspberry Pi (${{ matrix.arch }})
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: bash installers/linux/build.sh ${{ matrix.arch }}
+      - name: Install it, start it, ask it how it is, remove it
+        if: matrix.arch == 'amd64'
+        run: |
+          sh installers/linux/build/*.sh --quiet --no-service
+          ~/.local/bin/ninaivu-lite --version
+          ~/.local/bin/ninaivu-lite --no-browser > server.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8080/api/health && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8080/ > /dev/null
+          ~/.local/lib/ninaivu-lite/python/bin/python3 -m ninaivu_lite.control --stop --status
+          ~/.local/lib/ninaivu-lite/uninstall
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: installers/linux/build/*.sh
+
+  release:
+    name: Attach to the release
+    needs: [windows, macos, linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HAS_PFX: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 != '' }}
+      HAS_NOTARY: ${{ secrets.MAC_SIGN_P12_BASE64 != '' && secrets.MAC_NOTARY_PASSWORD != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: src
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+      - name: The version being released
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then version=${GITHUB_REF_NAME#v}
+          else version=$(sed -nE 's/^__version__ *= *"([^"]+)".*/\1/p' src/ninaivu_lite/version.py); fi
+          [ -n "$version" ] || { echo "no version"; exit 1; }
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: Checksums
+        run: |
+          mkdir files && find out -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.sh" \) -exec cp {} files/ \;
+          (cd files && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+      - name: Release notes
+        run: |
+          version=$VERSION
+          {
+            echo "Ninaivu Lite $version — your family's photographs, at home."
+            echo
+            echo "**Windows:** \`Ninaivu-Lite-$version-windows-x64.exe\`. **macOS:** the \`.dmg\` for Apple silicon (\`arm64\`) or Intel (\`x86_64\`). **Linux and Raspberry Pi:** \`Ninaivu-Lite-$version-linux-amd64.sh\` for a PC, \`-linux-arm64.sh\` for a Raspberry Pi 4 or 5 with a 64-bit OS — run it with \`sh\`, no root needed."
+            echo "Every installer carries its own Python and every package: nothing is downloaded at install time. Checksums are in \`SHA256SUMS.txt\`."
+            echo
+            if [ "$HAS_PFX" != "true" ]; then
+              echo "> **The Windows installer is not signed.** SmartScreen will say *Windows protected your PC*: choose **More info → Run anyway**."
+              echo
+            fi
+            if [ "$HAS_NOTARY" != "true" ]; then
+              echo "> **The Mac app is not signed or notarised.** Open it once, then go to **System Settings → Privacy & Security** and choose **Open Anyway**."
+              echo
+            fi
+            echo "## What is in $version"
+            awk -v v="$version" '$0 ~ "^## "v" " {on=1; next} on && /^## / {exit} on' src/CHANGELOG.md
+          } > notes.md
+          cat notes.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
+          name: Ninaivu Lite v${{ env.VERSION }}
+          body_path: notes.md
+          files: files/*
