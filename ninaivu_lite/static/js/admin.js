@@ -11,6 +11,7 @@ import {
 } from './accounts.js';
 import { onUnauthorized, reportUnauthorized, sessionRestored, thumbUrl, SCAN_COUNTS, timeLeft } from './api.js';
 import { renderActivity, subscribeActivity } from './activity.js';
+import { ArchivePanel } from './archive.js';
 import { enterPressesTheButton } from './enter-key.js';
 import { FirstDay } from './first-day.js';
 import * as i18n from './i18n.js';
@@ -102,6 +103,7 @@ let currentPreview = 'guest';
 let gate;
 let profileSheet;
 let firstDay;
+let archivePanel;
 
 /* ======================================================================== */
 
@@ -269,6 +271,15 @@ async function start(user) {
   // Library page — both from the same poll; see onActivity.
   watchActivity();
   await refresh();
+  // The Import page: wired once, shown when its tab is opened.
+  if (!archivePanel) {
+    archivePanel = new ArchivePanel({
+      toast,
+      pickFolder: (options) => openFolderPicker(options),
+      onLibraryChanged: refresh,
+    });
+    archivePanel.wire();
+  }
   // The first day: once, right after the administrator is made.
   firstDay ||= new FirstDay({
     json, toast, openPage: (page) => showTab(page), refresh,
@@ -455,6 +466,7 @@ const PAGE_DESCRIPTIONS = {
   people: i18n.key('Manage the people who share your library.'),
   visibility: i18n.key('Who can see each part of your library.'),
   library: i18n.key('Library folders, and how they are indexed.'),
+  archive: i18n.key('Bring old drives, cards and backup folders into one archive.'),
   settings: i18n.key('This home’s name, its language, and copies of everything Ninaivu keeps.'),
 };
 
@@ -544,6 +556,8 @@ function showTab(page) {
     (panel) => panel.classList.toggle('active', panel.dataset.panel === name));
   if (name === 'visibility') { loadFolders(); refreshUndo(); }
   if (name === 'library') renderLibraryFolders();
+  // The Import page polls while it is open and stops when it is left.
+  if (name === 'archive') archivePanel?.show(); else archivePanel?.hide();
   if (name === 'overview') {
     // Visibility may have changed on another tab; re-ask rather than
     // showing a stale "what will they see" answer.
@@ -730,6 +744,13 @@ function renderLibrary() {
   const settings = $$('#settings');
   const indexing = $('#library-switches') || settings;
   for (const holder of new Set([settings, indexing])) holder.innerHTML = '';
+
+  // Which way up: the camera's tag always; faces only with OpenCV installed.
+  const upright = el('p', 'hint setting-note');
+  upright.textContent = data.capabilities?.opencv
+    ? i18n.t('Sideways photographs are turned upright during the scan: by the camera\'s own tag, and for photographs without one, by the faces in them. Nothing is asked and no file is changed; Rotate in the viewer corrects any that are wrong.')
+    : i18n.t('Sideways photographs are turned upright by the camera\'s own tag. To judge photographs without one by the faces in them, install OpenCV (requirements-straighten.txt) and restart. Rotate in the viewer corrects any by hand.');
+  indexing.appendChild(upright);
 
   // What the household is called. This is the default everyone sees; family
   // members may keep their own name for it instead, which only they see.

@@ -6,9 +6,12 @@ Evidence, strongest first:
 2. The recording date inside a video: the QuickTime/MP4 ``mvhd`` header,
    Apple's ``com.apple.quicktime.creationdate``, or an AVI ``IDIT``/``ICRD``
    chunk. Read directly, so it works without ffmpeg.
-3. A date written in the file name: ``IMG_20190512_123456``,
+3. A Google Takeout sidecar (``photo.jpg.json``) beside the file.
+4. A date written in the file name: ``IMG_20190512_123456``,
    ``IMG-20190512-WA0001`` (WhatsApp strips EXIF), ``PXL_…``, ``Screenshot_…``.
-4. The file's own timestamp, the earlier of modified and created.
+5. A dated folder (``2017/07``, ``2017-07-15 Kerala``), weighed against the
+   file's own timestamp.
+6. The file's own timestamp, the earlier of modified and created.
 
 Each is checked for plausibility first: nothing before 1900 (1990 for clocks a
 machine set) and nothing after tomorrow. Standard library only.
@@ -17,11 +20,13 @@ machine set) and nothing after tomorrow. Standard library only.
 from __future__ import annotations
 
 import calendar
+import json
 import os
 import re
 import struct
 import sys
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 
 MIN_YEAR = 1900
 MIN_FS_YEAR = 1990
@@ -314,3 +319,224 @@ def filename_date(name: str) -> datetime | None:
     except ValueError:
         return None
     return dt if plausible(dt) else None
+
+
+# --- Google Takeout sidecars ----------------------------------------------------
+
+_DUPLICATE = re.compile(r"^(.*)\((\d+)\)(\.[^.]*)?$")
+_SUPPLEMENTAL = ".supplemental-metadata"
+#: Takeout cuts sidecar names short, so ``…jpg.supplemental-metadata.json``
+#: often arrives as ``…jpg.supplemental-metad.json``. Only names at least this
+#: long are matched by prefix: a cut that short is never a full name.
+_TRUNCATED_MIN = 40
+
+
+@lru_cache(maxsize=256)
+def _json_names(folder: str, stamp: int) -> frozenset[str]:
+    """The .json names in a folder, normcased. Keyed on the folder's mtime."""
+    try:
+        with os.scandir(long_path(folder)) as entries:
+            return frozenset(os.path.normcase(e.name) for e in entries
+                             if e.name.lower().endswith(".json"))
+    except OSError:
+        return frozenset()
+
+
+def takeout_sidecars(path: str) -> list[str]:
+    """The Takeout JSON sidecars that describe *path*, most likely first."""
+    folder, base = os.path.split(os.fspath(path))
+    stem = os.path.splitext(base)[0]
+    try:
+        names = _json_names(folder, os.stat(long_path(folder)).st_mtime_ns)
+    except OSError:
+        return []
+    if not names:
+        return []
+    wanted = [f"{base}.json", f"{base}{_SUPPLEMENTAL}.json", f"{stem}.json"]
+    original, number = base, None
+    dup = _DUPLICATE.match(base)
+    if dup:
+        # IMG_1234(1).jpg is described by IMG_1234.jpg(1).json
+        original, number = dup.group(1) + (dup.group(3) or ""), dup.group(2)
+        wanted += [f"{original}({number}).json", f"{original}{_SUPPLEMENTAL}({number}).json"]
+    if stem.endswith("-edited"):
+        # Google's edited copy has no sidecar of its own; the original's applies.
+        original_base = stem[:-len("-edited")] + os.path.splitext(base)[1]
+        wanted += [f"{original_base}.json", f"{original_base}{_SUPPLEMENTAL}.json"]
+    found = [name for name in wanted if os.path.normcase(name) in names]
+    if not found:
+        target = os.path.normcase(original + _SUPPLEMENTAL)
+        suffix = os.path.normcase(f"({number}).json") if number else ".json"
+        cut = [n for n in names
+               if n.endswith(suffix) and len(n) - len(suffix) >= _TRUNCATED_MIN
+               and target.startswith(n[:-len(suffix)])]
+        if len(cut) == 1:
+            found = cut
+    return [os.path.join(folder, name) for name in found]
+
+
+def read_takeout(path: str) -> dict | None:
+    """The sidecar beside *path* as a dict, or None."""
+    for sidecar in takeout_sidecars(path):
+        try:
+            with open(long_path(sidecar), encoding="utf-8", errors="replace") as f:
+                meta = json.load(f)
+        except (OSError, ValueError):
+            continue
+        if isinstance(meta, dict):
+            return meta
+    return None
+
+
+def takeout_date(path: str) -> datetime | None:
+    """The capture time from a Google Takeout sidecar, or None."""
+    meta = read_takeout(path)
+    if not meta:
+        return None
+    for key in ("photoTakenTime", "creationTime"):
+        block = meta.get(key)
+        if isinstance(block, dict) and block.get("timestamp"):
+            dt = _from_timestamp(block["timestamp"], MIN_YEAR)
+            if dt:
+                return dt
+    return None
+
+
+def takeout_extras(path: str) -> dict:
+    """What the sidecar adds beyond the date: ``lat``/``lon`` when the export
+    holds a real location, and ``description``. Empty when there is none."""
+    meta = read_takeout(path)
+    if not meta:
+        return {}
+    out: dict = {}
+    for key in ("geoData", "geoDataExif"):
+        geo = meta.get(key)
+        if not isinstance(geo, dict):
+            continue
+        try:
+            lat, lon = float(geo.get("latitude") or 0), float(geo.get("longitude") or 0)
+        except (TypeError, ValueError):
+            continue
+        # Google writes 0.0/0.0 for "no location".
+        if (lat, lon) != (0.0, 0.0) and -90 <= lat <= 90 and -180 <= lon <= 180:
+            out["lat"], out["lon"] = round(lat, 6), round(lon, 6)
+            break
+    description = meta.get("description")
+    if isinstance(description, str) and description.strip():
+        out["description"] = description.strip()[:1000]
+    return out
+
+
+# --- dated folders ----------------------------------------------------------------
+
+_FOLDER_DATE = re.compile(
+    r"^((?:19|20)\d{2})(?:([-_. ])(0[1-9]|1[0-2])(?:\2(0[1-9]|[12]\d|3[01]))?)?(?![0-9A-Za-z])")
+_FOLDER_COMPACT = re.compile(
+    r"^((?:19|20)\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?![0-9A-Za-z])")
+_MONTH_FOLDER = re.compile(r"^(0?[1-9]|1[0-2])(?![0-9A-Za-z])")
+_DAY_FOLDER = re.compile(r"^(0?[1-9]|[12]\d|3[01])(?![0-9A-Za-z])")
+
+
+def folder_period(path: str) -> tuple[datetime, datetime] | None:
+    """The span of time the folders around a file name, as (start, end).
+
+    ``…/2017/07/beach.jpg`` names July 2017; ``…/2017-07-15 Kerala/x.jpg`` one
+    day; ``…/2017/Kerala/x.jpg`` the year. A month or day folder only counts
+    directly beneath its year or month. The deepest dated folder wins.
+    """
+    parts = [p for p in re.split(r"[\\/]+", os.fspath(path))[:-1] if p]
+    found = None
+    y = mo = d = None
+    depth = None
+    for part in parts:
+        full = _FOLDER_COMPACT.match(part)
+        if full:
+            y, mo, d = (int(v) for v in full.groups())
+            depth = "d"
+        else:
+            full = _FOLDER_DATE.match(part)
+            if full:
+                y = int(full.group(1))
+                mo = int(full.group(3)) if full.group(3) else None
+                d = int(full.group(4)) if full.group(4) else None
+                depth = "d" if d else "m" if mo else "y"
+            elif depth == "y" and _MONTH_FOLDER.match(part):
+                mo, depth = int(_MONTH_FOLDER.match(part).group(1)), "m"
+            elif depth == "m" and _DAY_FOLDER.match(part):
+                d, depth = int(_DAY_FOLDER.match(part).group(1)), "d"
+            else:
+                depth = None
+                continue
+        span = _span(y, mo, d)
+        if span is not None:
+            found = span
+    return found
+
+
+def _span(y, mo, d):
+    try:
+        if d:
+            start = datetime(y, mo, d)
+            end = start + timedelta(days=1)
+        elif mo:
+            start = datetime(y, mo, 1)
+            end = datetime(y + (mo == 12), mo % 12 + 1, 1)
+        else:
+            start = datetime(y, 1, 1)
+            end = datetime(y + 1, 1, 1)
+    except ValueError:
+        return None
+    if not plausible(start):
+        return None
+    return start, end - timedelta(microseconds=1)
+
+
+def weigh_folder(period: tuple[datetime, datetime],
+                 file_dt: datetime | None) -> tuple[datetime, str]:
+    """A timestamp inside or before the folder's span is more precise than the
+    folder; one after it is a later copy, so the folder wins."""
+    start, end = period
+    if file_dt is not None and file_dt <= end:
+        return file_dt, "filesystem"
+    return start, "folder"
+
+
+def file_date(st: os.stat_result) -> datetime | None:
+    """The earlier of modified and created as local time, or None when the
+    modified time itself is a dead clock (1980, 1970, the future)."""
+    modified = getattr(st, "st_mtime", None)
+    if _from_timestamp(modified, MIN_FS_YEAR) is None:
+        return None
+    best = float(modified)
+    for name in ("st_birthtime", "st_ctime"):
+        other = getattr(st, name, None)
+        if other and other < best and _from_timestamp(other, MIN_FS_YEAR) is not None:
+            best = float(other)
+    return _from_timestamp(best, MIN_FS_YEAR)
+
+
+def fallback_date(path: str, st: os.stat_result | None = None) -> tuple[datetime | None, str]:
+    """The capture date when EXIF has none: (datetime or None, source), where
+    source is ``container``, ``takeout-json``, ``filename``, ``folder``,
+    ``filesystem`` or ``none``."""
+    dt = container_date(path)
+    if dt is not None:
+        return dt, "container"
+    dt = takeout_date(path)
+    if dt is not None:
+        return dt, "takeout-json"
+    dt = filename_date(path)
+    if dt is not None:
+        return dt, "filename"
+    if st is None:
+        try:
+            st = os.stat(long_path(os.fspath(path)))
+        except OSError:
+            st = None
+    own = file_date(st) if st is not None else None
+    period = folder_period(path)
+    if period is not None:
+        return weigh_folder(period, own)
+    if own is not None:
+        return own, "filesystem"
+    return None, "none"

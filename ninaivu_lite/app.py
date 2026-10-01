@@ -13,6 +13,7 @@ from flask import Flask, g, request
 from . import common
 from .common import ApiError
 from .config import Config
+from .importer import Importer
 from .scanner import Scanner
 from .version import __version__
 
@@ -47,11 +48,12 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
     app.config["ADDRESSES"] = list(addresses or [])
     app.config["SCANNER"] = scanner or Scanner(cfg.data_dir, cfg.folders)
     app.config["SCANNER"].auto = cfg.watch
+    app.config["IMPORTER"] = Importer(cfg.data_dir)
     app.json.ensure_ascii = False
     app.json.sort_keys = False
 
-    from . import api_admin, api_auth, api_gallery, api_share, pages
-    for module in (pages, api_auth, api_gallery, api_share, api_admin):
+    from . import api_admin, api_auth, api_gallery, api_import, api_share, api_sudar, pages
+    for module in (pages, api_auth, api_gallery, api_share, api_admin, api_import, api_sudar):
         app.register_blueprint(module.bp)
 
     asset_cache: dict[str, str] = {}

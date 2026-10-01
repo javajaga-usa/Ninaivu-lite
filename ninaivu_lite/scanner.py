@@ -118,6 +118,8 @@ class Scanner:
             self._walk_folder(conn, folder_id, path)
         self._set(unreachable=unreachable)
         self._make_thumbnails(conn)
+        if self._straighten(conn):
+            self._make_thumbnails(conn)      # only the ones just turned
         self._set(state="idle", last_finished=time.time())
 
     def _walk_folder(self, conn: sqlite3.Connection, folder_id: int, root: str) -> None:
@@ -137,17 +139,27 @@ class Scanner:
                     """INSERT INTO assets (folder_id, dir, name, ext, kind, size, mtime, captured_at,
                            date_key, date_source, width, height, camera, lens, iso, f_number,
                            exposure, focal_length, gps_lat, gps_lon, error, visibility,
-                           vis_source, thumb, large, missing)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,0)
+                           vis_source, rot_source, upright, thumb, large, missing)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,0)
                        ON CONFLICT (folder_id, dir, name) DO UPDATE SET
                            ext=excluded.ext, kind=excluded.kind, size=excluded.size,
                            mtime=excluded.mtime, captured_at=excluded.captured_at,
                            date_key=excluded.date_key, date_source=excluded.date_source,
-                           width=excluded.width, height=excluded.height, camera=excluded.camera,
+                           camera=excluded.camera,
                            lens=excluded.lens, iso=excluded.iso, f_number=excluded.f_number,
                            exposure=excluded.exposure, focal_length=excluded.focal_length,
                            gps_lat=excluded.gps_lat, gps_lon=excluded.gps_lon,
-                           error=excluded.error, thumb=0, large=0, missing=0""",
+                           error=excluded.error, thumb=0, large=0, missing=0,
+                           -- a turn somebody set by hand outlives a changed file, and the
+                           -- shape stays the shape as shown
+                           width=CASE WHEN assets.rot_source='manual' AND assets.rotation % 180 != 0
+                                      THEN excluded.height ELSE excluded.width END,
+                           height=CASE WHEN assets.rot_source='manual' AND assets.rotation % 180 != 0
+                                       THEN excluded.width ELSE excluded.height END,
+                           rotation=CASE WHEN assets.rot_source='manual' THEN assets.rotation ELSE 0 END,
+                           rot_source=CASE WHEN assets.rot_source='manual' THEN 'manual'
+                                           ELSE excluded.rot_source END,
+                           upright=CASE WHEN assets.rot_source='manual' THEN 1 ELSE excluded.upright END""",
                     pending)
             pending.clear()
             self.generation += 1
@@ -170,6 +182,10 @@ class Scanner:
             if rel_dir not in rules:
                 rules[rel_dir] = db.rule_for(conn, folder_id, rel_dir)
             rule = rules[rel_dir]
+            # A camera's own orientation tag is final (the browser and the
+            # thumbnails honour it); a photograph without one is looked at
+            # for its faces later, in the quiet pass after the thumbnails.
+            tagged = (info.get("orientation") or 1) != 1
             pending.append((folder_id, rel_dir, name, os.path.splitext(name)[1].lower().lstrip("."),
                             kind, st.st_size, st.st_mtime, info["taken_at"],
                             day_of(info["taken_at"]), info.get("taken_source"), info.get("width"),
@@ -177,7 +193,9 @@ class Scanner:
                             info.get("iso"), info.get("f_number"), info.get("exposure"),
                             info.get("focal_length"), info.get("lat"), info.get("lon"),
                             info.get("error"), db.VIS_FAMILY if rule is None else rule,
-                            "default" if rule is None else "rule"))
+                            "default" if rule is None else "rule",
+                            "exif" if tagged else "none",
+                            1 if tagged or kind != "picture" or info.get("error") else 0))
             if row:
                 seen.add(row[0])
             else:
@@ -195,6 +213,43 @@ class Scanner:
                 conn.executemany("UPDATE assets SET missing = 1 WHERE id = ?",
                                  [(i,) for i in gone])
             self.generation += 1
+
+    def add_file(self, conn: sqlite3.Connection, folder_id: int, root: str, rel_dir: str,
+                 name: str, visibility: int | None = None) -> int:
+        """Index one new file now (a copy Sudar just saved), with its small
+        thumbnail, so it is on screen before the next scan. Returns its id."""
+        full = full_path(root, rel_dir, name)
+        st = os.stat(long_path(full))
+        kind = media.kind_of(name) or "picture"
+        info = media.describe(full, name, kind, st)
+        if visibility is None:
+            rule = db.rule_for(conn, folder_id, rel_dir)
+            visibility, source = (db.VIS_FAMILY, "default") if rule is None else (rule, "rule")
+        else:
+            source = "item"
+        with conn:
+            cur = conn.execute(
+                """INSERT INTO assets (folder_id, dir, name, ext, kind, size, mtime, captured_at,
+                       date_key, date_source, width, height, camera, lens, iso, f_number,
+                       exposure, focal_length, gps_lat, gps_lon, error, visibility, vis_source,
+                       upright)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)
+                   ON CONFLICT (folder_id, dir, name) DO UPDATE SET
+                       size=excluded.size, mtime=excluded.mtime, captured_at=excluded.captured_at,
+                       date_key=excluded.date_key, date_source=excluded.date_source,
+                       width=excluded.width, height=excluded.height, thumb=0, large=0, missing=0""",
+                (folder_id, rel_dir, name, os.path.splitext(name)[1].lower().lstrip("."), kind,
+                 st.st_size, st.st_mtime, info["taken_at"], day_of(info["taken_at"]),
+                 info.get("taken_source"), info.get("width"), info.get("height"),
+                 info.get("camera"), info.get("lens"), info.get("iso"), info.get("f_number"),
+                 info.get("exposure"), info.get("focal_length"), info.get("lat"), info.get("lon"),
+                 info.get("error"), visibility, source))
+            asset_id = int(cur.lastrowid) if cur.lastrowid else int(conn.execute(
+                "SELECT id FROM assets WHERE folder_id = ? AND dir = ? AND name = ?",
+                (folder_id, rel_dir, name)).fetchone()[0])
+        self.generation += 1
+        self.thumbnail_now(conn, asset_id, "s")
+        return asset_id
 
     def _files(self, root: str):
         """(relative dir, name, full path, stat) for every file under *root*."""
@@ -248,8 +303,8 @@ class Scanner:
             self._set(state=state, thumbs_total=total, thumbs_left=total)
             while not self._stop.is_set():
                 rows = conn.execute(
-                    f"""SELECT a.id, a.kind, a.dir, a.name, a.thumb, f.path AS root FROM assets a
-                        JOIN folders f ON f.id = a.folder_id
+                    f"""SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.rotation, f.path AS root
+                        FROM assets a JOIN folders f ON f.id = a.folder_id
                         WHERE {where} AND a.missing = 0
                         ORDER BY a.captured_at DESC LIMIT 50""").fetchall()
                 left = conn.execute(
@@ -263,12 +318,65 @@ class Scanner:
                         return  # a rescan was asked for: walk first, then carry on here
                     self._thumbnail(conn, row, sizes)
 
+    # --- which way up ------------------------------------------------------------
+
+    def _straighten(self, conn: sqlite3.Connection) -> int:
+        """Photographs without a camera tag, looked at once each for their
+        faces (when OpenCV is installed) and turned in the index. Nobody is
+        asked and the file is never touched; the thumbnails are remade, and
+        the viewer turns the picture as it shows it. Returns how many turned."""
+        if not media.FACES:
+            return 0
+        turned = 0
+        while not self._stop.is_set() and not self._wake.is_set():
+            rows = conn.execute(
+                """SELECT a.id, a.dir, a.name, a.width, a.height, f.path AS root FROM assets a
+                   JOIN folders f ON f.id = a.folder_id
+                   WHERE a.upright = 0 AND a.kind = 'picture' AND a.missing = 0
+                   ORDER BY a.captured_at DESC LIMIT 50""").fetchall()
+            if not rows:
+                break
+            self._set(state="finishing", thumbs_total=0, thumbs_left=0)
+            for row in rows:
+                if self._stop.is_set() or self._wake.is_set():
+                    return turned
+                rotation = media.detect_rotation(full_path(row["root"], row["dir"], row["name"]))
+                turned += self.set_rotation(conn, row["id"], rotation, "faces" if rotation else "none",
+                                            remake=False)
+        return turned
+
+    def set_rotation(self, conn: sqlite3.Connection, asset_id: int, rotation: int, source: str,
+                     remake: bool = True) -> bool:
+        """Store a quarter turn for one photograph (the index's answer, never the
+        file's), swapping its width and height as shown. The thumbnails are
+        remade now, or left for the thumbnail pass when *remake* is False.
+        Returns whether the picture turned a different way than before."""
+        row = conn.execute("SELECT rotation, width, height FROM assets WHERE id = ?",
+                           (asset_id,)).fetchone()
+        if row is None:
+            return False
+        rotation %= 360
+        changed = rotation != (row["rotation"] or 0)
+        swap = changed and (rotation % 180) != ((row["rotation"] or 0) % 180)
+        width, height = (row["height"], row["width"]) if swap else (row["width"], row["height"])
+        with conn:
+            conn.execute(
+                "UPDATE assets SET rotation = ?, rot_source = ?, upright = 1, width = ?, height = ?"
+                + (", thumb = 0, large = 0" if changed else "") + " WHERE id = ?",
+                (rotation, source, width, height, asset_id))
+        if changed:
+            self.generation += 1
+            if remake:
+                self.thumbnail_now(conn, asset_id, "s")
+        return changed
+
     def _thumbnail(self, conn: sqlite3.Connection, row: sqlite3.Row,
                    sizes: tuple[str, ...]) -> bool:
         full = full_path(row["root"], row["dir"], row["name"])
         if row["kind"] == "video":
             sizes = ("s", "l")   # one ffmpeg call makes both
-        ok, colour = media.make_thumbnails(full, row["kind"], self.thumbs_dir, row["id"], sizes)
+        ok, colour = media.make_thumbnails(full, row["kind"], self.thumbs_dir, row["id"], sizes,
+                                           rotation=row["rotation"] or 0)
         version = int(time.time() * 1000) % 2_000_000_000
         with conn:
             if "s" in sizes:
@@ -283,11 +391,11 @@ class Scanner:
     def thumbnail_now(self, conn: sqlite3.Connection, asset_id: int, size: str = "s") -> bool:
         """Make one thumbnail right away, for a picture that is on screen."""
         row = conn.execute(
-            """SELECT a.id, a.kind, a.dir, a.name, a.thumb, f.path AS root FROM assets a
+            """SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.rotation, f.path AS root FROM assets a
                JOIN folders f ON f.id = a.folder_id WHERE a.id = ?""", (asset_id,)).fetchone()
         if row is None or row["thumb"] == db.THUMB_NONE:
             return False
-        if media.thumb_path(self.thumbs_dir, asset_id, size).exists():
+        if row["thumb"] == db.THUMB_OK and media.thumb_path(self.thumbs_dir, asset_id, size).exists():
             return True
         return self._thumbnail(conn, row, (size,))
 

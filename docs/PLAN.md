@@ -2,7 +2,7 @@
 
 **நினைவு லைட்** · Your family's photographs, at home — the small, steady edition.
 
-> **Status:** 1.2.1 (phases 0–4 done; Control Panel, copyright and installers added). See [CHANGELOG](../CHANGELOG.md).
+> **Status:** 1.3.0 (phases 0–4 done; Control Panel, installers, Import and Sudar added). See [CHANGELOG](../CHANGELOG.md).
 
 ## 1. What Lite is
 
@@ -18,7 +18,8 @@ It reads your photo folders, never changes them, and shows them to your family o
 3. **Never broken.** No raw errors, no blank screens; every failure gets a plain message in the
    user's language and a way forward.
 4. **Modest hardware first.** Smooth on a Raspberry Pi 4 and a 2015 Windows 10 laptop.
-5. **Three dependencies.** Flask, Pillow, waitress. Everything else is optional.
+5. **Three dependencies.** Flask, Pillow, waitress. Everything else is optional
+   (pillow-heif for HEIC, ffmpeg for video posters, OpenCV for sideways photos without a tag).
 6. **Tamil and English are equal**, including server messages.
 7. **HTTP on the home network** with sound basic security. HTTPS is a later phase.
 
@@ -55,10 +56,25 @@ ruff targets `py310`.
   log; opens after the first-time setup.
 - **Optional move to Ninaivu** via `--export` ([UPGRADE.md](UPGRADE.md)); Ninaivu itself is not changed.
 
+### Added in 1.3
+- **Import** (`importer.py`, `takeout.py`, `api_import.py`, `static/js/archive.js`): Ninaivu's
+  archive engine cut to the core — dated `YYYY/MM/DD` archive, hash-verified copies, content
+  duplicates, dry run, audit, resume, Takeout sidecars and albums, adopt into the library. One
+  thread, stdlib + Pillow. Also a first-day step that asks for the folders to sweep.
+- **Sudar** (`static/js/sudar/`, `static/js/studio/`, `api_sudar.py`): Ninaivu's studio over its
+  own develop engine, with the built-in plain-words planner and clothing colour; no model, no
+  server inference. The one server call saves an administrator's copy beside the original.
+
+- **Straighten** (`media.detect_rotation`, `Scanner._straighten`): the camera's tag is final;
+  an untagged photograph is judged by its faces (Ninaivu's cheapest detector, OpenCV's Haar
+  cascades, optional) in a quiet pass after the thumbnails, and turned in the index only.
+  `POST /api/asset/<id>/rotate` is the administrator's hand.
+
 ### Not in Lite (stays in full Ninaivu)
-AI of every kind, cloud/phone backup, editing and rotation, deleting media, archive import,
-maps, disk health, tray icon, resource modes, Tailscale/zeroconf, update checker, notifications,
-screen lock, HTTPS.
+AI with models (faces, search by description, generative edits, background and object tools,
+upscaling), cloud/phone backup, rotation, deleting media, the importer's pacing, drive-health
+sampling and classifiers, maps, disk health, tray icon, resource modes, Tailscale/zeroconf,
+update checker, notifications, screen lock, HTTPS.
 
 ### Later phases (after 1.0)
 Upload from phone browser · HTTPS · map view (offline tiles) · optional face grouping as a plug-in.
@@ -75,13 +91,18 @@ ninaivu_lite/
   auth.py         users, scrypt, PINs, sessions, throttles, setup code
   scanner.py      incremental walk, dates, folder rules, two thumbnail passes, watching
   media.py dates.py folders.py backups.py net.py export.py
+  importer.py     one background thread: dated archive, hashes, duplicates, dry run, audit
+  takeout.py      a Google Photos export's albums, made again after the import
   common.py       request helpers, visibility filter, Ninaivu item shape
   pages.py        /, /admin, /share/<token>, manifests, health, local stop
   control.py      state file, start/stop from outside, start at sign-in (stdlib only)
   panel.py        the Control Panel window (Tk)
   api_auth.py api_gallery.py api_share.py api_admin.py   Ninaivu-compatible JSON API
+  api_import.py   the Import page's calls (Ninaivu's archive API, trimmed)
+  api_sudar.py    Sudar's one call: save the edited copy beside the original
   templates/      index.html, admin.html, share.html   (Ninaivu's, trimmed)
   static/         Ninaivu's JS modules and CSS, trimmed; i18n/en.json, ta.json
+                  js/studio/ the develop engine, js/sudar/ the studio, js/archive.js the Import page
 launcher/start.py, start.cmd, start.sh, tools/
 tests/
 ```

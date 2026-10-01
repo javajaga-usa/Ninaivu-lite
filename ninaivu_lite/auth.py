@@ -204,6 +204,7 @@ class User:
                 "download": self.family_or_more,
                 "favorite": self.family_or_more,
                 "rotate": False,               # Lite never changes a photograph
+                "save_edits": self.is_admin,   # Sudar saves a copy beside the original
                 "set_visibility": self.is_admin,
                 "manage_people": self.is_admin,
                 "delete_media": False,         # Lite never deletes a photograph

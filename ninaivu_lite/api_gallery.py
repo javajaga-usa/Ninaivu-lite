@@ -491,6 +491,25 @@ def assets_bulk():
     return jsonify({"updated": len(seen), "skipped": len(ids) - len(seen)})
 
 
+@bp.post("/api/asset/<int:asset_id>/rotate")
+def asset_rotate(asset_id: int):
+    """Turn a photograph by hand: the index's answer, never the file's. For
+    the one the scan could not judge, or judged wrong."""
+    require_admin()
+    row = visible_asset(asset_id)
+    if row["kind"] != "picture":
+        fail(400, "Only photographs can be turned.")
+    data = body()
+    try:
+        rotation = int(data.get("rotation", (row["rotation"] + 90) % 360))
+    except (TypeError, ValueError):
+        fail(400, "Rotation must be 0, 90, 180 or 270.")
+    if rotation % 360 not in media.ROTATIONS:
+        fail(400, "Rotation must be 0, 90, 180 or 270.")
+    scanner().set_rotation(conn(), asset_id, rotation % 360, "manual")
+    return jsonify(asset_public(visible_asset(asset_id)))
+
+
 @bp.post("/api/visibility")
 def set_visibility():
     """Mark chosen items public, family-only or hidden, remembering what they

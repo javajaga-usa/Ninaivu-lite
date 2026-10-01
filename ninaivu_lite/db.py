@@ -189,6 +189,55 @@ MIGRATIONS: list[str] = [
                                         width, height, duration, thumb, thumb_v, color, date_key);
     DROP INDEX assets_date;
     """,
+    # 4 — the importer: one row per file it has looked at, one per run. Progress
+    # lives here, so Start after a power cut carries on where it stopped.
+    """
+    CREATE TABLE import_files (
+        id            INTEGER PRIMARY KEY,
+        source        TEXT NOT NULL UNIQUE,  -- absolute path in the source folder
+        name          TEXT NOT NULL,
+        size          INTEGER NOT NULL DEFAULT 0,
+        mtime         REAL,
+        hash          TEXT,                  -- sha256 of the source, when read
+        dest_hash     TEXT,                  -- sha256 of the copy, re-read from disk
+        taken         TEXT,                  -- 'YYYY-MM-DD HH:MM:SS' the file was filed under
+        date_source   TEXT,
+        status        TEXT NOT NULL,         -- pending | verified | duplicate | skipped | error
+                                             -- | planned | plan-duplicate | plan-skip
+        destination   TEXT,                  -- where the copy went (or would go)
+        duplicate_of  TEXT,
+        error         TEXT,
+        job_id        INTEGER,
+        updated_at    REAL NOT NULL
+    );
+    CREATE INDEX import_files_hash ON import_files (hash, status);
+    CREATE INDEX import_files_size ON import_files (size, status);
+    CREATE INDEX import_files_status ON import_files (status, updated_at DESC);
+    CREATE TABLE import_jobs (
+        id            INTEGER PRIMARY KEY,
+        sources       TEXT NOT NULL,         -- JSON list of absolute paths
+        destination   TEXT NOT NULL,
+        mode          TEXT NOT NULL,         -- copy | dry-run | verify
+        state         TEXT NOT NULL,         -- running | completed | stopped | failed
+        phase         TEXT NOT NULL DEFAULT 'counting',
+        total_files   INTEGER NOT NULL DEFAULT 0,
+        total_bytes   INTEGER NOT NULL DEFAULT 0,
+        bytes_copied  INTEGER NOT NULL DEFAULT 0,
+        started_at    REAL NOT NULL,
+        ended_at      REAL,
+        message       TEXT
+    );
+    """,
+    # 5 — which way up a photograph goes, decided during the scan and stored
+    # here, never in the file: the camera's tag, faces (when OpenCV is there),
+    # or a person. `upright` says the question has been looked at.
+    """
+    ALTER TABLE assets ADD COLUMN rotation INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE assets ADD COLUMN rot_source TEXT NOT NULL DEFAULT 'none';
+    ALTER TABLE assets ADD COLUMN upright INTEGER NOT NULL DEFAULT 1;
+    UPDATE assets SET upright = 0 WHERE kind = 'picture';
+    CREATE INDEX assets_upright ON assets (upright, kind, missing);
+    """,
 ]
 
 

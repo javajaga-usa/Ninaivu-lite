@@ -32,6 +32,10 @@ def scanner() -> Scanner:
     return current_app.config["SCANNER"]
 
 
+def importer():
+    return current_app.config["IMPORTER"]
+
+
 def conn() -> sqlite3.Connection:
     if "db" not in g:
         g.db = db.connect(cfg().data_dir)
@@ -231,8 +235,8 @@ def asset_public(row: sqlite3.Row, who: auth.User | None = None) -> dict[str, An
         "needs_proxy": False,
         "src": f"/api/file/{asset_id}",
         "view": f"/api/file/{asset_id}" if can_play else f"/api/preview/{asset_id}",
-        "rotation": 0,
-        "rotation_source": "none",
+        "rotation": row["rotation"] or 0,
+        "rotation_source": row["rot_source"] or "none",
         "visibility": db.VIS_NAMES.get(row["visibility"], "family"),
         "visibility_source": row["vis_source"],
         "caption": None, "city": None, "country": None,

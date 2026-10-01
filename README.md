@@ -10,9 +10,11 @@ It runs on a computer at home, reads your photo folders without ever changing th
 them to your family on phones, tablets and computers on the same Wi-Fi. Nothing leaves your house.
 
 It uses **Ninaivu's own screens** — the family gallery, the admin console and the share
-page — over a much lighter engine: no AI, no cloud, three small dependencies.
+page — over a much lighter engine: no models, no cloud, three small dependencies. Two of
+Ninaivu's tools come along, lightened: the **Import** that sweeps old drives into one
+archive, and **Sudar**, the photo studio that runs in the browser.
 
-> **Status: 1.2.1.** See the [changelog](CHANGELOG.md) and the [user guide](docs/USER-GUIDE.md)
+> **Status: 1.3.0.** See the [changelog](CHANGELOG.md) and the [user guide](docs/USER-GUIDE.md)
 > ([தமிழில்](docs/USER-GUIDE.ta.md)).
 
 ## Why Lite
@@ -21,8 +23,11 @@ page — over a much lighter engine: no AI, no cloud, three small dependencies.
 | --- | --- | --- |
 | Goal | Everything a family library can do | The essentials, fast and hard to break |
 | Screens | Family app, admin console, share page | The same screens, fewer buttons |
-| AI (faces, search by description, studio) | Yes | No |
-| Cloud backup, phone backup, editing | Yes | No |
+| AI with models (faces, search by description, generative edits) | Yes | No |
+| Sudar, the photo studio | Yes, with the model-backed tools | Yes, in the browser |
+| Sideways photos put right | A model, faces, or CLIP; with Undo | The camera's tag, then faces (optional OpenCV) |
+| Import old drives into one archive | Yes, with pacing and drive-health checks | Yes, the essentials |
+| Cloud backup, phone backup | Yes | No |
 | Dependencies | Many, some large | Flask, Pillow, waitress |
 | Runs on | Capable PCs | Windows 10+, macOS, Linux, Raspberry Pi 4 |
 
@@ -37,6 +42,15 @@ page — over a much lighter engine: no AI, no cloud, three small dependencies.
   set per folder (new files follow the folder) or per photo, with undo.
 - **Admin console** at `/admin` — overview, library folders and rescans, people (role,
   PIN/password, which folder they see), visibility, settings and a backup download.
+- **Import** — sweep old drives, cards and backup folders into one archive filed by the day
+  each photo was taken, every copy hash-checked, duplicates left in place, sources never
+  changed. Google Takeout exports keep their dates, places, descriptions and albums.
+- **Sideways photos put right** during the scan: by the camera's tag, and, with the optional
+  OpenCV extra, by the faces in a photo that has none. Stored in the index; files are never
+  changed. Rotate in the viewer corrects any by hand.
+- **Sudar** — edit a photo in the browser: light, colour, detail, crops, looks, *make it
+  warmer* in plain words, clothing colour. No model, nothing leaves the house, the original
+  is never changed; an administrator can save the result as a copy beside it.
 - **Control Panel** — a small window (like Ninaivu's) to start, stop and restart Ninaivu
   Lite, open the gallery and console, see the address for phones, and start with the computer.
 - **Share links** for one photo or an album, with an optional password and expiry.
@@ -83,6 +97,7 @@ Run it by hand instead:
 
 ```bash
 python -m pip install -r requirements.txt
+python -m pip install -r requirements-straighten.txt   # optional: sideways photos without a tag
 python -m ninaivu_lite "D:\Photos"          # Windows
 python3 -m ninaivu_lite ~/Pictures         # macOS and Linux
 ```

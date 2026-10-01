@@ -661,6 +661,7 @@ function applyPermissions() {
   $('#sel-unfav').hidden = !can.favorite;
   $('#sel-download').hidden = !can.download;
   viewer.canDownload = !!can.download;
+  viewer.canSave = !!can.save_edits;
   $('#v-fav').hidden = !can.favorite;
   $('#v-download').hidden = !can.download;
   // Albums and share links are for family members and admins.
@@ -1999,7 +2000,10 @@ function wireViewer() {
   viewer.addEventListener('change', () => syncViewerVisibility());
 
   viewer.addEventListener('mutated', async (event) => {
-    const { id, favorite } = event.detail;
+    const { id, favorite, rotation } = event.detail;
+    // A turned photograph has a new shape and a new thumbnail: the grid is
+    // laid out again rather than patched.
+    if (rotation !== undefined) { reload(); return; }
     if (favorite !== undefined) {
       const cell = grid.layout.cells.find((c) => c.id === id);
       if (cell) {
