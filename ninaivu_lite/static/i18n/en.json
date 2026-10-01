@@ -2932,5 +2932,18 @@
   "Sideways photographs are turned upright during the scan: by the camera's own tag, and for photographs without one, by the faces in them. Nothing is asked and no file is changed; Rotate in the viewer corrects any that are wrong.": "Sideways photographs are turned upright during the scan: by the camera's own tag, and for photographs without one, by the faces in them. Nothing is asked and no file is changed; Rotate in the viewer corrects any that are wrong.",
   "Sideways photographs are turned upright by the camera's own tag. To judge photographs without one by the faces in them, install OpenCV (requirements-straighten.txt) and restart. Rotate in the viewer corrects any by hand.": "Sideways photographs are turned upright by the camera's own tag. To judge photographs without one by the faces in them, install OpenCV (requirements-straighten.txt) and restart. Rotate in the viewer corrects any by hand.",
   "Only photographs can be turned.": "Only photographs can be turned.",
-  "Rotation must be 0, 90, 180 or 270.": "Rotation must be 0, 90, 180 or 270."
+  "Rotation must be 0, 90, 180 or 270.": "Rotation must be 0, 90, 180 or 270.",
+  "Add at least one source folder.": "Add at least one source folder.",
+  "Choose a destination folder for the archive.": "Choose a destination folder for the archive.",
+  "Give the full path of the source folder, not “{path}”.": "Give the full path of the source folder, not “{path}”.",
+  "Source “{path}” is not a folder that can be opened.": "Source “{path}” is not a folder that can be opened.",
+  "Source “{path}” is in the library already. Importing it would show every photo twice: as it is, and as the archived copy.": "Source “{path}” is in the library already. Importing it would show every photo twice: as it is, and as the archived copy.",
+  "Give the full path of the destination folder, for example D:\\Photo Archive.": "Give the full path of the destination folder, for example D:\\Photo Archive.",
+  "Destination exists but is not a folder: {path}": "Destination exists but is not a folder: {path}",
+  "Destination is the same folder as source “{path}”. The archive must be somewhere else.": "Destination is the same folder as source “{path}”. The archive must be somewhere else.",
+  "Source “{path}” is inside the destination, so all of it would be skipped as part of the archive. Choose a source outside it.": "Source “{path}” is inside the destination, so all of it would be skipped as part of the archive. Choose a source outside it.",
+  "Source “{path}” is already covered by source “{other}”.": "Source “{path}” is already covered by source “{other}”.",
+  "The archive “{destination}” sits inside source “{path}”. It is skipped during the scan, so files already archived are not read back in.": "The archive “{destination}” sits inside source “{path}”. It is skipped during the scan, so files already archived are not read back in.",
+  "Choose the archive folder to audit.": "Choose the archive folder to audit.",
+  "A download carries no metadata; a saved copy keeps the original's camera, exposure and place.": "A download carries no metadata; a saved copy keeps the original's camera, exposure and place."
 }

@@ -39,6 +39,7 @@ from .common import (
     cfg,
     conn,
     fail,
+    importer as engine,
     library_exists,
     require_admin,
     require_family,
@@ -271,12 +272,33 @@ def _indexing_job(scan: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _import_job() -> dict[str, Any] | None:
+    """The importer's run, for the strip on every console page."""
+    job = engine().progress()
+    if not job["is_scanning"]:
+        return None
+    total, done = job["total_files"] or 0, job["processed"] or 0
+    counting = job["phase"] == "counting"
+    return {
+        "id": "import",
+        "title": {"dry-run": "Dry run", "verify": "Auditing the archive"}.get(
+            job["job_mode"], "Consolidating"),
+        "detail": f"{total:,}" if counting else f"{done:,} / {total:,}",
+        "percent": None if counting or not total else min(100, round(done * 100 / total)),
+        "eta": job["eta_seconds"],
+        "paused": bool(job["is_paused"]),
+        "uses": ["disk"],
+        "page": "archive",
+    }
+
+
 @bp.get("/api/status/activity")
 def status_activity():
     if not user().is_admin:
         return jsonify({"jobs": [], "running": False, "scan": dict(IDLE_SCAN)})
     scan = scan_snapshot()
-    jobs = [_indexing_job(scan)] if scan["running"] else []
+    jobs = [job for job in (_import_job(), _indexing_job(scan) if scan["running"] else None)
+            if job]
     response = jsonify({
         "running": bool(jobs),
         "jobs": jobs,
@@ -596,19 +618,22 @@ def views_dir() -> Path:
     return Path(cfg().data_dir) / "views"
 
 
-def viewing_response(row: sqlite3.Row, path: str, max_age: int) -> Response:
+def viewing_response(row: sqlite3.Row, path: str, max_age: int, turned: bool = False) -> Response:
     """The picture re-encoded for viewing: upright, at most 2560 px, and with
     no metadata at all. Kept on disk in the data folder, keyed by the file's
-    size and time, so a second look costs nothing."""
+    size and time, so a second look costs nothing. *turned* bakes in the
+    index's own quarter turn (faces, or a hand): for a copy that leaves the
+    viewer, which otherwise turns the picture itself as it shows it."""
     try:
         st = os.stat(long_path(path))
     except OSError:
         fail(404, "This file is not available right now.")
+    rotation = (row["rotation"] or 0) if turned else 0
     cache = views_dir() / f"{row['id'] % 256:02x}" / \
-        f"{row['id']}-{st.st_size}-{int(st.st_mtime)}.jpg"
+        f"{row['id']}-{st.st_size}-{int(st.st_mtime)}{f'-t{rotation}' if rotation else ''}.jpg"
     if not cache.is_file():
         try:
-            data = media.viewing_copy(path)
+            data = media.viewing_copy(path, rotation=rotation)
         except Exception as exc:  # noqa: BLE001 — damaged or unsupported: say so
             log.debug("no viewing copy for %s: %s", path, exc)
             fail(415, "This photograph could not be converted for the browser.")
@@ -648,7 +673,7 @@ def guarded_file(row: sqlite3.Row, who: auth.User) -> Response:
     if who.is_guest and may_carry_location(row):
         # A guest gets the gallery's view of a photograph, never its EXIF:
         # the original's bytes say where it was taken.
-        return viewing_response(row, path, 3600)
+        return viewing_response(row, path, 3600, turned=True)
     return original_response(row, path)
 
 

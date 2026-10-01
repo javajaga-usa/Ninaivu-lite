@@ -192,11 +192,20 @@ def test_audit_finds_a_copy_that_changed(drive, tmp_path):
     assert sha(target) == rows(tmp_path / "data")["sunset.jpg"]["dest_hash"]
 
 
-def test_pause_and_stop_leave_nothing_half_written(tmp_path):
+def test_pause_and_stop_leave_nothing_half_written(tmp_path, monkeypatch):
     src = tmp_path / "src"
     for i in range(12):
         noisy_jpeg(src / f"p{i}.jpg", "2020:01:01 10:00:00", seed=i, size=(1200, 900))
     dest = tmp_path / "Archive"
+    # A slow disk, so the run is still going when it is paused and stopped,
+    # however fast the machine running this test is.
+    real_copy = Importer._copy_and_hash
+
+    def slow_copy(self, source, tmp):
+        time.sleep(0.05)
+        return real_copy(self, source, tmp)
+
+    monkeypatch.setattr(Importer, "_copy_and_hash", slow_copy)
     engine = Importer(tmp_path / "data")
     engine.pause()                      # before a run: nothing to pause
     engine.start([str(src)], str(dest), ["image"], "copy")
@@ -238,19 +247,41 @@ def test_choosing_a_folder_inside_an_archive_uses_its_root(tmp_path):
     assert importer.resolve_destination(str(plain))["corrected"] is False
 
 
+def said(problems: list[dict]) -> list[str]:
+    return [p["text"] for p in problems]
+
+
 def test_validation_refuses_what_cannot_work(tmp_path):
     src = tmp_path / "src"
     src.mkdir()
     data = str(tmp_path / "data")
-    assert importer.validate([], "", data) == ["Add at least one source folder.",
-                                               "Choose a destination folder for the archive."]
-    assert "same folder" in importer.validate([str(src)], str(src), data)[0]
-    assert "inside the destination" in importer.validate([str(src)], str(tmp_path), data)[0]
-    assert "already covered" in importer.validate([str(src), str(tmp_path)],
-                                                  str(tmp_path / "x"), data)[-1]
-    assert "data folder" in importer.validate([str(src)], data + "/archive", data)[0]
-    assert "can be opened" in importer.validate([str(tmp_path / "nope")],
-                                                   str(tmp_path / "x"), data)[0]
+    assert said(importer.validate([], "", data)) == ["Add at least one source folder.",
+                                                     "Choose a destination folder for the archive."]
+    assert "same folder" in said(importer.validate([str(src)], str(src), data))[0]
+    assert "inside the destination" in said(importer.validate([str(src)], str(tmp_path), data))[0]
+    assert "already covered" in said(importer.validate([str(src), str(tmp_path)],
+                                                        str(tmp_path / "x"), data))[-1]
+    assert "data folder" in said(importer.validate([str(src)], data + "/archive", data))[0]
+    assert "can be opened" in said(importer.validate([str(tmp_path / "nope")],
+                                                     str(tmp_path / "x"), data))[0]
+    # The sentence travels as its key and values, so a Tamil console can
+    # translate the words and keep the path.
+    problem = importer.validate([str(tmp_path / "nope")], str(tmp_path / "x"), data)[0]
+    assert problem["key"] == "Source “{path}” is not a folder that can be opened."
+    assert problem["vars"] == {"path": str(tmp_path / "nope")}
+
+
+def test_a_source_already_in_the_library_is_refused(tmp_path):
+    """Archiving the library beside itself would show every photo twice."""
+    library = tmp_path / "Pictures"
+    (library / "2019").mkdir(parents=True)
+    data = str(tmp_path / "data")
+    for source in (library, library / "2019"):
+        problems = said(importer.validate([str(source)], str(tmp_path / "Archive"), data,
+                                          [str(library)]))
+        assert problems and "in the library already" in problems[0]
+    assert importer.validate([str(tmp_path)], str(tmp_path / "Archive"), data,
+                             [str(library)]) == []        # the library inside a source is fine
 
 
 def test_estimate_counts_what_would_be_taken(drive, tmp_path):
@@ -301,10 +332,16 @@ def test_the_console_runs_an_import(app, admin, drive, tmp_path):
            "media_types": ["image", "video"]}
     v = admin.post("/api/archive/validate", json=job).get_json()
     assert v["ok"] and v["problems"] == []
+    strip = admin.get("/api/status/activity").get_json()
+    assert [j["id"] for j in strip["jobs"]] == []
     est = admin.post("/api/archive/capacity", json={**job, "progress_token": "abc"}).get_json()
     assert est["ok"] and est["files"] == 7
     r = admin.post("/api/archive/start", json={**job, "mode": "copy"})
     assert r.status_code == 200, r.get_json()
+    strip = admin.get("/api/status/activity").get_json()
+    if strip["running"]:                      # the run is quick; the strip shows it while it lasts
+        job_row = next(j for j in strip["jobs"] if j["id"] == "import")
+        assert job_row["page"] == "archive" and job_row["title"] == "Consolidating"
     status = wait_for(admin)
     assert status["phase"] == "done" and status["verified"] == 6 and status["duplicates"] == 1
     assert status["handoff"] == {"destination": str(dest), "verified": 6, "available": True,
@@ -329,11 +366,17 @@ def test_the_console_runs_an_import(app, admin, drive, tmp_path):
     assert (dest / "2019" / "05" / "12" / "beach.jpg").is_file()
 
 
-def test_start_refuses_a_bad_job_with_its_reasons(admin, tmp_path):
+def test_start_refuses_a_bad_job_with_its_reasons(app, admin, tmp_path):
     r = admin.post("/api/archive/start", json={"source_dirs": [{"path": str(tmp_path)}],
                                                 "destination_dir": str(tmp_path)})
     assert r.status_code == 409
-    assert "same folder" in r.get_json()["problems"][0]
+    assert "same folder" in r.get_json()["error"]
+    assert "same folder" in r.get_json()["problems"][0]["text"]
+    # The library folder itself is refused as a source.
+    root = app.config["LITE"].folders[0]
+    r = admin.post("/api/archive/start", json={"source_dirs": [{"path": root}],
+                                                "destination_dir": str(tmp_path / "Archive")})
+    assert r.status_code == 409 and "in the library already" in r.get_json()["error"]
     r = admin.post("/api/archive/start", json={"mode": "sideways"})
     assert r.status_code == 400
 

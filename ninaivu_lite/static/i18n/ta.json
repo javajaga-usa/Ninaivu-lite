@@ -3027,5 +3027,18 @@
   "Sideways photographs are turned upright during the scan: by the camera's own tag, and for photographs without one, by the faces in them. Nothing is asked and no file is changed; Rotate in the viewer corrects any that are wrong.": "பக்கவாட்டுப் படங்கள் தேடலின்போதே நேராக்கப்படும்: கேமராவின் சொந்தக் குறிப்பால், அது இல்லாத படங்களுக்கு அவற்றில் உள்ள முகங்களால். எதுவும் கேட்கப்படாது, எந்தக் கோப்பும் மாற்றப்படாது; தவறானவற்றைப் பார்வையில் உள்ள சுழற்று பொத்தான் சரிசெய்யும்.",
   "Sideways photographs are turned upright by the camera's own tag. To judge photographs without one by the faces in them, install OpenCV (requirements-straighten.txt) and restart. Rotate in the viewer corrects any by hand.": "பக்கவாட்டுப் படங்கள் கேமராவின் சொந்தக் குறிப்பால் நேராக்கப்படும். குறிப்பு இல்லாத படங்களை அவற்றின் முகங்களால் தீர்மானிக்க OpenCV-ஐ நிறுவி (requirements-straighten.txt) மீண்டும் தொடங்கவும். பார்வையில் உள்ள சுழற்று பொத்தான் கையால் சரிசெய்யும்.",
   "Only photographs can be turned.": "புகைப்படங்களை மட்டுமே சுழற்ற முடியும்.",
-  "Rotation must be 0, 90, 180 or 270.": "சுழற்சி 0, 90, 180 அல்லது 270 ஆக இருக்க வேண்டும்."
+  "Rotation must be 0, 90, 180 or 270.": "சுழற்சி 0, 90, 180 அல்லது 270 ஆக இருக்க வேண்டும்.",
+  "Add at least one source folder.": "குறைந்தது ஒரு மூலக் கோப்புறையைச் சேர்க்கவும்.",
+  "Choose a destination folder for the archive.": "காப்பகத்திற்கு ஓர் இலக்குக் கோப்புறையைத் தேர்வுசெய்யவும்.",
+  "Give the full path of the source folder, not “{path}”.": "மூலக் கோப்புறையின் முழுப் பாதையைக் கொடுக்கவும், “{path}” அல்ல.",
+  "Source “{path}” is not a folder that can be opened.": "மூலம் “{path}” திறக்கக்கூடிய கோப்புறை அல்ல.",
+  "Source “{path}” is in the library already. Importing it would show every photo twice: as it is, and as the archived copy.": "மூலம் “{path}” ஏற்கனவே நூலகத்தில் உள்ளது. அதை இறக்குமதி செய்தால் ஒவ்வொரு படமும் இருமுறை தோன்றும்: அப்படியே, மற்றும் காப்பக நகலாக.",
+  "Give the full path of the destination folder, for example D:\\Photo Archive.": "இலக்குக் கோப்புறையின் முழுப் பாதையைக் கொடுக்கவும், எடுத்துக்காட்டாக D:\\Photo Archive.",
+  "Destination exists but is not a folder: {path}": "இலக்கு உள்ளது, ஆனால் அது கோப்புறை அல்ல: {path}",
+  "Destination is the same folder as source “{path}”. The archive must be somewhere else.": "இலக்கும் மூலம் “{path}” ஒரே கோப்புறை. காப்பகம் வேறு இடத்தில் இருக்க வேண்டும்.",
+  "Source “{path}” is inside the destination, so all of it would be skipped as part of the archive. Choose a source outside it.": "மூலம் “{path}” இலக்கிற்குள் உள்ளது, எனவே அது முழுவதும் காப்பகத்தின் பகுதியாகத் தவிர்க்கப்படும். அதற்கு வெளியே ஒரு மூலத்தைத் தேர்வுசெய்யவும்.",
+  "Source “{path}” is already covered by source “{other}”.": "மூலம் “{path}” ஏற்கனவே மூலம் “{other}” க்குள் அடங்கியுள்ளது.",
+  "The archive “{destination}” sits inside source “{path}”. It is skipped during the scan, so files already archived are not read back in.": "காப்பகம் “{destination}” மூலம் “{path}” க்குள் உள்ளது. தேடலின்போது அது தவிர்க்கப்படும், எனவே ஏற்கனவே காப்பகப்படுத்திய கோப்புகள் மீண்டும் படிக்கப்படா.",
+  "Choose the archive folder to audit.": "தணிக்கை செய்ய காப்பகக் கோப்புறையைத் தேர்வுசெய்யவும்.",
+  "A download carries no metadata; a saved copy keeps the original's camera, exposure and place.": "பதிவிறக்கத்தில் மெட்டாடேட்டா இருக்காது; சேமித்த நகல் அசலின் கேமரா, வெளிப்பாடு, இடத்தை வைத்திருக்கும்."
 }

@@ -211,6 +211,8 @@ def asset_public(row: sqlite3.Row, who: auth.User | None = None) -> dict[str, An
     who = who or user()
     asset_id = row["id"]
     can_play = playable(row)
+    served_turned = who.is_guest and row["kind"] == "picture" \
+        and (row["ext"] or "").lower() not in ("gif", "bmp")
     out: dict[str, Any] = {
         "id": asset_id,
         "name": row["name"],
@@ -235,7 +237,9 @@ def asset_public(row: sqlite3.Row, who: auth.User | None = None) -> dict[str, An
         "needs_proxy": False,
         "src": f"/api/file/{asset_id}",
         "view": f"/api/file/{asset_id}" if can_play else f"/api/preview/{asset_id}",
-        "rotation": row["rotation"] or 0,
+        # A guest is served a re-encoded copy with the index's turn already in
+        # it (api_gallery.guarded_file), so the viewer must not turn it again.
+        "rotation": 0 if served_turned else (row["rotation"] or 0),
         "rotation_source": row["rot_source"] or "none",
         "visibility": db.VIS_NAMES.get(row["visibility"], "family"),
         "visibility_source": row["vis_source"],

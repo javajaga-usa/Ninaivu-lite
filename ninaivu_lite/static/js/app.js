@@ -662,6 +662,7 @@ function applyPermissions() {
   $('#sel-download').hidden = !can.download;
   viewer.canDownload = !!can.download;
   viewer.canSave = !!can.save_edits;
+  viewer.canRotate = !!can.set_visibility;
   $('#v-fav').hidden = !can.favorite;
   $('#v-download').hidden = !can.download;
   // Albums and share links are for family members and admins.

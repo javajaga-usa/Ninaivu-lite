@@ -264,50 +264,70 @@ def clean_kinds(raw: Any) -> list[str]:
     return [k for k in KINDS if k in raw]
 
 
-def validate(sources: list[str], destination: str, data_dir: str) -> list[str]:
-    """Why the job cannot start: sentences to show, or an empty list."""
+def _say(key: str, **vars: str) -> dict[str, Any]:
+    """A sentence for the console: its English key, its values, and the two
+    joined, so a Tamil console can translate the key and keep the path."""
+    text = key
+    for name, value in vars.items():
+        text = text.replace("{" + name + "}", str(value))
+    return {"key": key, "vars": vars, "text": text}
+
+
+def validate(sources: list[str], destination: str, data_dir: str,
+             library: list[str] = ()) -> list[dict[str, Any]]:
+    """Why the job cannot start: sentences to show (see :func:`_say`), or []."""
     problems = []
     if not sources:
-        problems.append("Add at least one source folder.")
+        problems.append(_say("Add at least one source folder."))
     if not destination:
-        problems.append("Choose a destination folder for the archive.")
+        problems.append(_say("Choose a destination folder for the archive."))
     if problems:
         return problems
     for s in sources:
         if not os.path.isabs(s):
-            problems.append(f"Give the full path of the source folder, not “{s}”.")
+            problems.append(_say("Give the full path of the source folder, not “{path}”.", path=s))
         elif not os.path.isdir(long_path(s)):
-            problems.append(f"Source “{s}” is not a folder that can be opened.")
+            problems.append(_say("Source “{path}” is not a folder that can be opened.", path=s))
+        elif any(is_within(s, root) for root in library if root):
+            # Its photos are in the gallery already; archiving them beside the
+            # library would show every one twice.
+            problems.append(_say("Source “{path}” is in the library already. Importing it would "
+                                 "show every photo twice: as it is, and as the archived copy.",
+                                 path=s))
     if not os.path.isabs(destination):
-        problems.append("Give the full path of the destination folder, for example D:\\Photo Archive.")
+        problems.append(_say("Give the full path of the destination folder, for example "
+                             "D:\\Photo Archive."))
     elif os.path.exists(destination) and not os.path.isdir(destination):
-        problems.append(f"Destination exists but is not a folder: {destination}")
+        problems.append(_say("Destination exists but is not a folder: {path}", path=destination))
     elif is_within(destination, data_dir):
-        problems.append("The archive cannot be built inside Ninaivu Lite's own data folder.")
+        problems.append(_say("The archive cannot be built inside Ninaivu Lite's own data folder."))
     for s in sources:
         if not os.path.isdir(long_path(s)):
             continue
         if norm(s) == norm(destination):
-            problems.append(f"Destination is the same folder as source “{s}”. "
-                            "The archive must be somewhere else.")
+            problems.append(_say("Destination is the same folder as source “{path}”. "
+                                 "The archive must be somewhere else.", path=s))
         elif is_within(s, destination):
-            problems.append(f"Source “{s}” is inside the destination, so all of it would be "
-                            "skipped as part of the archive. Choose a source outside it.")
+            problems.append(_say("Source “{path}” is inside the destination, so all of it would "
+                                 "be skipped as part of the archive. Choose a source outside it.",
+                                 path=s))
     for a in sources:
         for b in sources:
             if a != b and os.path.isdir(a) and os.path.isdir(b) and norm(a) != norm(b) \
                     and is_within(a, b):
-                problems.append(f"Source “{a}” is already covered by source “{b}”.")
+                problems.append(_say("Source “{path}” is already covered by source “{other}”.",
+                                     path=a, other=b))
     return problems
 
 
-def notices(sources: list[str], destination: str) -> list[str]:
+def notices(sources: list[str], destination: str) -> list[dict[str, Any]]:
     out = []
     for s in sources:
         if destination and os.path.isdir(s) and norm(s) != norm(destination) \
                 and is_within(destination, s):
-            out.append(f"The archive “{destination}” sits inside source “{s}”. It is skipped "
-                       "during the scan, so files already archived are not read back in.")
+            out.append(_say("The archive “{destination}” sits inside source “{path}”. It is "
+                            "skipped during the scan, so files already archived are not read "
+                            "back in.", destination=destination, path=s))
     return out
 
 
