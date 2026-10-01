@@ -1,0 +1,26 @@
+# Start Ninaivu Lite at boot on Linux / Raspberry Pi OS (systemd).
+#
+# 1. Start it once with  sh start.sh  so everything is installed.
+# 2. Change User= and the two paths below to yours.
+# 3. sudo cp tools/ninaivu-lite.service /etc/systemd/system/
+#    sudo systemctl enable --now ninaivu-lite
+# 4. See what it is doing:  journalctl -u ninaivu-lite -f
+#
+# The setup code for the first administrator is printed in that log.
+
+[Unit]
+Description=Ninaivu Lite family photo gallery
+After=network-online.target local-fs.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/Ninaivu-lite
+ExecStart=/home/pi/Ninaivu-lite/.venv/bin/python -m ninaivu_lite --no-browser
+Restart=on-failure
+RestartSec=10
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

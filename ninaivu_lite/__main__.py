@@ -1,0 +1,193 @@
+"""``python -m ninaivu_lite [photo folders…]`` — start the server."""
+
+from __future__ import annotations
+
+import argparse
+import logging
+from logging.handlers import RotatingFileHandler
+import sys
+import threading
+import webbrowser
+from pathlib import Path
+
+from . import APP_NAME, __version__, backups, create_app, net
+from .config import DEFAULT_PORT, Config
+from .scanner import Scanner
+
+
+def use_utf8_output() -> None:
+    """Make the banner safe to print (from Ninaivu).
+
+    On Windows, output redirected to a file or a service log falls back to the
+    locale's code page, and the first Tamil letter or dash would raise
+    UnicodeEncodeError after the port is bound. Losing a character beats
+    losing the server.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, OSError, ValueError):
+            try:
+                stream.reconfigure(errors="replace")
+            except (AttributeError, OSError, ValueError):
+                pass
+
+
+def setup_logging(data_dir: str) -> None:
+    """To the console, and to logs/ninaivu-lite.log (1 MB, three kept) for
+    when something needs looking into after the window is closed."""
+    fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    if sys.stderr is not None:          # pythonw, at sign-in, has no console
+        console = logging.StreamHandler()
+        console.setFormatter(fmt)
+        root.addHandler(console)
+    try:
+        folder = Path(data_dir) / "logs"
+        folder.mkdir(parents=True, exist_ok=True)
+        handler = RotatingFileHandler(folder / "ninaivu-lite.log", maxBytes=1_000_000,
+                                      backupCount=3, encoding="utf-8")
+        handler.setFormatter(fmt)
+        root.addHandler(handler)
+    except OSError as exc:
+        root.warning("could not open the log file: %s", exc)
+    # One line per request is noise in a family's log.
+    logging.getLogger("werkzeug").setLevel(logging.WARNING)
+
+
+def add_folders(cfg: Config, paths: list[str]) -> list[str] | None:
+    """Add folders named on the command line to the saved ones (the admin page
+    can do the same). None, after saying why, if any of them cannot be used."""
+    from . import folders
+    added = []
+    for raw in paths:
+        path = str(Path(raw).resolve())
+        if path in cfg.folders:
+            continue
+        problem = folders.problem(path, cfg.data_dir, cfg.folders + added)
+        if problem:
+            print(f"  {raw}: {problem}", file=sys.stderr)
+            return None
+        added.append(path)
+    if added:
+        cfg.folders = cfg.folders + added
+        cfg.save()
+    return added
+
+
+def reset_password(cfg: Config, username: str) -> int:
+    """For whoever is at this computer and has forgotten a password. Signs that
+    person out everywhere and turns the account back on."""
+    import getpass
+
+    from . import auth, db
+    conn = db.connect(cfg.data_dir)
+    row = conn.execute("SELECT id FROM users WHERE username = ?", (username.lower(),)).fetchone()
+    if row is None:
+        names = ", ".join(r[0] for r in conn.execute("SELECT username FROM users ORDER BY username"))
+        print(f"  No one is called {username!r}. People: {names or '(none yet)'}", file=sys.stderr)
+        return 2
+    first = getpass.getpass("  New password (at least 8 characters): ")
+    if first != getpass.getpass("  The same again: "):
+        print("  The two passwords do not match.", file=sys.stderr)
+        return 2
+    try:
+        auth.set_password(conn, row["id"], first)
+        auth.update_profile(conn, row["id"], active=1)
+    except auth.AccountError as exc:
+        print(f"  {exc}", file=sys.stderr)
+        return 2
+    print(f"  Password changed for {username}.")
+    return 0
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    p = argparse.ArgumentParser(prog="ninaivu_lite", description=f"{APP_NAME} {__version__}")
+    p.add_argument("folders", nargs="*", help="photo folders to show (remembered)")
+    p.add_argument("--port", type=int, default=DEFAULT_PORT,
+                   help=f"port to listen on (default {DEFAULT_PORT}; the next free one if taken)")
+    p.add_argument("--host", default="0.0.0.0",
+                   help="address to listen on (default: every network on this computer)")
+    p.add_argument("--data", help="folder for settings, index and thumbnails")
+    p.add_argument("--no-browser", action="store_true", help="do not open a browser")
+    p.add_argument("--export", metavar="FILE",
+                   help="write people, albums, favourites and links to FILE for Ninaivu, then stop")
+    p.add_argument("--reset-password", metavar="USERNAME",
+                   help="set a new password for USERNAME (for a forgotten admin password), then stop")
+    p.add_argument("--version", action="version", version=__version__)
+    return p.parse_args(argv)
+
+
+def serve(app, host: str, port: int) -> None:
+    try:
+        from waitress import serve as waitress_serve
+    except ImportError:
+        logging.getLogger(__name__).warning(
+            "waitress is not installed; using Flask's built-in server")
+        app.run(host=host, port=port, threaded=True, use_reloader=False)
+        return
+    waitress_serve(app, host=host, port=port, threads=8, ident=APP_NAME)
+
+
+def main(argv: list[str] | None = None) -> int:
+    use_utf8_output()
+    args = parse_args(argv)
+    cfg = Config.load(args.data)
+    setup_logging(cfg.data_dir)
+    if args.reset_password:
+        return reset_password(cfg, args.reset_password)
+    if args.export:
+        from . import db, export
+        Path(args.export).write_bytes(export.dumps(db.connect(cfg.data_dir), cfg))
+        print(f"  Written: {args.export}")
+        return 0
+    if args.folders:
+        added = add_folders(cfg, args.folders)
+        if added is None:
+            return 2
+    cfg.host = args.host
+    if net.already_running(args.port):
+        # Started at sign-in, or a second double-click: open the one that is
+        # running instead of starting another on a different port.
+        local = f"http://localhost:{args.port}"
+        print(f"\n  {APP_NAME} is already running: {local}\n")
+        if not args.no_browser:
+            webbrowser.open(local)
+        return 0
+    cfg.port = net.pick_port(args.host, args.port)
+
+    addresses = net.lan_addresses() if args.host in ("0.0.0.0", "") else []
+    scanner = Scanner(cfg.data_dir, cfg.folders)
+    app = create_app(cfg, addresses=addresses, scanner=scanner)
+    scanner.start()
+    keeper = backups.Keeper(cfg.data_dir)
+    keeper.start()
+
+    local = f"http://localhost:{cfg.port}"
+    print(f"\n  {APP_NAME} {__version__}")
+    print(f"  On this computer:  {local}")
+    for address in addresses[:3]:
+        print(f"  On your phone:     http://{address}:{cfg.port}")
+    if cfg.port != args.port:
+        print(f"  (port {args.port} was busy, so {cfg.port} is used)")
+    from . import auth, db
+    if auth.needs_setup(db.connect(cfg.data_dir)):
+        print("\n  First time: open the address above to make the administrator.")
+        print(f"  From another device you will be asked for this code: {auth.setup_code()}")
+    print("  Press Ctrl+C to stop.\n")
+
+    if not args.no_browser:
+        threading.Timer(1.0, webbrowser.open, args=(local,)).start()
+    try:
+        serve(app, args.host, cfg.port)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        keeper.stop()
+        scanner.stop()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

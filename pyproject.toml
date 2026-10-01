@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=78.1.1", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ninaivu-lite"
+description = "Your family's photographs, at home: a small, steady, self-hosted photo gallery in Tamil and English"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{name = "Jagadeesh Rajendran"}]
+dynamic = ["dependencies", "version"]
+
+[project.scripts]
+ninaivu-lite = "ninaivu_lite.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["ninaivu_lite*"]
+
+[tool.setuptools.package-data]
+ninaivu_lite = ["templates/*", "static/**/*", "i18n/*.json"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+version = {attr = "ninaivu_lite.version.__version__"}
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

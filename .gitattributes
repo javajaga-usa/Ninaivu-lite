@@ -1,0 +1,31 @@
+* text=auto
+
+*.sh        text eol=lf
+*.py        text eol=lf
+*.js        text eol=lf
+*.mjs       text eol=lf
+*.css       text eol=lf
+*.html      text eol=lf
+*.json      text eol=lf
+*.md        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.toml      text eol=lf
+*.txt       text eol=lf
+.gitignore  text eol=lf
+.dockerignore text eol=lf
+.editorconfig text eol=lf
+*.conf      text eol=lf
+
+# ...and these are the ones Windows genuinely wants CRLF for.
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+
+# Binary, so git never touches them.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.webp      binary
+*.ico       binary
+*.pdf       binary
+*.xml       -text
