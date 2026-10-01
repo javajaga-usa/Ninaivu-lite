@@ -365,9 +365,21 @@ class Scanner:
                 + (", thumb = 0, large = 0" if changed else "") + " WHERE id = ?",
                 (rotation, source, width, height, asset_id))
         if changed:
+            # The old thumbnails show the old way up: gone now, so nothing can
+            # serve them before the new ones exist.
+            for size in media.THUMB_SIZES:
+                try:
+                    media.thumb_path(self.thumbs_dir, asset_id, size).unlink()
+                except OSError:
+                    pass
             self.generation += 1
             if remake:
-                self.thumbnail_now(conn, asset_id, "s")
+                row = conn.execute(
+                    """SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.rotation, f.path AS root
+                       FROM assets a JOIN folders f ON f.id = a.folder_id WHERE a.id = ?""",
+                    (asset_id,)).fetchone()
+                if row is not None:
+                    self._thumbnail(conn, row, ("s", "l"))
         return changed
 
     def _thumbnail(self, conn: sqlite3.Connection, row: sqlite3.Row,
@@ -391,11 +403,15 @@ class Scanner:
     def thumbnail_now(self, conn: sqlite3.Connection, asset_id: int, size: str = "s") -> bool:
         """Make one thumbnail right away, for a picture that is on screen."""
         row = conn.execute(
-            """SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.rotation, f.path AS root FROM assets a
-               JOIN folders f ON f.id = a.folder_id WHERE a.id = ?""", (asset_id,)).fetchone()
+            """SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.large, a.rotation, f.path AS root
+               FROM assets a JOIN folders f ON f.id = a.folder_id WHERE a.id = ?""",
+            (asset_id,)).fetchone()
         if row is None or row["thumb"] == db.THUMB_NONE:
             return False
-        if row["thumb"] == db.THUMB_OK and media.thumb_path(self.thumbs_dir, asset_id, size).exists():
+        # A file on disk counts only when the index says it is current: after
+        # a turn the old picture may still be there for a moment.
+        current = row["thumb"] == db.THUMB_OK if size == "s" else row["large"] == 1
+        if current and media.thumb_path(self.thumbs_dir, asset_id, size).exists():
             return True
         return self._thumbnail(conn, row, (size,))
 

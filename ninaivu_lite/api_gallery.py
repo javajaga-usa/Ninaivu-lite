@@ -30,6 +30,7 @@ from typing import Any
 from urllib.parse import quote
 
 from flask import Blueprint, Response, jsonify, request, send_file
+from PIL import Image
 
 from . import auth, db, media
 from .common import (
@@ -511,6 +512,51 @@ def assets_bulk():
     if seen:
         set_favourite(who, seen, bool(data["favorite"]))
     return jsonify({"updated": len(seen), "skipped": len(ids) - len(seen)})
+
+
+POSTER_TYPES = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}
+POSTER_MAX_BYTES = 4 * 1024 * 1024
+
+
+@bp.post("/api/asset/<int:asset_id>/poster")
+def asset_poster(asset_id: int):
+    """A video's preview picture, made by a family member's browser.
+
+    Without ffmpeg the server cannot open a video, but the browser that plays
+    it can: the gallery draws one frame and sends it here, and from then on
+    everyone sees it on the tile. Only for a video that has no picture yet;
+    one that has keeps it. The video itself is never touched.
+    """
+    require_family()
+    row = visible_asset(asset_id)
+    if row["kind"] != "video":
+        fail(400, "Only a video takes a preview picture.")
+    if row["thumb"] == db.THUMB_OK:
+        return jsonify(asset_public(row))
+    fmt = POSTER_TYPES.get(request.mimetype)
+    if not fmt:
+        fail(400, "Send the picture as JPEG, PNG or WebP.")
+    if request.content_length and request.content_length > POSTER_MAX_BYTES:
+        fail(413, "That is too large.")
+    payload = request.stream.read(POSTER_MAX_BYTES + 1)
+    if len(payload) > POSTER_MAX_BYTES:
+        fail(413, "That is too large.")
+    try:
+        with Image.open(io.BytesIO(payload)) as sent:
+            if sent.format != fmt or sent.width * sent.height > 4_000_000 \
+                    or sent.width < 16 or sent.height < 16:
+                raise ValueError()
+            frame = sent.convert("RGB")
+    except (ValueError, OSError, Image.DecompressionBombError):
+        fail(400, "That is not a picture this can use.")
+    colour = media.save_thumbnails(frame, scanner().thumbs_dir, asset_id)
+    version = int(time.time() * 1000) % 2_000_000_000
+    c = conn()
+    with c:
+        c.execute("UPDATE assets SET thumb = ?, large = 1, color = ?, thumb_v = ? WHERE id = ?",
+                  (db.THUMB_OK, colour, version, asset_id))
+    scanner().generation += 1
+    return jsonify(asset_public(visible_asset(asset_id))), 201
 
 
 @bp.post("/api/asset/<int:asset_id>/rotate")

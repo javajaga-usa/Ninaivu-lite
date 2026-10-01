@@ -171,8 +171,10 @@ Ninaivu. See [UPGRADE.md](UPGRADE.md).
 `localhost`), make sure the phone is on the same Wi-Fi, and allow Python through the Windows
 firewall when asked.
 
-**Some videos show a plain tile.** Install `ffmpeg` for preview pictures. Videos the browser
-cannot play can still be downloaded.
+**Some videos show a plain tile.** A video gets its preview picture the first time a family
+member or administrator scrolls past it or plays it: their browser draws one frame and
+Ninaivu keeps it for everyone. A video the browser cannot play keeps the plain tile (install
+`ffmpeg` on the computer for those); it can still be downloaded.
 
 **iPhone HEIC photos show a plain tile.** Run `.venv\Scripts\pip install pillow-heif`
 (Windows) or `.venv/bin/pip install pillow-heif`, then restart.

@@ -9,6 +9,7 @@ import { MODES, scrubberTicks, sectionAt } from './layout.js';
 import { accountsApi, avatarNode, copyText, Gate, ProfileSheet } from './accounts.js';
 import { enterPressesTheButton } from './enter-key.js';
 import { initPalette } from './palette.js';
+import { PosterMaker } from './posters.js';
 
 const $ = (sel) => document.querySelector(sel);
 const store = {
@@ -36,6 +37,7 @@ const state = {
 };
 
 let grid;
+let posters;
 let viewer;
 let searchController = null;
 /**
@@ -100,6 +102,13 @@ async function init() {
   await i18n.start();
 
   grid = new Grid($('#scroller'), $('#grid'));
+  posters = new PosterMaker({
+    onMade: (item) => {
+      const swatch = item.color ? item.color[1] + item.color[3] + item.color[5] : '';
+      grid.gotThumb(item.id, item.thumb_v, swatch);
+      if (viewer?.cache?.has(item.id)) Object.assign(viewer.cache.get(item.id), item);
+    },
+  });
   grid.setMode(store.get('layout', 'justified'));
   grid.setZoom(store.get('zoom', 2));
   $('#zoom').value = String(grid.zoom);
@@ -663,6 +672,8 @@ function applyPermissions() {
   viewer.canDownload = !!can.download;
   viewer.canSave = !!can.save_edits;
   viewer.canRotate = !!can.set_visibility;
+  // Video posters made by this browser: family and administrators only.
+  posters.enabled = !!can.favorite;
   $('#v-fav').hidden = !can.favorite;
   $('#v-download').hidden = !can.download;
   // Albums and share links are for family members and admins.
@@ -1995,10 +2006,12 @@ function wireGrid() {
   });
 
   grid.addEventListener('layout', () => buildScrubber());
+  grid.addEventListener('poster', (event) => posters.offer(event.detail.id));
 }
 
 function wireViewer() {
   viewer.addEventListener('change', () => syncViewerVisibility());
+  viewer.addEventListener('poster-source', (event) => posters.fromElement(event.detail.id, event.detail.video));
 
   viewer.addEventListener('mutated', async (event) => {
     const { id, favorite, rotation } = event.detail;

@@ -14,7 +14,7 @@ page — over a much lighter engine: no models, no cloud, three small dependenci
 Ninaivu's tools come along, lightened: the **Import** that sweeps old drives into one
 archive, and **Sudar**, the photo studio that runs in the browser.
 
-> **Status: 1.3.1.** See the [changelog](CHANGELOG.md) and the [user guide](docs/USER-GUIDE.md)
+> **Status: 1.3.2.** See the [changelog](CHANGELOG.md) and the [user guide](docs/USER-GUIDE.md)
 > ([தமிழில்](docs/USER-GUIDE.ta.md)).
 
 ## Why Lite
@@ -115,7 +115,7 @@ python3 -m ninaivu_lite ~/Pictures         # macOS and Linux
 (or run `tools\start-with-windows.cmd`); on a Raspberry Pi or server, use the systemd unit in
 `tools/ninaivu-lite.service`.
 
-**Optional extras:** `pip install pillow-heif` shows iPhone HEIC photos; `ffmpeg` on the PATH
+**Optional extras:** `pip install pillow-heif` shows iPhone HEIC photos; `ffmpeg` on the PATH (the family's browsers make video previews without it)
 gives videos a preview picture. Without them those files still appear, with a plain tile and a
 download button.
 

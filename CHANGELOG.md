@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.2 — 2026-10-01
+
+- **Video previews without ffmpeg.** None of the installers carry ffmpeg, so every video showed
+  a plain tile. Now the browser that can play a video makes its picture: when a family member
+  or administrator scrolls past a video with no preview, or plays one, the gallery draws one
+  frame and sends it to the server, which keeps it as the tile for everyone. One at a time, a
+  few dozen a visit, never for guests, never twice. A video the browser cannot decode keeps the
+  plain tile. With ffmpeg installed, nothing changes.
+- **A turn by hand remakes both thumbnails at once.** The 640 px one used to keep the old way
+  up until the next scan, so big tiles and the viewer's stand-in looked unturned.
+
 ## 1.3.1 — 2026-10-01
 
 - **Import refuses a source that is already in the library.** Archiving the library beside

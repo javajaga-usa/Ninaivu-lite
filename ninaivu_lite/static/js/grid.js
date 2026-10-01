@@ -599,6 +599,10 @@ export class Grid extends EventTarget {
 
     this.syncCellState(node, cell);
     node.classList.toggle('audio-cell', !hasThumb);
+    // A video with no picture: the app may have this browser make one.
+    if (!hasThumb && kind === 'video') {
+      this.dispatchEvent(new CustomEvent('poster', { detail: { id: cell.id } }));
+    }
 
     // Clear previous badges without touching the img/pick nodes.
     node.querySelectorAll('.badge, .glyph, .label').forEach((n) => n.remove());
@@ -684,6 +688,26 @@ export class Grid extends EventTarget {
       badge.innerHTML = isPublic ? ICON.globe : ICON.eyeOff;
       node.appendChild(badge);
     }
+  }
+
+  /** A thumbnail that exists now (a video's poster, just made): remember it
+   *  in the data and redraw the tile. */
+  gotThumb(id, version, swatch) {
+    for (const segment of this.segments || []) {
+      for (const item of segment.items) {
+        if (item[0] !== id) continue;
+        item[3] |= 2;
+        item[5] = version || 0;
+        item[6] = swatch || '';
+      }
+    }
+    for (const cell of this.layout.cells) {
+      if (cell.id !== id) continue;
+      cell.flags |= 2;
+      cell.v = version || 0;
+      cell.swatch = swatch || '';
+    }
+    this.refreshCell(id);
   }
 
   refreshCell(id) {

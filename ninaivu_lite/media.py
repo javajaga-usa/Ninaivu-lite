@@ -331,36 +331,46 @@ def make_thumbnails(path: str, kind: str, thumbs_dir: Path, asset_id: int,
     picture can be made (a video without ffmpeg, a damaged file); the gallery
     then shows a plain tile.
     """
-    edges = sorted(((s, THUMB_SIZES[s]) for s in sizes), key=lambda kv: -kv[1])
+    edge = max(THUMB_SIZES[s] for s in sizes)
     try:
-        img = _open_photo(path, edges[0][1]) if kind == "picture" else video_frame(path)
+        img = _open_photo(path, edge) if kind == "picture" else video_frame(path)
     except Exception as exc:  # noqa: BLE001
         log.debug("no thumbnail for %s: %s", path, exc)
         return False, None
     if img is None:
         return False, None
     try:
-        if img.mode not in ("RGB", "RGBA"):
-            img = img.convert("RGBA" if "A" in img.getbands() else "RGB")
-        current = turn(img, rotation) if kind == "picture" else img
-        for size, edge in edges:
-            copy = current.copy()
-            copy.thumbnail((edge, edge), Image.Resampling.LANCZOS)
-            out = thumb_path(thumbs_dir, asset_id, size)
-            out.parent.mkdir(parents=True, exist_ok=True)
-            tmp = out.with_name(out.name + ".tmp")
-            # method 2: a third of the encoding time of the default, and no
-            # difference anyone can see at these sizes.
-            copy.save(tmp, "WEBP", quality=THUMB_QUALITY, method=2)
-            os.replace(tmp, out)
-            current = copy
-        r, g, b = current.convert("RGB").resize((1, 1), Image.Resampling.BOX).getpixel((0, 0))
-        return True, f"#{r:02x}{g:02x}{b:02x}"
+        colour = save_thumbnails(turn(img, rotation) if kind == "picture" else img,
+                                 thumbs_dir, asset_id, sizes)
+        return True, colour
     except Exception as exc:  # noqa: BLE001
         log.debug("thumbnail failed for %s: %s", path, exc)
         return False, None
     finally:
         img.close()
+
+
+def save_thumbnails(img: Image.Image, thumbs_dir: Path, asset_id: int,
+                    sizes: tuple[str, ...] = ("s", "l")) -> str:
+    """Write *img* as the thumbnails named in *sizes*; returns its average
+    colour, '#rrggbb'. Also what a poster sent by a browser goes through."""
+    edges = sorted(((s, THUMB_SIZES[s]) for s in sizes), key=lambda kv: -kv[1])
+    if img.mode not in ("RGB", "RGBA"):
+        img = img.convert("RGBA" if "A" in img.getbands() else "RGB")
+    current = img
+    for size, edge in edges:
+        copy = current.copy()
+        copy.thumbnail((edge, edge), Image.Resampling.LANCZOS)
+        out = thumb_path(thumbs_dir, asset_id, size)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        tmp = out.with_name(out.name + ".tmp")
+        # method 2: a third of the encoding time of the default, and no
+        # difference anyone can see at these sizes.
+        copy.save(tmp, "WEBP", quality=THUMB_QUALITY, method=2)
+        os.replace(tmp, out)
+        current = copy
+    r, g, b = current.convert("RGB").resize((1, 1), Image.Resampling.BOX).getpixel((0, 0))
+    return f"#{r:02x}{g:02x}{b:02x}"
 
 
 def viewing_copy(path: str, max_edge: int = 2560, rotation: int = 0) -> bytes:

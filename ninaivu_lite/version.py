@@ -1,6 +1,6 @@
 """One place for the version and who made it: read by the package, the build and the pages."""
 
-__version__ = "1.3.1"
+__version__ = "1.3.2"
 APP_NAME = "Ninaivu Lite"
 #: Who holds the copyright, shown in About, the console and the Control Panel
 #: (as in Ninaivu). The licence stays MIT (see LICENSE).
