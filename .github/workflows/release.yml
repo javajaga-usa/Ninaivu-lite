@@ -60,7 +60,19 @@ jobs:
       - name: Build
         shell: pwsh
         run: |
-          & installers\windows\build.ps1 -Sign:([bool]$env:NINAIVU_SIGN_THUMBPRINT)
+          & installers\windows\build.ps1 -Sign:([bool]$env:NINAIVU_SIGN_THUMBPRINT) *>&1 | Tee-Object -FilePath build.log
+      # The end of a failed build as an annotation, readable without the full log.
+      - name: Say what failed
+        if: failure()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import pathlib, sys
+          sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+          text = pathlib.Path("build.log").read_text(encoding="utf-8", errors="replace")
+          tail = "\n".join(text.splitlines()[-70:])
+          print("::error title=Windows build::" + tail.replace("%", "%25").replace("\r", "").replace("\n", "%0A"))
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: windows
