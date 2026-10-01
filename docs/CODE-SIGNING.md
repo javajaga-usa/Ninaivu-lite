@@ -5,7 +5,9 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 
 This applies to the Windows installer of Ninaivu Lite,
 `Ninaivu-Lite-<version>-windows-x64.exe`, published on the
-[releases page](https://github.com/javajaga-usa/Ninaivu-lite/releases).
+[releases page](https://github.com/javajaga-usa/Ninaivu-lite/releases), and to the
+uninstaller it puts on the computer (`uninstall.exe`), which is made and signed by the same
+build before it is packed into the installer.
 
 ## How a signed release is made
 

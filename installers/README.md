@@ -45,13 +45,38 @@ Needs the Python in `.python-version` from python.org (for its Tk), `pip install
 - on upgrade or uninstall, asks a running Ninaivu Lite to stop first. Uninstall
   leaves the data folder (`%LOCALAPPDATA%\Ninaivu-lite`) and, always, the photos.
 
+**The uninstaller is signed too.** NSIS normally writes `uninstall.exe` on the
+person's computer, where nothing can sign it, so the build makes it first:
+`build.ps1 -MakeUninstaller` builds the installer and leaves
+`build\uninstaller\uninstall.exe`; that file is signed; `build.ps1 -Finalize
+-Uninstaller <file>` packs it into the installer, which is signed in turn.
+`build.ps1 -Sign` does all of that in one go with a certificate of your own. The
+release workflow runs the same steps on every build (unsigned when there is
+nothing to sign with), then installs the result silently on the runner, opens
+the Control Panel's window, starts and stops Ninaivu Lite and uninstalls it.
+
 **Signing.** Unsigned, Windows SmartScreen says *Windows protected your PC*
 (**More info → Run anyway**), and a PC with **Smart App Control** on refuses the
 installer outright. The release workflow signs it for free through
 [SignPath Foundation](https://signpath.org) once the repository has the secret
 `SIGNPATH_API_TOKEN` and the variables `SIGNPATH_ORGANIZATION_ID`,
 `SIGNPATH_PROJECT_SLUG` and `SIGNPATH_SIGNING_POLICY_SLUG`; the policy it is
-signed under is [docs/CODE-SIGNING.md](../docs/CODE-SIGNING.md). With a
+signed under is [docs/CODE-SIGNING.md](../docs/CODE-SIGNING.md). A release makes
+**two** signing requests, the uninstaller and then the installer, and each waits
+for approval in SignPath. Both arrive as a zip with one `.exe`, so the SignPath
+project needs this artifact configuration:
+
+```xml
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="*.exe">
+      <authenticode-sign/>
+    </pe-file>
+  </zip-file>
+</artifact-configuration>
+```
+
+With a
 certificate of your own instead, `build.ps1 -Sign` uses the one whose thumbprint
 is in `NINAIVU_SIGN_THUMBPRINT`.
 

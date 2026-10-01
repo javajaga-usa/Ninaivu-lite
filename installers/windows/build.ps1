@@ -2,6 +2,13 @@
 Build the Windows installer.
 
     installers\windows\build.ps1 [-Sign]
+    installers\windows\build.ps1 -MakeUninstaller              (1) build, and write the uninstaller
+    installers\windows\build.ps1 -Finalize -Uninstaller FILE   (2) pack that uninstaller, signed or not
+
+The two-step form is for signing somewhere else (SignPath): step 1 leaves
+build\uninstaller\uninstall.exe to be signed, step 2 rebuilds the installer
+around the signed copy, and the installer is then signed in turn. -Sign does
+all of it here with a certificate of your own.
 
 Needs the Python named in .python-version (from python.org, so it has Tk) on
 PATH — the same minor version at least — `pip install pynsist`
@@ -13,7 +20,7 @@ is in $env:NINAIVU_SIGN_THUMBPRINT (a code-signing certificate in the current
 user's store). Without it the build is unsigned and says so; Windows SmartScreen
 warns about an unsigned installer ("More info" → "Run anyway").
 #>
-param([switch]$Sign)
+param([switch]$Sign, [switch]$MakeUninstaller, [switch]$Finalize, [string]$Uninstaller)
 
 $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
@@ -27,6 +34,73 @@ $text = Get-Content (Join-Path $root "ninaivu_lite\version.py") -Raw
 $version = [regex]::Match($text, '__version__\s*=\s*"([^"]+)"').Groups[1].Value
 if (-not $version) { throw "no __version__ in ninaivu_lite\version.py" }
 Write-Host "Ninaivu Lite $version"
+
+$nsis = Join-Path $here "build\nsis"
+$exePath = Join-Path $nsis "Ninaivu-Lite-$version-windows-x64.exe"
+
+function Find-MakeNsis {
+    $found = Get-Command makensis -ErrorAction SilentlyContinue
+    if ($found) { return $found.Source }
+    foreach ($dir in @("${env:ProgramFiles(x86)}\NSIS", "$env:ProgramFiles\NSIS")) {
+        if (Test-Path (Join-Path $dir "makensis.exe")) { return (Join-Path $dir "makensis.exe") }
+    }
+    throw "makensis.exe not found (install NSIS)"
+}
+
+function Invoke-Sign([string]$file) {
+    if (-not $env:NINAIVU_SIGN_THUMBPRINT) { throw "-Sign needs NINAIVU_SIGN_THUMBPRINT" }
+    $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+        Sort-Object FullName -Descending | Select-Object -First 1
+    if (-not $signtool) { throw "signtool.exe not found (install the Windows SDK)" }
+    & $signtool.FullName sign /sha1 $env:NINAIVU_SIGN_THUMBPRINT /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /d "Ninaivu Lite" $file | Out-Host; Check "signtool sign"
+    & $signtool.FullName verify /pa $file | Out-Host; Check "signtool verify"
+}
+
+# The uninstaller, written by a build of the same script that does only that.
+function New-Uninstaller {
+    $makensis = Find-MakeNsis
+    Push-Location $nsis
+    try {
+        Remove-Item "uninstall.exe", "make-uninstaller.exe" -ErrorAction SilentlyContinue
+        # To the screen, not into what this function returns.
+        & $makensis /V2 /DMAKE_UNINSTALLER installer.nsi | Out-Host; Check "makensis (uninstaller)"
+        $maker = Join-Path $nsis "make-uninstaller.exe"
+        if (-not (Test-Path $maker)) { throw "the uninstaller maker was not built" }
+        Start-Process -FilePath $maker -ArgumentList "/S" -Wait
+        if (-not (Test-Path "uninstall.exe")) { throw "the uninstaller was not written" }
+        Remove-Item $maker
+    } finally { Pop-Location }
+    $out = Join-Path $here "build\uninstaller"
+    New-Item -ItemType Directory -Force $out | Out-Null
+    Move-Item (Join-Path $nsis "uninstall.exe") (Join-Path $out "uninstall.exe") -Force
+    return (Join-Path $out "uninstall.exe")
+}
+
+# The installer again, carrying that uninstaller instead of writing its own.
+function Build-WithUninstaller([string]$file) {
+    $makensis = Find-MakeNsis
+    $file = (Resolve-Path $file).Path
+    Push-Location $nsis
+    try {
+        & $makensis /V2 "/DSIGNED_UNINSTALLER=$file" installer.nsi | Out-Host; Check "makensis (installer)"
+    } finally { Pop-Location }
+    if (-not (Test-Path $exePath)) { throw "the installer was not built" }
+}
+
+function Show-Result {
+    $hash = (Get-FileHash $exePath -Algorithm SHA256).Hash
+    Write-Host $exePath
+    Write-Host "SHA256 $hash"
+}
+
+if ($Finalize) {
+    if (-not $Uninstaller) { throw "-Finalize needs -Uninstaller FILE" }
+    if (-not (Test-Path (Join-Path $nsis "installer.nsi"))) { throw "run the build first: nothing in $nsis" }
+    Build-WithUninstaller $Uninstaller
+    if ($Sign) { Invoke-Sign $exePath }
+    Show-Result
+    return
+}
 
 # The Python every installer carries, from the one place it is written. The
 # Python running this build lends its Tk to the installer, so it must be the
@@ -108,17 +182,20 @@ try {
     Remove-Item $built
 }
 
-$exe = Get-ChildItem (Join-Path $here "build\nsis\Ninaivu-Lite-$version-windows-x64.exe")
-if ($Sign) {
-    if (-not $env:NINAIVU_SIGN_THUMBPRINT) { throw "-Sign needs NINAIVU_SIGN_THUMBPRINT" }
-    $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
-        Sort-Object FullName -Descending | Select-Object -First 1
-    if (-not $signtool) { throw "signtool.exe not found (install the Windows SDK)" }
-    & $signtool.FullName sign /sha1 $env:NINAIVU_SIGN_THUMBPRINT /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /d "Ninaivu Lite" $exe.FullName; Check "signtool sign"
-    & $signtool.FullName verify /pa $exe.FullName; Check "signtool verify"
+if (-not (Test-Path $exePath)) { throw "pynsist did not make $exePath" }
+
+if ($MakeUninstaller) {
+    $made = New-Uninstaller
+    Write-Host "Uninstaller to sign: $made"
+    Write-Host "Then: build.ps1 -Finalize -Uninstaller <the signed file>"
+} elseif ($Sign) {
+    # Everything here, with a certificate of your own: the uninstaller first,
+    # then the installer that carries it.
+    $made = New-Uninstaller
+    Invoke-Sign $made
+    Build-WithUninstaller $made
+    Invoke-Sign $exePath
 } else {
-    Write-Warning "Unsigned installer: $($exe.Name). Pass -Sign with NINAIVU_SIGN_THUMBPRINT for a release."
+    Write-Warning "Unsigned installer. Pass -Sign with NINAIVU_SIGN_THUMBPRINT, or sign through SignPath (installers\README.md)."
 }
-$hash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
-Write-Host "$($exe.FullName)"
-Write-Host "SHA256 $hash"
+Show-Result

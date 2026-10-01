@@ -63,10 +63,51 @@ jobs:
           $cert = Import-PfxCertificate -FilePath $path -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString $env:PFX_PASSWORD -AsPlainText -Force)
           Remove-Item $path
           "NINAIVU_SIGN_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
-      - name: Build
+      # The uninstaller is signed too, so it is made on its own first
+      # (installers/windows/build.ps1): build, write the uninstaller, sign it,
+      # pack it into the installer, sign the installer. The same steps run
+      # unsigned on every build, so the path is always the tested one.
+      - name: Build, and write the uninstaller
         shell: pwsh
         run: |
-          & installers\windows\build.ps1 -Sign:([bool]$env:NINAIVU_SIGN_THUMBPRINT) *>&1 | Tee-Object -FilePath build.log
+          & installers\windows\build.ps1 -MakeUninstaller *>&1 | Tee-Object -FilePath build.log
+          New-Item -ItemType Directory -Force installers\windows\build\uninstaller-final | Out-Null
+          Copy-Item installers\windows\build\uninstaller\uninstall.exe installers\windows\build\uninstaller-final\
+
+      # SignPath takes a file from a workflow artifact, checks that it was built
+      # here from this repository, waits for the approval, and hands it back signed.
+      - name: The unsigned uninstaller, for SignPath
+        id: unsigned-uninstaller
+        if: env.USE_SIGNPATH == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-unsigned-uninstaller
+          path: installers/windows/build/uninstaller/uninstall.exe
+      - name: Sign the uninstaller with SignPath
+        if: env.USE_SIGNPATH == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned-uninstaller.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 7200
+          output-artifact-directory: installers/windows/build/uninstaller-final
+      - name: Sign the uninstaller with the certificate
+        if: env.USE_SIGNPATH != 'true' && env.NINAIVU_SIGN_THUMBPRINT != ''
+        shell: pwsh
+        run: |
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+          & $signtool.FullName sign /sha1 $env:NINAIVU_SIGN_THUMBPRINT /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /d "Ninaivu Lite" installers\windows\build\uninstaller-final\uninstall.exe
+
+      - name: The installer, carrying that uninstaller
+        shell: pwsh
+        run: |
+          $uninstaller = "installers\windows\build\uninstaller-final\uninstall.exe"
+          if ($env:USE_SIGNPATH -eq "true" -and (Get-AuthenticodeSignature $uninstaller).Status -ne "Valid") { throw "The uninstaller came back unsigned" }
+          & installers\windows\build.ps1 -Finalize -Uninstaller $uninstaller -Sign:([bool]$env:NINAIVU_SIGN_THUMBPRINT -and $env:USE_SIGNPATH -ne "true") *>&1 | Tee-Object -FilePath build.log -Append
       # The end of a failed build as an annotation, readable without the full log.
       - name: Say what failed
         if: failure()
@@ -79,9 +120,7 @@ jobs:
           tail = "\n".join(text.splitlines()[-45:])[-3500:]
           print("::error title=Windows build::" + tail.replace("%", "%25").replace("\r", "").replace("\n", "%0A"))
           PY
-      # SignPath takes the installer from a workflow artifact, checks that it
-      # was built here from this repository, waits for the approval, and hands
-      # back the signed file, which replaces the unsigned one.
+
       - name: The unsigned installer, for SignPath
         id: unsigned
         if: env.USE_SIGNPATH == 'true'
@@ -89,7 +128,7 @@ jobs:
         with:
           name: windows-unsigned
           path: installers/windows/build/nsis/*.exe
-      - name: Sign with SignPath
+      - name: Sign the installer with SignPath
         if: env.USE_SIGNPATH == 'true'
         uses: signpath/github-action-submit-signing-request@v3
         with:
@@ -111,6 +150,45 @@ jobs:
           $signature = Get-AuthenticodeSignature (Join-Path installers\windows\build\nsis $signed.Name)
           if ($signature.Status -ne "Valid") { throw "The installer's signature is $($signature.Status)" }
           Write-Host "Signed by $($signature.SignerCertificate.Subject)"
+
+      # What a person will do with it: install, open, start, stop, remove.
+      - name: Install it, start it, ask it how it is, remove it
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          trap {
+            $text = ($_ | Out-String).Trim() -replace "%", "%25" -replace "`r", "" -replace "`n", "%0A"
+            Write-Host "::error title=Windows install test::$text"
+            break
+          }
+          $installer = (Get-ChildItem installers\windows\build\nsis\Ninaivu-Lite-*-windows-x64.exe).FullName
+          $dir = Join-Path $env:RUNNER_TEMP "Ninaivu Lite"
+          $data = Join-Path $env:RUNNER_TEMP "nl-data"
+          Start-Process -FilePath $installer -ArgumentList "/S", "/INSTDIR=$dir" -Wait
+          $python = Join-Path $dir "Python\python.exe"
+          foreach ($file in @($python, (Join-Path $dir "Python\pythonw.exe"), (Join-Path $dir "uninstall.exe"))) {
+            if (-not (Test-Path $file)) { throw "not installed: $file" }
+          }
+          # The uninstaller on disk is the one that was packed, not one written at install time.
+          $packed = (Get-FileHash installers\windows\build\uninstaller-final\uninstall.exe).Hash
+          if ((Get-FileHash (Join-Path $dir "uninstall.exe")).Hash -ne $packed) { throw "the installed uninstaller is not the packed one" }
+          # The Control Panel's window opens with the private Python (Tk is inside), and the app's packages load.
+          & $python -c "import tkinter, flask, PIL, waitress, ninaivu_lite.panel, ninaivu_lite.app; r = tkinter.Tk(); r.update(); r.destroy(); import ninaivu_lite; print('Ninaivu Lite', ninaivu_lite.__version__, 'Tk', tkinter.TkVersion)"
+          if ($LASTEXITCODE) { throw "the installed Python could not open the Control Panel" }
+          Start-Process -FilePath (Join-Path $dir "Python\pythonw.exe") -ArgumentList "-m", "ninaivu_lite", "--no-browser", "--data", "`"$data`""
+          $up = $false
+          foreach ($i in 1..40) {
+            try { $health = Invoke-RestMethod http://127.0.0.1:8080/api/health -TimeoutSec 2; $up = $true; break } catch { Start-Sleep 1 }
+          }
+          if (-not $up) { Get-Content (Join-Path $data "logs\ninaivu-lite.log") -ErrorAction SilentlyContinue; throw "the installed server did not answer" }
+          Write-Host "answering: $($health.app) $($health.version)"
+          (Invoke-WebRequest http://127.0.0.1:8080/ -UseBasicParsing).StatusCode
+          & $python -m ninaivu_lite.control --data $data --stop --status
+          # _?= makes the uninstaller run in place and wait, instead of copying itself away.
+          Start-Process -FilePath (Join-Path $dir "uninstall.exe") -ArgumentList "/S", "_?=$dir" -Wait
+          if (Test-Path (Join-Path $dir "pkgs")) { throw "uninstall left the program behind" }
+          Write-Host "installed, ran, stopped and removed"
+
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -216,7 +294,7 @@ jobs:
           echo "VERSION=$version" >> "$GITHUB_ENV"
       - name: Checksums
         run: |
-          rm -rf out/windows-unsigned
+          rm -rf out/windows-unsigned out/windows-unsigned-uninstaller
           mkdir files && find out -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.sh" \) -exec cp {} files/ \;
           (cd files && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
       - name: Release notes

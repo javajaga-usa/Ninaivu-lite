@@ -56,7 +56,28 @@
 [% endblock %]
 
 [% block sections %]
+  ; A signed uninstaller. NSIS writes the uninstaller on the person's computer,
+  ; where nothing can sign it, so the build makes it first: built with
+  ; /DMAKE_UNINSTALLER this is a small program that only writes uninstall.exe
+  ; beside itself and stops; that file is signed, and the real installer,
+  ; built with /DSIGNED_UNINSTALLER=<file>, carries it (build.ps1).
+  !ifdef MAKE_UNINSTALLER
+    OutFile "make-uninstaller.exe"
+    Section -MakeUninstaller
+      WriteUninstaller "$EXEDIR\uninstall.exe"
+      Quit
+    SectionEnd
+  !endif
   [[ super() ]]
+  !ifdef SIGNED_UNINSTALLER
+    Section -SignedUninstaller
+      ; Over the one just written, whatever its date.
+      SetOutPath "$INSTDIR"
+      SetOverwrite on
+      File "/oname=uninstall.exe" "${SIGNED_UNINSTALLER}"
+      SetOverwrite ifnewer
+    SectionEnd
+  !endif
   Function OpenControlPanel
     [% for scname, sc in ib.shortcuts.items() %][% if loop.first %]
     Exec '"[[ sc['target'] ]]" [[ sc['parameters'] ]]'
