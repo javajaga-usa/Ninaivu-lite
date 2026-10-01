@@ -12,6 +12,9 @@
   - **macOS** — `Ninaivu Lite.app` in a disk image, for Apple silicon and Intel.
   - **Docker** — an image and a compose file; the photos are mounted read-only.
   - A release workflow builds them all on a version tag and attaches them to the release.
+- **One Python everywhere**: `.python-version` (3.13.7) is the single place the bundled Python
+  is written; the Windows, Linux and macOS installers, the Docker image and the release
+  workflow all use it, and a test fails if they drift. Running from source still works on 3.10+.
 - `python -m ninaivu_lite.control --stop | --autostart on|off | --status`, used by the
   installers to stop a running Ninaivu Lite before an upgrade or an uninstall.
 

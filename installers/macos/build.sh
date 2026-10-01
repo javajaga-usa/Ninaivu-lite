@@ -29,9 +29,11 @@ app="$build/Ninaivu Lite.app"
 rm -rf "$build"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 
-# 1. A private, relocatable Python with everything installed.
-pbs_python=${PBS_PYTHON:-3.12.11}
-pbs_release=${PBS_RELEASE:-20250902}
+# 1. A private, relocatable Python with everything installed: the one version
+#    every installer carries, from .python-version at the repository root
+#    (the python-build-standalone release is in installers/PBS_RELEASE).
+pbs_python=${PBS_PYTHON:-$(tr -d '[:space:]' < "$root/.python-version")}
+pbs_release=${PBS_RELEASE:-$(tr -d '[:space:]' < "$here/../PBS_RELEASE")}
 case "$arch" in
     arm64) triple=aarch64-apple-darwin ;;
     x86_64) triple=x86_64-apple-darwin ;;

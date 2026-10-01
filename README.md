@@ -63,7 +63,7 @@ How they are built: [installers/README.md](installers/README.md).
 
 ## Start from a download of this repository
 
-You need **Python 3.10 or newer** (3.13 recommended) — from [python.org](https://www.python.org/downloads/);
+You need **Python 3.10 or newer** (3.13 recommended: it is the one the installers carry) — from [python.org](https://www.python.org/downloads/);
 on Windows tick *Add python.exe to PATH*.
 
 **Windows:** download this repository, then double-click **`start.cmd`**

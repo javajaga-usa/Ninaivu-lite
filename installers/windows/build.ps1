@@ -3,7 +3,8 @@ Build the Windows installer.
 
     installers\windows\build.ps1 [-Sign]
 
-Needs Python 3.12 (from python.org, so it has Tk) on PATH, `pip install pynsist`
+Needs the Python named in .python-version (from python.org, so it has Tk) on
+PATH — the same minor version at least — `pip install pynsist`
 and NSIS (`choco install nsis`, or https://nsis.sourceforge.io). Makes
 installers\windows\build\nsis\Ninaivu-Lite-<version>-windows-x64.exe.
 
@@ -26,6 +27,17 @@ $text = Get-Content (Join-Path $root "ninaivu_lite\version.py") -Raw
 $version = [regex]::Match($text, '__version__\s*=\s*"([^"]+)"').Groups[1].Value
 if (-not $version) { throw "no __version__ in ninaivu_lite\version.py" }
 Write-Host "Ninaivu Lite $version"
+
+# The Python every installer carries, from the one place it is written. The
+# Python running this build lends its Tk to the installer, so it must be the
+# same minor version; the same patch is better still.
+$pinned = (Get-Content (Join-Path $root ".python-version") -Raw).Trim()
+$running = python -c "import sys; print('.'.join(map(str, sys.version_info[:3])))"; Check "python"
+if ($running.Substring(0, $running.LastIndexOf('.')) -ne $pinned.Substring(0, $pinned.LastIndexOf('.'))) {
+    throw "This build needs Python $pinned (.python-version); 'python' here is $running."
+}
+if ($running -ne $pinned) { Write-Warning "Building with Python $running; the installer carries $pinned." }
+Write-Host "Python $pinned"
 
 # The Tamil font, Windows builds only (as in Ninaivu). Macs and iPhones have a
 # good Tamil font of their own; Windows and the Android phones a Windows
@@ -62,7 +74,8 @@ python -m pip wheel --wheel-dir $wheels -r (Join-Path $root "requirements.txt");
 python -m pip wheel --wheel-dir $wheels --no-deps $root; Check "pip wheel (Ninaivu Lite)"
 
 # Tk, for the Control Panel. The embeddable Python pynsist bundles has no
-# tkinter; the full Python that runs this build does, and it is the same 3.12.
+# tkinter; the full Python that runs this build does, and it is the same minor
+# version (checked above).
 # The package and its extension go into pynsist_pkgs\ (pynsist copies that
 # folder next to the wheels, onto the path); the Tcl library goes to tcl\,
 # which installer.cfg puts under the private Python, where _tkinter looks.
@@ -82,8 +95,8 @@ if (Test-Path $tcl) { Remove-Item -Recurse -Force $tcl }
 Copy-Item -Recurse (Join-Path $pyhome "tcl") $tcl
 Write-Host "Tk from $pyhome"
 
-# installer.cfg with this version — the placeholder only, not [Python] version.
-$cfg = (Get-Content (Join-Path $here "installer.cfg") -Raw).Replace("__VERSION__", $version)
+# installer.cfg with this version and this Python.
+$cfg = (Get-Content (Join-Path $here "installer.cfg") -Raw).Replace("__VERSION__", $version).Replace("__PYTHON__", $pinned)
 $built = Join-Path $here "installer.built.cfg"
 Set-Content -Path $built -Value $cfg -NoNewline
 

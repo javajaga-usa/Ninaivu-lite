@@ -5,7 +5,9 @@
 # /photos is the library, mounted read-only (Ninaivu Lite only ever reads it);
 # /data holds settings, people, the index and previews. There is no Control
 # Panel here: `docker compose stop` and `start` do its job.
-FROM python:3.12-slim
+# The same Python every installer carries (.python-version; a test keeps them equal).
+ARG PYTHON_VERSION=3.13.7
+FROM python:${PYTHON_VERSION}-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

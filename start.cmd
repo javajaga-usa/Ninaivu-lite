@@ -9,7 +9,9 @@ title Ninaivu Lite
 rem Find a real Python 3.10+. The "python" that the Microsoft Store puts on the
 rem PATH only opens the Store, so each candidate is asked to prove itself.
 set "PY="
-py -3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1 && set "PY=py -3"
+rem The Python the installers carry (.python-version) first, when it is here.
+py -3.13 -c "import sys" >nul 2>&1 && set "PY=py -3.13"
+if not defined PY py -3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1 && set "PY=py -3"
 if not defined PY python -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1 && set "PY=python"
 
 if not defined PY (

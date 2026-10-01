@@ -26,7 +26,7 @@ It reads your photo folders, never changes them, and shows them to your family o
 
 | Area | Minimum we promise | How it is enforced |
 | --- | --- | --- |
-| Python | **3.10 to 3.13** (3.13 recommended) | CI matrix 3.10 and 3.13 on Windows, macOS, Linux |
+| Python | **3.10 to 3.13** from source; every installer carries exactly the version in `.python-version` (3.13.7) | CI matrix 3.10 and 3.13 on Windows, macOS, Linux; a test keeps the pins equal |
 | OS | **Windows 10+**, macOS 12+, Ubuntu 22.04+/Debian 12+, Raspberry Pi 4 (64-bit) | Manual test pass before each release |
 | Browsers | Current Chrome / Edge / Firefox, **Safari 16.4+**, Android Chrome | Browser test pass before each release |
 | Screen | 320 px phone to large TV; touch, mouse and keyboard | Checked at 390 / 1280 px |

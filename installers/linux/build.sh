@@ -35,10 +35,11 @@ payload="$build/payload-$arch"
 rm -rf "$payload"
 mkdir -p "$payload/wheels" "$build"
 
-# 1. The Python. PBS_PYTHON and PBS_RELEASE pick the build
-#    (https://github.com/astral-sh/python-build-standalone/releases).
-pbs_python=${PBS_PYTHON:-3.12.11}
-pbs_release=${PBS_RELEASE:-20250902}
+# 1. The Python: the one version every installer carries, from .python-version
+#    at the repository root, as a python-build-standalone build (the release is
+#    in installers/PBS_RELEASE). PBS_PYTHON and PBS_RELEASE override both.
+pbs_python=${PBS_PYTHON:-$(tr -d '[:space:]' < "$root/.python-version")}
+pbs_release=${PBS_RELEASE:-$(tr -d '[:space:]' < "$here/../PBS_RELEASE")}
 minor=${pbs_python%.*}
 tarball="cpython-${pbs_python}+${pbs_release}-${triple}-install_only_stripped.tar.gz"
 if [ ! -f "$build/$tarball" ]; then

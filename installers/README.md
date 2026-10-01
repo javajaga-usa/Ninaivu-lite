@@ -13,6 +13,18 @@ administrator, and the console's first-day guide asks for the photo folder.
 | `macos/` | `Ninaivu-Lite-<version>-macos-<arch>.dmg` | `bash installers/macos/build.sh` on a Mac |
 | `docker/` | a container image | `docker compose -f installers/docker/docker-compose.yml up -d` |
 
+## One Python everywhere
+
+**`.python-version`** at the repository root names the one Python (currently
+3.13.7) that every installer carries and every build uses: the Windows
+installer, the Linux and macOS bundles, the Docker image and the release
+workflow all read it (the Dockerfile repeats it as a default, and
+`tests/test_python_version.py` fails if anything drifts). To move to a newer
+Python, change that one file (and the Dockerfile default), check that
+`installers/PBS_RELEASE` has a build of it, and build. Running from a checkout
+(`start.cmd`, `start.sh`) still accepts any Python from 3.10 up, preferring this
+one, and the tests run on 3.10 and on this one.
+
 The version comes from `ninaivu_lite/version.py`. Build output goes to each
 folder's `build/` (ignored by git). `.github/workflows/release.yml` builds all
 of them on a version tag (`v1.2.0`) and attaches them to the GitHub release with
@@ -20,7 +32,7 @@ a `SHA256SUMS.txt`.
 
 ## Windows
 
-Needs Python 3.12 from python.org (for its Tk), `pip install pynsist`, and NSIS
+Needs the Python in `.python-version` from python.org (for its Tk), `pip install pynsist`, and NSIS
 (`choco install nsis`). The installer:
 
 - installs for the current user, with no administrator rights;
@@ -50,10 +62,12 @@ a desktop entry for the Control Panel, and a systemd service that starts it at
 boot. Running a newer installer upgrades in place. `…/ninaivu-lite/uninstall`
 removes the program (`--purge` also removes settings and the index).
 
-`PBS_PYTHON` and `PBS_RELEASE` choose the bundled Python
-([python-build-standalone](https://github.com/astral-sh/python-build-standalone/releases));
-the default is 3.12.11 from release 20250902. (The 20250708 builds have a Tk
-that aborts on some X servers — do not go back to them.) `WHEELS_DIR` uses
+The bundled Python is a
+[python-build-standalone](https://github.com/astral-sh/python-build-standalone/releases)
+build of the version in `.python-version`, from the release in
+`installers/PBS_RELEASE` (`PBS_PYTHON` and `PBS_RELEASE` override them for one
+build). The 20250708 builds have a Tk that aborts on some X servers — do not go
+back to them. `WHEELS_DIR` uses
 wheels already downloaded instead of fetching them.
 
 ## macOS
