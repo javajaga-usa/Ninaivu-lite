@@ -189,7 +189,7 @@ export function openSudar({item=null, returnFocus=document.activeElement, canSav
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center; font-size:10.5px; color:var(--ap-dim); margin-top:2px;">
             <span class="ap-dimensions"></span>
-            <span>${i18n.t('Metadata stripped for privacy')}</span>
+            <span>${i18n.t('A download carries no metadata; a saved copy keeps the original\'s camera, exposure and place.')}</span>
           </div>
         </div>
       </aside>

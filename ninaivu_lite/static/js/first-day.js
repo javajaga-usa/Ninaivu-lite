@@ -8,6 +8,7 @@
    the console exactly as if the person had visited those pages themselves.
    Every step can be skipped. */
 
+import { said } from './archive.js';
 import * as i18n from './i18n.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -238,7 +239,7 @@ export class FirstDay {
       this.render();
     } catch (exc) {
       const problems = exc.data?.problems || [exc.message];
-      this.toast(problems.map((p) => i18n.t(p)).join(' '), true);
+      this.toast(problems.map((p) => said(p)).join(' '), true);
       button.disabled = false;
       button.textContent = label;
     }

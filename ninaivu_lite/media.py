@@ -363,11 +363,12 @@ def make_thumbnails(path: str, kind: str, thumbs_dir: Path, asset_id: int,
         img.close()
 
 
-def viewing_copy(path: str, max_edge: int = 2560) -> bytes:
+def viewing_copy(path: str, max_edge: int = 2560, rotation: int = 0) -> bytes:
     """A JPEG a browser can show, upright and without metadata: for HEIC and
-    TIFF, which browsers cannot open, and for guests, who get no EXIF."""
+    TIFF, which browsers cannot open, and for guests, who get no EXIF.
+    *rotation* is the index's own quarter turn, on top of the camera's tag."""
     with _open_photo(path, max_edge) as img:
-        img = img.convert("RGB")
+        img = turn(img.convert("RGB"), rotation)
         img.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
         out = io.BytesIO()
         img.save(out, "JPEG", quality=86, optimize=True)

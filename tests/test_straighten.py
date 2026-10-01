@@ -134,3 +134,22 @@ def test_an_older_index_is_brought_forward(tmp_path, library):
     scanner.scan_once(c)
     assert c.execute("PRAGMA user_version").fetchone()[0] == len(db.MIGRATIONS)
     assert c.execute("SELECT COUNT(*) FROM assets WHERE upright = 1 AND rot_source = 'exif'").fetchone()[0] == 1
+
+
+def test_a_guests_copy_of_a_turned_photograph_comes_out_turned(app, admin, guest):
+    target = ids(app)["beach.jpg"]                     # 640×480, no tag
+    assert admin.post("/api/visibility", json={"ids": [target], "visibility": "public"}).status_code == 200
+    assert admin.post(f"/api/asset/{target}/rotate", json={"rotation": 90}).status_code == 200
+    import io
+    turned = guest.get(f"/api/file/{target}")
+    assert turned.status_code == 200
+    with Image.open(io.BytesIO(turned.data)) as img:
+        assert img.size == (480, 640)                  # a guest's copy is already upright
+        assert not img.getexif()
+    # So the guest's viewer is told not to turn it again; the family's is.
+    assert guest.get(f"/api/asset/{target}").get_json()["rotation"] == 0
+    assert admin.get(f"/api/asset/{target}").get_json()["rotation"] == 90
+    # The viewer's own preview stays unturned: the viewer turns it as it shows it.
+    preview = admin.get(f"/api/preview/{target}")
+    with Image.open(io.BytesIO(preview.data)) as img:
+        assert img.size == (640, 480)

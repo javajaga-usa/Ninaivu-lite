@@ -455,7 +455,7 @@ export class ArchivePanel {
       this.askToNotify();
     } catch (exc) {
       this.showNotes({
-        problems: (exc.data?.problems || [exc.message]).map((p) => i18n.t(p)),
+        problems: exc.data?.problems || [exc.message],
         notices: [],
         resolution: exc.data?.resolution,
       });
@@ -535,15 +535,15 @@ export class ArchivePanel {
     try {
       const result = await archiveApi.recreateTakeoutAlbums();
       const added = result.albums.reduce((n, a) => n + a.added, 0);
-      const said = [result.albums.length
+      const lines = [result.albums.length
         ? i18n.t('{albums} albums, {photos} photographs.', {
           albums: result.albums.length, photos: added.toLocaleString() })
         : i18n.t('Nothing to add yet.')];
       if (result.unmatched) {
-        said.push(i18n.t('{count} not indexed yet — run this again after the scan.', {
+        lines.push(i18n.t('{count} not indexed yet — run this again after the scan.', {
           count: result.unmatched.toLocaleString() }));
       }
-      this.toast(said.join(' '), !result.albums.length);
+      this.toast(lines.join(' '), !result.albums.length);
     } catch (exc) {
       this.toast(exc.message, true);
     } finally {
@@ -796,13 +796,20 @@ function strong(text) {
   return node;
 }
 
+/** A sentence from the server: `{key, vars}` is translated and filled, a
+ *  plain string looked up as it is. */
+export function said(item) {
+  if (item && typeof item === 'object') return i18n.t(item.key, item.vars || {});
+  return i18n.t(String(item ?? ''));
+}
+
 function fillList(boxSel, listSel, items) {
   const box = $(boxSel);
   const list = $(listSel);
   if (!items || !items.length) { box.hidden = true; return; }
   box.hidden = false;
   list.innerHTML = '';
-  for (const item of items) list.appendChild(el('li', null, i18n.t(item)));
+  for (const item of items) list.appendChild(el('li', null, said(item)));
 }
 
 function statusLine(data) {

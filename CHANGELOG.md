@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.1 — 2026-10-01
+
+- **Import refuses a source that is already in the library.** Archiving the library beside
+  itself would have shown every photo twice; the console and the first-day step now say so.
+- **The importer's refusals are translated.** Sentences with a path in them travel as their
+  English key and the path, so a Tamil console shows them in Tamil.
+- **A running import shows in the strip at the top of every console page**, with its progress
+  and a way to the Import page, beside the indexer.
+- **Rotate** in the viewer is offered for photographs only.
+- **A guest's copy of a turned photograph comes out upright**, and is not turned a second time
+  on screen.
+- Sudar's footer says what it does: a download carries no metadata; a saved copy keeps the
+  original's camera, exposure and place.
+- The importer's pause test no longer depends on how fast the machine is.
+
 ## 1.3.0 — 2026-10-01
 
 - **Import** (console → Library → Import), from Ninaivu's archive engine, cut to what a

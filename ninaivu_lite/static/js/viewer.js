@@ -90,6 +90,8 @@ export class Viewer extends EventTarget {
     this.canDownload = false;
     /** Set by the app: whether Sudar may save a copy beside the original (admins). */
     this.canSave = false;
+    /** Set by the app: whether a photograph may be turned by hand (admins). */
+    this.canRotate = false;
     this.toast = null;
     this.onChange = null;
 
@@ -472,6 +474,7 @@ export class Viewer extends EventTarget {
 
   renderChrome(item) {
     this.root.querySelector('#v-sudar').hidden = !this.canDownload || item.kind !== 'picture';
+    this.root.querySelector('#v-rotate').hidden = !this.canRotate || item.kind !== 'picture';
     this.root.querySelector('#v-name').textContent = item.name;
     const bits = [
       item.date,

@@ -83,9 +83,9 @@ def validate():
     sources, destination, kinds = _job(body())
     resolution = _resolve(destination)
     destination = resolution["destination"]
-    problems = importer.validate(sources, destination, cfg().data_dir)
+    problems = importer.validate(sources, destination, cfg().data_dir, cfg().folders)
     if not kinds:
-        problems.append("Pick at least one kind of file: photos or video.")
+        problems.append(importer._say("Pick at least one kind of file: photos or video."))
     return jsonify({"ok": not problems, "problems": problems,
                     "notices": importer.notices(sources, destination), "resolution": resolution})
 
@@ -98,7 +98,7 @@ def capacity():
     data = body()
     sources, destination, kinds = _job(data)
     destination = _resolve(destination)["destination"]
-    if importer.validate(sources, destination, cfg().data_dir) or not kinds:
+    if importer.validate(sources, destination, cfg().data_dir, cfg().folders) or not kinds:
         return jsonify({"ok": False})
     token = str(data.get("progress_token") or "")
     if not _TOKEN.match(token):
@@ -131,13 +131,13 @@ def start():
     destination = resolution["destination"]
     if mode == "verify":
         problems = [] if destination and os.path.isdir(destination) \
-            else ["Choose the archive folder to audit."]
+            else [importer._say("Choose the archive folder to audit.")]
     else:
-        problems = importer.validate(sources, destination, cfg().data_dir)
+        problems = importer.validate(sources, destination, cfg().data_dir, cfg().folders)
         if not kinds:
-            problems.append("Pick at least one kind of file: photos or video.")
+            problems.append(importer._say("Pick at least one kind of file: photos or video."))
     if problems:
-        fail(409, problems[0], problems=problems, resolution=resolution)
+        fail(409, problems[0]["text"], problems=problems, resolution=resolution)
     try:
         engine().start(sources, destination, kinds, mode)
     except ValueError as exc:
