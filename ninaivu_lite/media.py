@@ -32,6 +32,17 @@ try:  # optional: iPhone photos
 except Exception:  # noqa: BLE001 — absent or broken, either way not available
     HEIF = False
 
+try:  # optional: sideways photographs without a camera tag, judged by their faces
+    import cv2  # type: ignore
+    import numpy  # type: ignore
+
+    # OpenCV 5 moved the Haar cascades out of the main package: 4.x is wanted.
+    FACES = hasattr(cv2, "CascadeClassifier") and os.path.isfile(
+        os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml"))
+except Exception:  # noqa: BLE001
+    cv2 = numpy = None  # type: ignore
+    FACES = False
+
 PHOTO_EXTS = {".jpg", ".jpeg", ".jfif", ".png", ".gif", ".webp", ".bmp", ".tif", ".tiff",
               ".heic", ".heif", ".avif"}
 VIDEO_EXTS = {".mp4", ".m4v", ".mov", ".webm", ".avi", ".mkv", ".3gp", ".mts", ".m2ts",
@@ -136,8 +147,11 @@ def read_photo(path: str) -> dict[str, Any]:
             if exposure := _number(raw.get("ExposureTime")):
                 info["exposure"] = (f"1/{round(1 / exposure)}" if exposure < 1
                                     else f"{round(exposure, 1)}")
-            if exif.get(_ORIENTATION) in _QUARTER_TURNS:
+            orientation = exif.get(_ORIENTATION)
+            if orientation in _QUARTER_TURNS:
                 width, height = height, width
+            if isinstance(orientation, int) and 1 <= orientation <= 8:
+                info["orientation"] = orientation
             try:
                 gps = exif.get_ifd(0x8825)
                 lat, lon = _gps(gps.get(2)), _gps(gps.get(4))
@@ -167,12 +181,107 @@ def describe(path: str, name: str, kind: str, st: os.stat_result) -> dict[str, A
         log.debug("could not read %s: %s", path, exc)
         info = {"error": "unreadable"} if kind == "picture" else {}
     if not info.get("taken_at"):
-        named = dates.filename_date(name)
-        if named:
-            info["taken_at"], info["taken_source"] = dates.to_timestamp(named), "filename"
-        else:
-            info["taken_at"], info["taken_source"] = dates.file_time(st), "mtime"
+        # The same chain the importer files by: the video's header, a Google
+        # Takeout sidecar, the file name, a dated folder, then the file's clock.
+        when, source = dates.fallback_date(path, st)
+        if when is None:
+            when, source = dates.from_timestamp(dates.file_time(st)), "mtime"
+        info["taken_at"] = dates.to_timestamp(when)
+        info["taken_source"] = {"filesystem": "mtime", "folder": "path"}.get(source, source)
+    if info.get("lat") is None and kind == "picture":
+        # An export from Google Photos often keeps the place only in the sidecar.
+        extras = dates.takeout_extras(path)
+        if "lat" in extras:
+            info["lat"], info["lon"] = extras["lat"], extras["lon"]
     return info
+
+
+# --- which way up (taken from Ninaivu's media/upright.py, the faces part) ------------
+
+#: A clockwise quarter turn, 0, 90, 180 or 270: never anything finer.
+ROTATIONS = (0, 90, 180, 270)
+_WORK_SIZE = 640
+#: A detected box must be at least this much skin to count as a person: a
+#: cascade fires on brickwork and car grilles too, and those measure near zero.
+_SKIN_FRACTION = 0.25
+#: How much of the frame the faces must take up before they are evidence, and
+#: how clearly the best turn must beat the runner-up.
+_MIN_FACE_EVIDENCE = 0.0035
+_MIN_FACE_MARGIN = 1.6
+_CASCADES = ("haarcascade_frontalface_default.xml", "haarcascade_profileface.xml")
+_cascades: list[Any] | None = None
+
+
+def turn(img: Image.Image, rotation: int) -> Image.Image:
+    """*img* turned clockwise by a quarter-turn multiple."""
+    rotation %= 360
+    return img if not rotation else img.rotate(-rotation, expand=True)
+
+
+def _face_cascades() -> list[Any]:
+    global _cascades
+    if _cascades is None:
+        found = []
+        if FACES:
+            try:
+                cv2.setNumThreads(1)
+            except Exception:  # noqa: BLE001
+                pass
+            for name in _CASCADES:
+                classifier = cv2.CascadeClassifier(cv2.data.haarcascades + name)
+                if not classifier.empty():
+                    found.append(classifier)
+        _cascades = found
+    return _cascades
+
+
+def _face_evidence(img: Image.Image) -> float:
+    """How much face there is in *img*, weighted towards the top of the frame:
+    heads are near the top of a photograph far more often than the bottom,
+    which is what tells a photograph from the same one upside down."""
+    rgb = numpy.array(img)
+    grey = cv2.equalizeHist(cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY))
+    ycrcb = cv2.cvtColor(rgb, cv2.COLOR_RGB2YCrCb)
+    width, height = img.size
+    total = 0.0
+    for classifier in _face_cascades():
+        try:
+            hits = classifier.detectMultiScale(grey, scaleFactor=1.1, minNeighbors=5,
+                                               minSize=(40, 40))
+        except Exception:  # noqa: BLE001
+            continue
+        for x, y, w, h in hits:
+            crop = ycrcb[y:y + h, x:x + w]
+            cr, cb = crop[:, :, 1], crop[:, :, 2]
+            skin = ((cr >= 133) & (cr <= 180) & (cb >= 77) & (cb <= 130)).mean()
+            if skin < _SKIN_FRACTION:
+                continue
+            centre = (y + h / 2) / height
+            weight = 1.0 if centre <= 0.5 else max(0.4, 1.0 - (centre - 0.5) * 1.2)
+            total += (w * h) / float(width * height) * weight
+    return total
+
+
+def detect_rotation(path: str) -> int:
+    """The clockwise quarter turn that puts the people in this photograph the
+    right way up, or 0 when there is no clear answer. Only for a photograph
+    without a camera tag; turning one that was fine is the worse mistake, so
+    every turn needs enough face, clearly ahead of the other three."""
+    if not FACES or not _face_cascades():
+        return 0
+    try:
+        with Image.open(dates.long_path(path)) as img:
+            img.draft("RGB", (_WORK_SIZE, _WORK_SIZE))
+            work = img.convert("RGB")
+            work.thumbnail((_WORK_SIZE, _WORK_SIZE), Image.Resampling.BILINEAR)
+    except Exception:  # noqa: BLE001
+        return 0
+    scores = {rotation: _face_evidence(turn(work, rotation)) for rotation in ROTATIONS}
+    ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+    (best, top), (_, second) = ranked[0], ranked[1]
+    if top < _MIN_FACE_EVIDENCE or (second > 0 and top / second < _MIN_FACE_MARGIN):
+        return 0
+    return best
 
 
 # --- thumbnails ------------------------------------------------------------------
@@ -213,8 +322,9 @@ def video_frame(path: str) -> Image.Image | None:
 
 
 def make_thumbnails(path: str, kind: str, thumbs_dir: Path, asset_id: int,
-                    sizes: tuple[str, ...] = ("s", "l")) -> tuple[bool, str | None]:
-    """Write the thumbnails named in *sizes* ("s" 256 px, "l" 640 px).
+                    sizes: tuple[str, ...] = ("s", "l"), rotation: int = 0) -> tuple[bool, str | None]:
+    """Write the thumbnails named in *sizes* ("s" 256 px, "l" 640 px), turned
+    by *rotation* (the index's answer for a photograph without a camera tag).
 
     Returns (made, colour): colour is the picture's average, '#rrggbb', which
     the grid paints while the thumbnail loads. ``made`` is False when no
@@ -232,7 +342,7 @@ def make_thumbnails(path: str, kind: str, thumbs_dir: Path, asset_id: int,
     try:
         if img.mode not in ("RGB", "RGBA"):
             img = img.convert("RGBA" if "A" in img.getbands() else "RGB")
-        current = img
+        current = turn(img, rotation) if kind == "picture" else img
         for size, edge in edges:
             copy = current.copy()
             copy.thumbnail((edge, edge), Image.Resampling.LANCZOS)

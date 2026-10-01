@@ -160,6 +160,8 @@ export const api = {
     return (await get('/api/status'))?.scan ?? null;
   },
   albums: () => get('/api/albums'),
+  // The index's answer for which way up a photograph goes; the file is never touched.
+  rotate: (id, rotation) => post(`/api/asset/${id}/rotate`, { rotation }),
   album: (id) => get(`/api/albums/${id}`),
   createAlbum: (name, ids = []) => post('/api/albums', { name, ids }),
   updateAlbum: (id, fields) => request(`/api/albums/${id}`, {

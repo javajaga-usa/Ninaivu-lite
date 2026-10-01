@@ -1,6 +1,7 @@
-/* The first day: what a new library needs, in two steps, right after the
-   administrator is made — a folder of photographs, and the household.
-   Opens once (first_day_done) and never again.
+/* The first day: what a new library needs, in three steps, right after the
+   administrator is made — a folder of photographs, the old drives and backup
+   folders to bring into it, and the household. Opens once (first_day_done)
+   and never again.
 
    Nothing here is new machinery. Each step calls the route the page behind it
    calls — the folder picker and People — so finishing the walk-through leaves
@@ -18,7 +19,7 @@ function el(tag, cls, text) {
   return node;
 }
 
-const STEPS = ['library', 'people'];
+const STEPS = ['library', 'import', 'people'];
 
 export class FirstDay {
   constructor({ json, toast, pickFolder, openPage, refresh }) {
@@ -30,6 +31,8 @@ export class FirstDay {
     this.state = null;
     this.step = 0;
     this.added = [];                       // people added during this walk-through
+    this.sources = null;                   // folders to sweep, chosen on the import step
+    this.destination = '';
     this.wired = false;
     i18n.onChange(() => {
       const box = $('#first-day');
@@ -133,7 +136,115 @@ export class FirstDay {
     }
   }
 
-  /* -- 2. the household ------------------------------------------------- */
+  /* -- 2. the old drives and backup folders ----------------------------- */
+
+  render_import(body) {
+    $('#fd-title').textContent = i18n.t('Are there old photos to bring in?');
+    body.append(el('p', 'lede',
+      i18n.t('Ninaivu can sweep the photos and videos off old drives, memory cards, phone backups and backup folders into one archive, filed by the day each was taken, and show them in the library. Add every folder or drive that holds them: the top folder is enough, because every folder inside it is scanned, however deep. Each file is copied and checked; the originals are never changed, moved or deleted.')));
+    if (this.sources === null) this.sources = [...(this.state.import?.sources || [])];
+    if (!this.destination) this.destination = this.state.import?.destination || '';
+
+    body.append(el('p', 'fd-label', i18n.t('Folders and drives to scan for photos and videos')));
+    const list = el('ul', 'fd-people');
+    for (const [index, source] of this.sources.entries()) {
+      const li = el('li');
+      li.append(el('code', 'li-path', source));
+      const remove = el('button', 'btn ghost small', i18n.t('Remove'));
+      remove.type = 'button';
+      remove.onclick = () => { this.sources.splice(index, 1); this.render(); };
+      li.append(remove);
+      list.append(li);
+    }
+    if (!this.sources.length) list.append(el('li', 'hint', i18n.t('No folders added yet. A drive letter or a whole backup folder is fine.')));
+    body.append(list);
+
+    const row = el('form', 'row');
+    const typed = el('input', 'input');
+    typed.placeholder = i18n.t('e.g. D:\\OldPhotos or /Volumes/Backup');
+    typed.setAttribute('aria-label', i18n.t('Folder to scan'));
+    const addTyped = el('button', 'btn', i18n.t('Add folder'));
+    addTyped.type = 'submit';
+    const browse = el('button', 'btn primary', i18n.t('Browse…'));
+    browse.type = 'button';
+    browse.onclick = () => this.pickFolder({
+      title: i18n.t('Choose a folder to sweep'),
+      cta: i18n.t('Add as a source'),
+      anyFolder: true,
+      start: this.sources.at(-1) || '',
+      pick: (path) => this.addSource(path),
+    });
+    row.onsubmit = (event) => { event.preventDefault(); this.addSource(typed.value); };
+    row.append(typed, addTyped, browse);
+    body.append(row);
+
+    body.append(el('p', 'fd-label', i18n.t('Where the archive is built')));
+    const where = el('div', 'row');
+    const chosen = el('div', 'fd-chosen', this.destination || i18n.t('No folder chosen yet'));
+    chosen.style.flex = '1';
+    const change = el('button', 'btn ghost small', i18n.t('Change'));
+    change.type = 'button';
+    change.onclick = () => this.pickFolder({
+      title: i18n.t('Choose where the archive is built'),
+      cta: i18n.t('Use this folder'),
+      anyFolder: true,
+      start: this.destination,
+      pick: (path) => { this.destination = path; this.render(); },
+    });
+    where.append(chosen, change);
+    body.append(where);
+    body.append(el('p', 'hint', this.state.library.chosen
+      ? i18n.t('Inside your library folder, so the family sees the archive as soon as it is indexed. Nothing already in the library is touched.')
+      : i18n.t('Choose a folder on a drive with room for everything. It is added to the library when the import starts.')));
+
+    const run = el('div', 'row');
+    const start = el('button', 'btn primary', i18n.t('Start the import'));
+    start.type = 'button';
+    start.disabled = !this.sources.length || !this.destination || !!this.state.import?.running;
+    start.onclick = () => this.startImport(start);
+    run.append(start);
+    body.append(run);
+    $('#fd-note').textContent = this.state.import?.running
+      ? i18n.t('The import is running. Watch it on Import, under Library.')
+      : i18n.t('Skipping is fine: Import, under Library, does the same at any time.');
+  }
+
+  addSource(raw) {
+    const path = (raw || '').trim();
+    if (!path) { this.toast(i18n.t('Type a folder, or press Browse.'), true); return; }
+    if (this.sources.includes(path)) { this.toast(i18n.t('That folder is already a source.'), true); return; }
+    this.sources.push(path);
+    this.render();
+  }
+
+  async startImport(button) {
+    button.disabled = true;
+    const label = button.textContent;
+    button.textContent = i18n.t('Starting…');
+    try {
+      const job = {
+        source_dirs: this.sources.map((path) => ({ path })),
+        destination_dir: this.destination,
+        media_types: ['image', 'video'],
+        mode: 'copy',
+      };
+      const started = await this.json('/api/archive/start', { method: 'POST', body: job });
+      if (started.destination) this.destination = started.destination;
+      // The archive joins the library now, so what the import brings in is
+      // indexed as it lands rather than waiting for somebody to add it.
+      try { await this.json('/api/archive/adopt', { method: 'POST', body: { path: this.destination } }); } catch { /* said on Import */ }
+      this.toast(i18n.t('Import started. Watch it on Import, under Library.'));
+      await this.reload();
+      this.render();
+    } catch (exc) {
+      const problems = exc.data?.problems || [exc.message];
+      this.toast(problems.map((p) => i18n.t(p)).join(' '), true);
+      button.disabled = false;
+      button.textContent = label;
+    }
+  }
+
+  /* -- 3. the household ------------------------------------------------- */
 
   render_people(body) {
     $('#fd-title').textContent = i18n.t('Who is in the household?');

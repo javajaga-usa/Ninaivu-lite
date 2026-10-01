@@ -98,6 +98,7 @@
       <button role="tab" data-tab="overview" data-group="home" class="active" aria-selected="true"><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg><span class="tab-label" data-i18n="Overview">Overview</span></button>
       <span class="tab-group-label" aria-hidden="true" data-i18n="Library">Library</span>
       <button role="tab" data-tab="library" data-group="library" aria-selected="false" hidden><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span class="tab-label" data-i18n="Library settings">Library settings</span></button>
+      <button role="tab" data-tab="archive" data-group="library" aria-selected="false" hidden><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="17" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/></svg><span class="tab-label" data-i18n="Import">Import</span></button>
       <span class="tab-group-label" aria-hidden="true" data-i18n="People & access">People &amp; access</span>
       <button role="tab" data-tab="people" data-group="people" aria-selected="false" hidden><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 5.2a3.5 3.5 0 0 1 0 6.6M18.5 14.5A6.5 6.5 0 0 1 21.5 20"/></svg><span class="tab-label" data-i18n="People">People</span></button>
       <button role="tab" data-tab="visibility" data-group="people" aria-selected="false" hidden><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg><span class="tab-label" data-i18n="Visibility">Visibility</span></button>
@@ -267,6 +268,179 @@
 
   </section>
 
+  <!-- Import ---------------------------------------------------------- -->
+  <section class="panel" data-panel="archive">
+    <div class="admin-guide">
+      <svg class="admin-guide-art" viewBox="0 0 180 120" aria-hidden="true" focusable="false"><circle class="guide-halo" cx="90" cy="60" r="51"/><rect class="guide-sheet guide-sheet-back" x="43" y="21" width="84" height="80" rx="16" transform="rotate(-12 85 61)"/><rect class="guide-sheet" x="52" y="18" width="84" height="80" rx="16"/><svg x="72" y="30" width="44" height="44" viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/></svg><path class="guide-caption" d="M77 83h34M85 89h18"/><circle class="guide-dot" cx="34" cy="42" r="4"/><path class="guide-spark" d="M147 73v12m-6-6h12M38 84v8m-4-4h8"/></svg>
+      <div class="admin-guide-copy">
+        <p class="admin-guide-kicker" data-i18n="Your guide">Your guide</p>
+        <h2 data-i18n="Every drive. One family archive.">Every drive. One family archive.</h2>
+        <p class="admin-guide-description" data-i18n="Bring scattered photos together. Choose your sources and destination before starting an import.">Bring scattered photos together. Choose your sources and destination before starting an import.</p>
+        <ul class="admin-guide-topics" aria-label="At a glance" data-i18n-label="At a glance"><li data-i18n="Choose sources">Choose sources</li><li data-i18n="Set destination">Set destination</li><li data-i18n="Start import">Start import</li></ul>
+      </div>
+    </div>
+    <div class="block">
+      <h2 data-i18n="Consolidate drives into one archive">Consolidate drives into one archive</h2>
+      <p class="hint" data-i18n-rich="Sweeps photos and video off however many old drives, cards and backup folders you have into one archive filed as &lt;code&gt;YYYY/MM/DD&lt;/code&gt;. Sources are opened read-only and &lt;strong&gt;nothing is ever deleted&lt;/strong&gt; — every copy is re-read from disk and SHA-256 matched before it counts.">Sweeps photos and video off however many old drives,
+        cards and backup folders you have into one archive filed as
+        <code>YYYY/MM/DD</code>. Sources are opened read-only and
+        <strong>nothing is ever deleted</strong> — every copy is re-read from disk
+        and SHA-256 matched before it counts.</p>
+    </div>
+
+    <!-- 1 · sources -->
+    <div class="block">
+      <h2><span class="step">1</span> <span data-i18n="Source drives and folders">Source drives and folders</span></h2>
+      <p class="hint" data-i18n="Every subfolder is scanned, however deep. A Google Photos export (Takeout) comes across with its dates, places, descriptions and albums.">Every subfolder is scanned, however deep. A Google Photos export (Takeout) comes across with its dates, places, descriptions and albums.</p>
+      <div id="ar-sources" class="ar-sources"></div>
+      <p class="empty-note" id="ar-sources-empty" data-i18n="No sources yet. Add a folder below — a drive letter is fine, and every folder beneath it is included.">
+        No sources yet. Add a folder below — a drive letter is fine, and every folder
+        beneath it is included.
+      </p>
+      <div class="ar-add">
+        <input type="text" id="ar-source-input" class="input"
+               placeholder="e.g. D:\OldPhotos  or  /Volumes/Backup" autocomplete="off" data-i18n-placeholder="e.g. D:\OldPhotos or /Volumes/Backup">
+        <button class="btn ghost" id="ar-browse-source" data-i18n="Browse…">Browse…</button>
+        <button class="btn primary" id="ar-add-source" data-i18n="Add source">Add source</button>
+      </div>
+      <div class="ar-defaults">
+        <span class="ar-defaults-label" data-i18n="Scan every folder for">Scan every folder for</span>
+        <label class="toggle"><input type="checkbox" id="ar-type-image" checked> <span data-i18n="Photos">Photos</span></label>
+        <label class="toggle"><input type="checkbox" id="ar-type-video" checked> <span data-i18n="Video">Video</span></label>
+      </div>
+    </div>
+
+    <!-- 2 · destination -->
+    <div class="block">
+      <h2><span class="step">2</span> <span data-i18n="Archive destination">Archive destination</span></h2>
+      <p class="hint" data-i18n="Where the consolidated archive is built. Pick the archive's own root — choose a folder inside one and Ninaivu uses the root instead, and says so.">Where the consolidated archive is built. Pick the archive's own
+        root — choose a folder inside one and Ninaivu uses the root instead, and says so.</p>
+      <div class="ar-add">
+        <input type="text" id="ar-dest-input" class="input"
+               placeholder="e.g. D:\Photo Archive" autocomplete="off" data-i18n-placeholder="e.g. D:\Photo Archive">
+        <button class="btn ghost" id="ar-browse-dest" data-i18n="Browse…">Browse…</button>
+      </div>
+    </div>
+
+    <!-- notices -->
+    <div class="ar-note ar-note-fix" id="ar-resolution" hidden>
+      <strong data-i18n="Destination corrected">Destination corrected</strong>
+      <p id="ar-resolution-text"></p>
+    </div>
+    <div class="ar-note ar-note-info" id="ar-notices" hidden>
+      <strong data-i18n="Worth knowing">Worth knowing</strong>
+      <ul id="ar-notice-list"></ul>
+    </div>
+    <div class="ar-note ar-note-bad" id="ar-problems" hidden>
+      <strong data-i18n="This job was refused">This job was refused</strong>
+      <ul id="ar-problem-list"></ul>
+    </div>
+    <div class="ar-capacity" id="ar-capacity" hidden></div>
+
+    <!-- 3 · run -->
+    <div class="block">
+      <h2><span class="step">3</span> <span data-i18n="Run">Run</span></h2>
+      <div class="ar-actions">
+        <button class="btn primary" id="ar-start" data-i18n="Start consolidation">Start consolidation</button>
+        <button class="btn ghost" id="ar-dry" data-i18n="Dry run">Dry run</button>
+        <button class="btn ghost" id="ar-pause" hidden data-i18n="Pause">Pause</button>
+        <button class="btn danger" id="ar-stop" hidden data-i18n="Stop">Stop</button>
+      </div>
+      <div class="ar-actions">
+        <button class="btn ghost small" id="ar-audit" data-i18n="Audit archive">Audit archive</button>
+        <button class="btn ghost small" id="ar-retry" data-i18n="Retry failed">Retry failed</button>
+        <button class="btn ghost small" id="ar-export" data-i18n="Export manifest">Export manifest</button>
+        <button class="btn ghost small" id="ar-reset" data-i18n="Reset report">Reset report</button>
+      </div>
+      <p class="hint" data-i18n-rich="&lt;strong&gt;Start&lt;/strong&gt; also resumes — an interrupted run picks up exactly where it stopped. &lt;strong&gt;Dry run&lt;/strong&gt; decides everything and writes nothing. &lt;strong&gt;Audit&lt;/strong&gt; re-reads every archived file and re-checks its hash."><strong>Start</strong> also resumes — an interrupted run picks up
+        exactly where it stopped. <strong>Dry run</strong> decides everything and writes
+        nothing. <strong>Audit</strong> re-reads every archived file and re-checks its hash.</p>
+    </div>
+
+    <!-- progress -->
+    <div class="block">
+      <div class="ar-status">
+        <i class="ar-pulse" id="ar-pulse"></i>
+        <span id="ar-status-text" data-i18n="Ready">Ready</span>
+      </div>
+      <div class="ar-progress" id="ar-progress" hidden>
+        <div class="scan-bar"><i id="ar-fill"></i></div>
+        <div class="ar-progress-meta">
+          <span id="ar-count" data-i18n="0 of 0 files">0 of 0 files</span>
+          <span id="ar-eta"></span>
+          <span id="ar-bytes"></span>
+        </div>
+      </div>
+      <div class="ar-note ar-note-info" id="ar-resume-banner" hidden>
+        <strong data-i18n="Picking up where the last run stopped">Picking up where the last run stopped</strong>
+        <p id="ar-resume-text"></p>
+      </div>
+      <div class="ar-note ar-note-info" id="ar-dry-banner" hidden>
+        <strong data-i18n="Dry run">Dry run</strong>
+        <p data-i18n="These are predictions. Nothing has been written.">These are predictions. Nothing has been written.</p>
+      </div>
+
+      <div class="cards" id="ar-stats">
+        <div class="card good"><div class="card-label" id="ar-label-verified" data-i18n="Verified">Verified</div>
+          <div class="card-value" id="ar-verified">0</div>
+          <div class="card-sub" data-i18n="copied & hash-matched">copied &amp; hash-matched</div></div>
+        <div class="card"><div class="card-label" data-i18n="Duplicates">Duplicates</div>
+          <div class="card-value" id="ar-duplicates">0</div>
+          <div class="card-sub" data-i18n="left in place, logged">left in place, logged</div></div>
+        <div class="card"><div class="card-label" data-i18n="Skipped">Skipped</div>
+          <div class="card-value" id="ar-skipped">0</div>
+          <div class="card-sub" data-i18n="empty or unusable">empty or unusable</div></div>
+        <div class="card" id="ar-errors-card"><div class="card-label" data-i18n="Errors">Errors</div>
+          <div class="card-value" id="ar-errors">0</div>
+          <div class="card-sub" data-i18n="retried on the next run">retried on the next run</div></div>
+      </div>
+
+      <div class="ar-handoff" id="ar-handoff" hidden>
+        <div class="ar-handoff-text">
+          <strong id="ar-handoff-title"></strong>
+          <span class="hint" id="ar-handoff-sub"></span>
+        </div>
+        <button class="btn primary" id="ar-adopt" data-i18n="Add to library">Add to library</button>
+      </div>
+
+      <div class="ar-handoff" id="ar-takeout" hidden>
+        <div class="ar-handoff-text">
+          <strong id="ar-takeout-title"></strong>
+          <span class="hint" id="ar-takeout-sub"></span>
+        </div>
+        <button class="btn" id="ar-takeout-make" data-i18n="Make the albums">Make the albums</button>
+      </div>
+
+      <div class="ar-years" id="ar-years" hidden>
+        <div class="ar-years-head"><span data-i18n="Archive by capture year">Archive by capture year</span>
+          <span class="hint" data-i18n="everything piled into one recent year means dates were not read">everything piled into one recent year means dates were not read</span>
+        </div>
+        <div class="ar-years-chart" id="ar-years-chart"></div>
+      </div>
+    </div>
+
+    <!-- files -->
+    <div class="block">
+      <div class="block-head">
+        <h2 data-i18n="Files">Files</h2>
+        <div class="preview-tabs" id="ar-filters">
+          <button class="btn ghost small active" data-status="all" data-i18n="All">All</button>
+          <button class="btn ghost small" data-status="verified" data-i18n="Verified">Verified</button>
+          <button class="btn ghost small" data-status="duplicate" data-i18n="Duplicates">Duplicates</button>
+          <button class="btn ghost small" data-status="planned" data-i18n="Planned">Planned</button>
+          <button class="btn ghost small" data-status="skipped" data-i18n="Skipped">Skipped</button>
+          <button class="btn ghost small" data-status="error" data-i18n="Errors">Errors</button>
+        </div>
+      </div>
+      <div class="ar-table-wrap">
+        <table class="ar-table">
+          <thead><tr><th data-i18n="File">File</th><th data-i18n="Status">Status</th><th data-i18n="Detail">Detail</th></tr></thead>
+          <tbody id="ar-tbody"><tr><td colspan="3" class="ar-empty" data-i18n="No activity yet">No activity yet</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
   <section class="panel" data-panel="settings">
     <div class="admin-guide">
       <svg class="admin-guide-art" viewBox="0 0 180 120" aria-hidden="true" focusable="false"><circle class="guide-halo" cx="90" cy="60" r="51"/><rect class="guide-sheet guide-sheet-back" x="43" y="21" width="84" height="80" rx="16" transform="rotate(-12 85 61)"/><rect class="guide-sheet" x="52" y="18" width="84" height="80" rx="16"/><svg x="72" y="30" width="44" height="44" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/></svg><path class="guide-caption" d="M77 83h34M85 89h18"/><circle class="guide-dot" cx="34" cy="42" r="4"/><path class="guide-spark" d="M147 73v12m-6-6h12M38 84v8m-4-4h8"/></svg>
@@ -319,6 +493,7 @@
     <div class="fd-head">
       <ol class="fd-steps" id="fd-steps" aria-label="Steps" data-i18n-label="Steps">
         <li data-step="library" data-i18n="Library">Library</li>
+        <li data-step="import" data-i18n="Import">Import</li>
         <li data-step="people" data-i18n="Household">Household</li>
       </ol>
       <button class="btn ghost small" type="button" id="fd-skip-all" data-i18n="Skip for now">Skip for now</button>

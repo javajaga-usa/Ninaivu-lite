@@ -1,0 +1,6 @@
+# Optional. With this installed, a photograph that carries no camera orientation
+# tag (a scanned print, one a messaging app stripped) is judged by the faces in
+# it and turned upright in the index during the scan. Nothing is downloaded at
+# run time: the face classifiers ship with the package.
+#   .venv/bin/pip install -r requirements-straighten.txt      (Windows: .venv\Scripts\pip)
+opencv-python-headless>=4.8,<5   # 5.x no longer carries the face cascades

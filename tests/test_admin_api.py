@@ -11,7 +11,7 @@ import zipfile
 import pytest
 from conftest import ids, make_jpeg, sign_in
 
-from ninaivu_lite import auth, db
+from ninaivu_lite import auth, db, media
 from ninaivu_lite.config import Config
 
 ROUTES = [
@@ -89,7 +89,7 @@ def test_overview_shape(app, admin, library):
     assert folder == {"path": str(root), "name": "Photos", "exists": True, "count": 6,
                       "bytes": folder["bytes"], "assigned": 0, "active": True}
     assert folder["bytes"] > 0
-    assert data["capabilities"]["opencv"] is False
+    assert data["capabilities"]["opencv"] is media.FACES
     assert set(data["capabilities"]) == {"ffmpeg", "heif", "opencv"}
     assert data["people"]["by_role"] == {"guest": 0, "family": 0, "admin": 1}
     assert data["people"]["total"] == 1 and data["people"]["signed_in"] == 1
@@ -263,7 +263,9 @@ def test_settings_echo_and_persist(app, admin, library):
 def test_first_day(app, admin, library):
     root, data_dir = library
     data = admin.get("/api/admin/first-day").get_json()
-    assert data == {"done": False, "library": {"chosen": True, "root": str(root)}, "people": 0}
+    assert data["done"] is False and data["people"] == 0
+    assert data["library"] == {"chosen": True, "root": str(root)}
+    assert data["import"]["destination"] == os.path.join(str(root), "Ninaivu Archive")
     assert admin.post("/api/admin/first-day", json={}).get_json() == {"done": True}
     assert admin.get("/api/admin/first-day").get_json()["done"] is True
     assert Config.load(data_dir).first_day_done is True

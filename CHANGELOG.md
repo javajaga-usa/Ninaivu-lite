@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.3.0 — 2026-10-01
+
+- **Import** (console → Library → Import), from Ninaivu's archive engine, cut to what a
+  household uses: sweep old drives, memory cards, phone backups and backup folders into one
+  archive filed as `YYYY/MM/DD` by the day each photo was taken (EXIF, the video's own
+  header, a Google Takeout sidecar, the file name, a dated folder, then the file's clock).
+  Sources are only ever read; every copy is hashed as it is read and read back from the
+  archive before it counts; duplicates are found by content and left where they are; the
+  same name with different bytes gets `_1`. **Start is also Resume**, a **dry run** decides
+  everything and writes nothing, and **Audit** re-reads every archived file. A Takeout
+  export comes across with its dates, places and descriptions, and its albums can be made
+  in the library after the import. One press adds the archive to the library. Standard
+  library and Pillow only: no pacing, drive-health sampling or classifiers.
+- **The first day asks about old photos.** Between the library folder and the household,
+  the walk-through explains what the importer does and asks which folders or drives hold
+  the photos to bring in; the archive is built inside the library folder and indexed as it
+  lands.
+- **Sudar** (சுடர்), Ninaivu's photo studio, in the viewer (*Edit with Sudar*): light,
+  colour, detail and framing through the same develop engine as Ninaivu, looks,
+  suggestions measured from the picture, *make it warmer* in plain words through the
+  built-in planner, clothing colour by brush, before and after, undo and redo. Everything
+  runs in the browser; no model, nothing sent anywhere. The original is never changed: the
+  result is downloaded, or an administrator saves it as a copy beside the original, which
+  keeps the camera, exposure and place from the original and appears in the library at once.
+- **Sideways photographs are turned upright during the scan**, nobody asked, no file changed:
+  the camera's own orientation tag is final; a photograph without one (a scanned print, one a
+  messaging app stripped) is judged by the faces in it when OpenCV is installed
+  (`requirements-straighten.txt`, optional: the classifiers ship with it, nothing is
+  downloaded), and turned only when one way up is clearly ahead. The turn lives in the index:
+  thumbnails are remade and the viewer turns the picture. **Rotate** in the viewer lets an
+  administrator correct any by hand, and that answer outlives every rescan.
+- The index now reads the same date chain as the importer (Takeout sidecars and dated
+  folders included), and takes a photo's place from a Takeout sidecar when the file has none.
+
 ## 1.2.1 — 2026-10-01
 
 - **Windows: a signed uninstaller, and a published code signing policy.** The uninstaller is

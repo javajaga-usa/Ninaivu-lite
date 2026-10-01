@@ -4,7 +4,8 @@
 
 Ninaivu Lite shows your family's photos and videos to everyone at home, on any phone, tablet or
 computer on the same Wi-Fi. It **only reads** your photo folders: it never moves, edits or
-deletes a photograph.
+deletes a photograph. (The importer copies photos *into* the library from old drives, and
+Sudar can save an edited *copy* beside an original; neither changes a photograph you have.)
 
 ## 1. Start it
 
@@ -47,6 +48,13 @@ a screen, use `tools/ninaivu-lite.service` instead.
 2. The admin console then helps you:
    - **Choose the photo folder** — browse to it and press *Use this folder*. You can add
      more folders later under *Library settings*.
+   - **Bring in old photos** — the walk-through asks which folders or drives hold photos
+     to bring in (old drives, memory cards, phone backups, backup folders). Add the top
+     folder of each: everything inside it is scanned, however deep. Press *Start the
+     import* and the photos are copied into an archive inside your library folder, filed
+     by the day each was taken, every copy checked. The originals are never changed, moved
+     or deleted. Skip it if there is nothing to bring in; *Import*, under *Library*, does
+     the same at any time.
    - **Add your family** — under *People*, *Add someone*: a name, a role, and how they
      enter (no secret, a PIN, or a password).
 3. Indexing starts by itself. Photos appear as they are found; small previews are made in
@@ -97,6 +105,33 @@ password. To leave the gallery, open your profile (top right) and choose *Switch
 - **Albums** — make an album from a selection; albums can be shared.
 - **Language** — English or தமிழ், from the language button at the top. Each person's choice
   is remembered.
+- **Sudar** (⋯ → *Edit with Sudar*) — the photo studio, in the browser: light, colour, detail
+  and framing sliders, looks, suggestions measured from the picture, *make it warmer* in plain
+  words (*AI assist*), and clothing colour by brush. Nothing is sent anywhere and the original
+  is never changed: download the result, or, as the administrator, *Save copy to Ninaivu
+  library* puts it beside the original.
+- **Sideways photos** are put right during the scan, from the camera's own tag, and, when the
+  OpenCV extra is installed, from the faces in a photo that has none. The administrator can
+  turn any photo by hand with ⋯ → *Rotate* (or **R**); the file itself is never changed.
+
+### Import: old drives into one archive
+
+*Library → Import* in the console sweeps photos and videos off any number of old drives,
+cards and backup folders into one archive filed as `YYYY/MM/DD`:
+
+1. **Sources** — add each top folder or drive. Every folder inside is scanned.
+2. **Destination** — where the archive is built. Choose the archive's own root; pick a folder
+   inside one and Ninaivu uses the root instead, and says so.
+3. **Run** — *Start consolidation* copies and checks every file (hashed as it is read, read
+   back from the archive before it counts). Duplicates are found by content and left where
+   they are; the same name with different bytes gets `_1`. **Start also resumes** an
+   interrupted run. *Dry run* decides everything and writes nothing; *Audit archive* re-reads
+   every archived file and re-checks its hash.
+
+When it finishes, *Add to library* makes the archive part of the gallery. A Google Photos
+export (Takeout) comes across with its dates, places and descriptions, and *Make the albums*
+recreates its albums once the archive is indexed. *Export manifest* writes a list of every
+file with its hash.
 
 ## 6. Sharing with someone outside the family
 

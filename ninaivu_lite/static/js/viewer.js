@@ -88,6 +88,8 @@ export class Viewer extends EventTarget {
 
     /** Set by the app: whether this viewer may offer the download. */
     this.canDownload = false;
+    /** Set by the app: whether Sudar may save a copy beside the original (admins). */
+    this.canSave = false;
     this.toast = null;
     this.onChange = null;
 
@@ -112,6 +114,23 @@ export class Viewer extends EventTarget {
     q('#v-zoom-out').onclick = () => this.zoomBy(1 / 1.5);
     q('#v-info').onclick = () => this.toggleInfo();
     if (q('#v-info-close')) q('#v-info-close').onclick = () => this.toggleInfo(false);
+    q('#v-rotate').onclick = () => this.rotate();
+    // Sudar, the photo studio: loaded the first time it is opened, because
+    // most visits never press it and its engine is the largest script here.
+    q('#v-sudar').onclick = async () => {
+      if (!this.canDownload || this.item?.kind !== 'picture') return;
+      const item = { ...this.item, rotation: this.transform.rotate };
+      this.stopSlideshow();
+      if (this.isKiosk) this.toggleKiosk();
+      try {
+        const { openSudar } = await import('./sudar/sudar.js');
+        openSudar({ item, returnFocus: q('#v-sudar'), canSave: this.canSave, onSaved: (copy) => {
+          this.toast?.(i18n.t('Edited copy saved — original kept'));
+          this.onChange?.(copy);
+          this.open([copy.id], 0);
+        } });
+      } catch { this.toast?.(i18n.t('Sudar could not load. Please refresh and try again.')); }
+    };
     // The button asks how to play before it plays; Space starts at once with
     // what was chosen last. While it is playing the button stops it.
     q('#v-slideshow').onclick = () => (this.slideshow ? this.stopSlideshow() : this.toggleSlidePop());
@@ -452,6 +471,7 @@ export class Viewer extends EventTarget {
   }
 
   renderChrome(item) {
+    this.root.querySelector('#v-sudar').hidden = !this.canDownload || item.kind !== 'picture';
     this.root.querySelector('#v-name').textContent = item.name;
     const bits = [
       item.date,
@@ -572,6 +592,26 @@ export class Viewer extends EventTarget {
       this.toast?.(`Could not update favorite: ${error.message}`, true);
     } finally {
       this.favoritePending = false;
+    }
+  }
+
+  /** A quarter turn more, kept in the index (an administrator's answer for
+   *  a photograph the scan could not judge). The file is never changed. */
+  async rotate() {
+    const item = this.item;
+    if (!item || item.kind !== 'picture' || this.rotatePending) return;
+    this.rotatePending = true;
+    const rotation = (Number(item.rotation || 0) + 90) % 360;
+    try {
+      const updated = await api.rotate(item.id, rotation);
+      Object.assign(item, updated);
+      this.cache.set(item.id, item);
+      if (this.item === item) { this.resetTransform(); this.renderInfo(item); }
+      this.dispatchEvent(new CustomEvent('mutated', { detail: { id: item.id, rotation } }));
+    } catch (error) {
+      this.toast?.(error.message, true);
+    } finally {
+      this.rotatePending = false;
     }
   }
 
@@ -811,6 +851,9 @@ export class Viewer extends EventTarget {
         if (!this.root.querySelector('#v-fav').hidden) this.toggleFavorite();
         return true;
       case 'i': this.toggleInfo(); return true;
+      case 'r':
+        if (!this.root.querySelector('#v-rotate').hidden) this.rotate();
+        return true;
       case 'd':
         if (this.canDownload) this.root.querySelector('#v-download').click();
         return true;

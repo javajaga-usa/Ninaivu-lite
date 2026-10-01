@@ -47,11 +47,15 @@ class Config:
     language: str = "en"             # for people and devices that have not chosen
     watch: bool = True               # look for new photos by itself (every 30 minutes)
     first_day_done: bool = False
+    # The importer's last job, so the console's Import page opens as it was left.
+    import_sources: list[str] = field(default_factory=list)
+    import_destination: str = ""
+    import_kinds: list[str] = field(default_factory=lambda: ["image", "video"])
     host: str = "0.0.0.0"
     port: int = DEFAULT_PORT
 
     SAVED = ("folders", "active", "house_name", "open_browsing", "language", "watch",
-             "first_day_done")
+             "first_day_done", "import_sources", "import_destination", "import_kinds")
 
     @property
     def settings_path(self) -> Path:
@@ -86,6 +90,9 @@ class Config:
             if name in raw and isinstance(raw[name], type(getattr(defaults, name))):
                 setattr(cfg, name, raw[name])
         cfg.folders = [str(f) for f in cfg.folders if isinstance(f, str) and f.strip()]
+        cfg.import_sources = [str(f) for f in cfg.import_sources
+                              if isinstance(f, str) and f.strip()]
+        cfg.import_kinds = [k for k in ("image", "video") if k in cfg.import_kinds]
         if cfg.language not in ("en", "ta"):
             cfg.language = "en"
         cfg.house_name = clean_house_name(cfg.house_name)
