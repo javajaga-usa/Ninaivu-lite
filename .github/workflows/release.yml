@@ -157,6 +157,9 @@ jobs:
     needs: [windows, macos, linux]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Only a version tag or "Run workflow" publishes. A push that merely
+    # changes the installers builds and tries them, and stops there.
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     env:
       HAS_PFX: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 != '' }}
       HAS_NOTARY: ${{ secrets.MAC_SIGN_P12_BASE64 != '' && secrets.MAC_NOTARY_PASSWORD != '' }}
