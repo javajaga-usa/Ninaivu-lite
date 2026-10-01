@@ -21,7 +21,7 @@ from . import auth, backups, db, export, folders, media
 from .common import (body, cfg, conn, fail, folder_ids, library_exists, require_admin,
                      scanner, split_library, subtree, visible)
 from .config import clean_house_name
-from .version import __version__
+from .version import COPYRIGHT, LICENCE, __version__
 
 bp = Blueprint("api_admin", __name__)
 
@@ -179,6 +179,8 @@ def overview():
     return jsonify({
         "app": {
             "version": __version__,
+            "copyright": COPYRIGHT,
+            "licence": LICENCE,
             "home_url": "/",
             "open_browsing": c.open_browsing,
             "watch": c.watch,

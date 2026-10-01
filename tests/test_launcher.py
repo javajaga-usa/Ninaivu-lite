@@ -74,3 +74,33 @@ def test_old_python_is_refused(start, monkeypatch, capsys):
     monkeypatch.setattr(start.sys, "version_info", (3, 9, 0))
     assert start.main([]) == 1
     assert "3.10" in capsys.readouterr().out
+
+
+def test_windows_console_gets_english_only(start, monkeypatch, capsys):
+    monkeypatch.setattr(start.os, "name", "nt")
+    start.say("Hello", "வணக்கம்")
+    assert capsys.readouterr().out == "  Hello\n"
+
+
+def test_first_start_opens_the_control_panel(start, monkeypatch):
+    opened, served = [], []
+    monkeypatch.setattr(start, "open_panel", lambda python, argv: opened.append(argv) or True)
+    monkeypatch.setattr(start.subprocess, "call", lambda cmd, **kw: served.append(cmd) or 0)
+    start.main(["--data", "D:/lite"])
+    start.main([])                       # the second start: just the server
+    assert opened == [["--data", "D:/lite"]]
+    assert len(served) == 2 and served[0][1:3] == ["-m", "ninaivu_lite"]
+
+
+def test_panel_only(start, monkeypatch):
+    opened, served = [], []
+    monkeypatch.setattr(start, "open_panel", lambda python, argv: opened.append(argv) or True)
+    monkeypatch.setattr(start.subprocess, "call", lambda cmd, **kw: served.append(cmd) or 0)
+    assert start.main(["--panel"]) == 0
+    assert opened == [["--panel"]] and served == []
+
+
+def test_data_argument(start):
+    assert start.data_argument(["x", "--data", "D:/a"]) == ["--data", "D:/a"]
+    assert start.data_argument(["--data=D:/b"]) == ["--data", "D:/b"]
+    assert start.data_argument(["D:/Photos"]) == []

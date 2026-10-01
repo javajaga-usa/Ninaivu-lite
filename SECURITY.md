@@ -19,6 +19,8 @@ internet** (no port forwarding, no public tunnels). HTTPS is planned for a later
   share link. Files are served by id, never by a path from the request.
 - **Share links** show only their photo or album, as copies without location or camera data;
   passwords on links are hashed; links can expire or be turned off.
+- **Stopping the server** from the Control Panel works only from the same computer, with a
+  random token the server keeps in its data folder.
 - **Your photos are never changed**: Lite opens them read-only and writes only to its own
   data folder.
 

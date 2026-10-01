@@ -16,9 +16,22 @@ deletes a photograph.
    `http://192.168.1.20:8080` — open that on phones and tablets.
 
 Keep the window open while the family uses it. Closing it stops Ninaivu Lite.
-To start it whenever the computer starts, run `tools\start-with-windows.cmd` once
-(Windows; `tools\start-with-windows.cmd off` undoes it) or install
-`tools/ninaivu-lite.service` (Linux).
+
+### The Control Panel
+
+When the first-time setup finishes, the **Control Panel** opens as well. Open it any time by
+double-clicking **`Start - Ninaivu Lite Control Panel.vbs`** (Windows) or with
+`./start.sh --panel` (macOS, Linux). It shows whether Ninaivu Lite is running and the
+addresses to open, and has:
+
+- **Start**, **Stop**, **Restart** — started from here, Ninaivu Lite runs in the background
+  with no window to keep open;
+- **Open the family app** and **Open the console**;
+- **Start Ninaivu Lite when I sign in** — tick it once and it starts with the computer;
+- **Open the log** and **Open the data folder**, for when something needs looking into.
+
+Closing the Control Panel leaves Ninaivu Lite running. On a Raspberry Pi or a server without
+a screen, use `tools/ninaivu-lite.service` instead.
 
 ## 2. The first day
 

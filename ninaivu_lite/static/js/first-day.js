@@ -68,6 +68,9 @@ export class FirstDay {
   }
 
   async next() {
+    // Somebody typed in but not yet added is added now, not thrown away; if
+    // that is refused (a PIN too easy to guess, say), stay here and say why.
+    if (STEPS[this.step] === 'people' && this.pending?.filled() && !(await this.pending.add())) return;
     if (this.step >= STEPS.length - 1) { await this.finish(false); return; }
     this.step += 1;
     await this.reload();
@@ -140,7 +143,8 @@ export class FirstDay {
     for (const person of this.added) {
       const li = el('li');
       li.append(el('strong', null, person.name), el('span', 'hint', person.role === 'guest'
-        ? i18n.t('guest · password') : i18n.t('family · PIN {pin}', { pin: person.pin })));
+        ? i18n.t('guest · password')
+        : (person.pin ? i18n.t('family · PIN {pin}', { pin: person.pin }) : i18n.t('family · no PIN'))));
       list.append(li);
     }
     if (!this.added.length && this.state.people) {
@@ -160,8 +164,12 @@ export class FirstDay {
     };
     const add = el('button', 'btn', i18n.t('Add')); add.type = 'submit';
     form.append(name, role, secret, add);
-    form.onsubmit = async (event) => {
-      event.preventDefault();
+    // Said right under the form: a note at the foot of the screen is easy to
+    // miss, and the person would look added when they were not.
+    const error = el('p', 'gate-error');
+    error.hidden = true;
+    const addPerson = async () => {
+      error.hidden = true;
       const username = name.value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '') || `person${Date.now() % 10000}`;
       const body = { name: name.value.trim(), username, role: role.value };
       if (role.value === 'guest') body.password = secret.value; else body.pin = secret.value;
@@ -171,13 +179,19 @@ export class FirstDay {
         this.added.push({ name: body.name, role: role.value, pin: body.pin });
         name.value = ''; secret.value = '';
         this.render();
+        return true;
       } catch (exc) {
-        this.toast(exc.message, true);
+        error.textContent = i18n.t('{name} was not added: {reason}', { name: body.name, reason: exc.message });
+        error.hidden = false;
+        (secret.value ? secret : name).focus();
+        return false;
       } finally {
         add.disabled = false;
       }
     };
-    body.append(form);
+    form.onsubmit = (event) => { event.preventDefault(); addPerson(); };
+    this.pending = { filled: () => !!name.value.trim(), add: addPerson };
+    body.append(form, error);
     body.append(el('p', 'hint',
       i18n.t('A family member without a PIN can be opened from any phone or computer on your home network. Give a PIN to anyone whose photographs should stay theirs.')));
   }

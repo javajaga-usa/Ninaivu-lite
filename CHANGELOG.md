@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.1.0 — 2026-10-01
+
+- **Control Panel** — Ninaivu's Control Panel, lighter: one small window showing whether
+  Ninaivu Lite is running and where, with Start, Stop and Restart, the family app and console
+  a click away, the addresses for phones, the library at a glance, *Start when I sign in*,
+  the log and the data folder. It opens by itself when the first-time setup finishes, and any
+  time from **Start - Ninaivu Lite Control Panel.vbs** (Windows) or `./start.sh --panel`.
+  It needs nothing extra (Tk comes with Python) and never force-kills the server.
+- **Copyright, as in Ninaivu** — © 2026 Jagadeesh Rajendran, MIT licence: in LICENSE, an
+  *About Ninaivu* box in the gallery, the console's Settings page, the start-up banner and the
+  Control Panel.
+- **A calmer start window** — only the banner and real problems are printed; everything else
+  goes to the log file. On Windows the window's own messages are in English only, because the
+  Windows console cannot join Tamil letters (the screens are in Tamil as before).
+- **First-day guide: people are no longer lost.** A person typed in but not yet added is
+  saved when you press *Open the console*, and a refusal (a PIN too easy to guess, such as
+  1234, or a name already used) is now said right under the form instead of in a note at the
+  foot of the screen — so nobody looks added when they were not.
+- The package no longer loads Flask and Pillow until the server starts, so the Control Panel
+  opens quickly on old computers.
+
 ## 1.0.0 — 2026-10-01
 
 The first release: Ninaivu's screens over a small, steady engine.

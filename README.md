@@ -12,7 +12,7 @@ them to your family on phones, tablets and computers on the same Wi-Fi. Nothing 
 It uses **Ninaivu's own screens** — the family gallery, the admin console and the share
 page — over a much lighter engine: no AI, no cloud, three small dependencies.
 
-> **Status: 1.0.0.** See the [changelog](CHANGELOG.md) and the [user guide](docs/USER-GUIDE.md)
+> **Status: 1.1.0.** See the [changelog](CHANGELOG.md) and the [user guide](docs/USER-GUIDE.md)
 > ([தமிழில்](docs/USER-GUIDE.ta.md)).
 
 ## Why Lite
@@ -37,6 +37,8 @@ page — over a much lighter engine: no AI, no cloud, three small dependencies.
   set per folder (new files follow the folder) or per photo, with undo.
 - **Admin console** at `/admin` — overview, library folders and rescans, people (role,
   PIN/password, which folder they see), visibility, settings and a backup download.
+- **Control Panel** — a small window (like Ninaivu's) to start, stop and restart Ninaivu
+  Lite, open the gallery and console, see the address for phones, and start with the computer.
 - **Share links** for one photo or an album, with an optional password and expiry.
   Visitors get a copy without location or camera data.
 - **Tamil and English** on every screen, chosen per person.
@@ -57,6 +59,10 @@ internet once). It then opens your browser at `http://localhost:8080` and prints
 to open on phones. The first visit asks you to make the administrator; after that, the
 console walks you through adding folders and family.
 
+When the first-time setup finishes, the **Control Panel** opens too. Open it any time with
+**`Start - Ninaivu Lite Control Panel.vbs`** (Windows, no console window) or
+`./start.sh --panel`; from there Ninaivu Lite runs in the background, with no window to keep open.
+
 Run it by hand instead:
 
 ```bash
@@ -74,8 +80,9 @@ python3 -m ninaivu_lite ~/Pictures         # macOS and Linux
 | `--export FILE` | write the move-to-Ninaivu file, then stop |
 | `--reset-password NAME` | set a new password for someone (a forgotten admin password), then stop |
 
-**Start with the computer:** `tools\start-with-windows.cmd` (Windows) or the systemd unit in
-`tools/ninaivu-lite.service` (Linux, Raspberry Pi).
+**Start with the computer:** tick *Start Ninaivu Lite when I sign in* in the Control Panel
+(or run `tools\start-with-windows.cmd`); on a Raspberry Pi or server, use the systemd unit in
+`tools/ninaivu-lite.service`.
 
 **Optional extras:** `pip install pillow-heif` shows iPhone HEIC photos; `ffmpeg` on the PATH
 gives videos a preview picture. Without them those files still appear, with a plain tile and a
@@ -101,7 +108,7 @@ Ninaivu's (`ninaivu_lite/templates`, `ninaivu_lite/static`); strings are in
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+MIT. © 2026 Jagadeesh Rajendran. See [LICENSE](LICENSE).
 
 ---
 

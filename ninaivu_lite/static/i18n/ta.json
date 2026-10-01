@@ -2981,5 +2981,11 @@
   "This library is private. Please sign in.": "இந்த நூலகம் தனிப்பட்டது. தயவுசெய்து உள்நுழையவும்.",
   "Cross-origin request refused.": "வேறொரு தளத்திலிருந்து வந்த கோரிக்கை மறுக்கப்பட்டது.",
   "Something went wrong on the server.": "சர்வரில் ஏதோ தவறு நடந்தது.",
-  "Usernames are 2–31 characters: lowercase letters, digits, dots, dashes or underscores, starting with a letter or digit.": "பயனர்பெயர்கள் 2–31 எழுத்துகள்: சிறிய ஆங்கில எழுத்துகள், எண்கள், புள்ளி, கோடு அல்லது அடிக்கோடு; ஓர் எழுத்து அல்லது எண்ணுடன் தொடங்க வேண்டும்."
+  "Usernames are 2–31 characters: lowercase letters, digits, dots, dashes or underscores, starting with a letter or digit.": "பயனர்பெயர்கள் 2–31 எழுத்துகள்: சிறிய ஆங்கில எழுத்துகள், எண்கள், புள்ளி, கோடு அல்லது அடிக்கோடு; ஓர் எழுத்து அல்லது எண்ணுடன் தொடங்க வேண்டும்.",
+  "About Ninaivu": "நினைவு பற்றி",
+  "Version": "பதிப்பு",
+  "Free software under the MIT licence: you may use, copy, change and share it.": "MIT உரிமத்தின் கீழ் கட்டற்ற மென்பொருள்: இதைப் பயன்படுத்தலாம், நகலெடுக்கலாம், மாற்றலாம், பகிரலாம்.",
+  "Ninaivu Lite {version}": "நினைவு லைட் {version}",
+  "family · no PIN": "குடும்பம் · PIN இல்லை",
+  "{name} was not added: {reason}": "{name} சேர்க்கப்படவில்லை: {reason}"
 }

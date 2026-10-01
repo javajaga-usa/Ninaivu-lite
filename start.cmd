@@ -17,9 +17,6 @@ if not defined PY (
   echo   Ninaivu Lite needs Python 3.10 or newer, and this computer does not have it.
   echo   Install it from python.org, tick "Add python.exe to PATH", then start again.
   echo.
-  echo   நினைவு லைட்டுக்கு Python 3.10 அல்லது புதியது தேவை. python.org இலிருந்து நிறுவவும்,
-  echo   "Add python.exe to PATH" ஐத் தேர்வுசெய்து, மீண்டும் தொடங்கவும்.
-  echo.
   start "" "https://www.python.org/downloads/windows/"
   pause
   exit /b 1
@@ -29,7 +26,6 @@ if not defined PY (
 if errorlevel 1 (
   echo.
   echo   Ninaivu Lite stopped with a problem. The details are above.
-  echo   நினைவு லைட் ஒரு சிக்கலுடன் நின்றது. விவரங்கள் மேலே உள்ளன.
   pause
 )
 endlocal

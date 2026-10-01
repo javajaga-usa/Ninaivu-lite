@@ -3,7 +3,9 @@
 1. Checks this Python is new enough (3.10+).
 2. Makes a private environment in ``.venv`` beside this folder, once.
 3. Installs what Ninaivu Lite needs, and again only when requirements.txt changes.
-4. Starts Ninaivu Lite, passing on any folders or options given.
+4. The first time, opens the Control Panel once everything is installed.
+5. Starts Ninaivu Lite, passing on any folders or options given
+   (``--panel`` opens only the Control Panel instead).
 
 Standard library only: it has to run before anything is installed. Messages are
 in English and Tamil, because the person reading them may not have chosen yet.
@@ -26,7 +28,10 @@ MINIMUM = (3, 10)
 
 
 def say(english: str, tamil: str) -> None:
-    for line in (english, tamil):
+    # The Windows console cannot join Tamil letters, so there it would look
+    # broken: English only. The pages themselves are in Tamil as usual.
+    lines = (english,) if os.name == "nt" else (english, tamil)
+    for line in lines:
         try:
             print(f"  {line}", flush=True)
         except UnicodeEncodeError:          # a console that cannot show Tamil
@@ -69,6 +74,33 @@ def ensure_environment() -> Path:
     return python
 
 
+def data_argument(argv: list[str]) -> list[str]:
+    """``--data DIR`` from the arguments, to hand on to the Control Panel."""
+    for i, arg in enumerate(argv):
+        if arg == "--data" and i + 1 < len(argv):
+            return ["--data", argv[i + 1]]
+        if arg.startswith("--data="):
+            return ["--data", arg.split("=", 1)[1]]
+    return []
+
+
+def open_panel(python: Path, argv: list[str]) -> bool:
+    """Open the Control Panel beside this window, without a console of its own."""
+    if os.name == "nt" and python.with_name("pythonw.exe").exists():
+        python = python.with_name("pythonw.exe")
+    kwargs: dict = {"cwd": HERE, "stdin": subprocess.DEVNULL,
+                    "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    if os.name == "nt":
+        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+    else:
+        kwargs["start_new_session"] = True
+    try:
+        subprocess.Popen([str(python), "-m", "ninaivu_lite.panel", *data_argument(argv)], **kwargs)
+    except OSError:
+        return False
+    return True
+
+
 def main(argv: list[str]) -> int:
     if sys.version_info < MINIMUM:
         say(f"Ninaivu Lite needs Python 3.10 or newer; this is {sys.version.split()[0]}.",
@@ -76,7 +108,15 @@ def main(argv: list[str]) -> int:
         say("Get it from https://www.python.org/downloads/",
             "https://www.python.org/downloads/ இலிருந்து பெறவும்")
         return 1
+    first_time = not venv_python().exists() or not STAMP.exists()
     python = ensure_environment()
+    if "--panel" in argv:
+        # Only the Control Panel: it starts and stops Ninaivu Lite itself.
+        open_panel(python, argv)
+        return 0
+    if first_time and open_panel(python, argv):
+        say("Ready. The Control Panel is open: Ninaivu Lite can be started and stopped there.",
+            "தயார். கட்டுப்பாட்டுப் பலகம் திறந்துள்ளது: அங்கே நினைவு லைட்டைத் தொடங்கலாம், நிறுத்தலாம்.")
     command = [str(python), "-m", "ninaivu_lite", *argv]
     try:
         return subprocess.call(command, cwd=HERE)

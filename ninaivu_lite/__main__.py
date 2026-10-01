@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import argparse
 import logging
-from logging.handlers import RotatingFileHandler
+import os
 import sys
 import threading
+import time
 import webbrowser
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from . import APP_NAME, __version__, backups, create_app, net
+from . import APP_NAME, COPYRIGHT, __version__, backups, create_app, net
 from .config import DEFAULT_PORT, Config
 from .scanner import Scanner
 
@@ -34,14 +36,16 @@ def use_utf8_output() -> None:
 
 
 def setup_logging(data_dir: str) -> None:
-    """To the console, and to logs/ninaivu-lite.log (1 MB, three kept) for
+    """Warnings to the console; everything to logs/ninaivu-lite.log (1 MB, three kept) for
     when something needs looking into after the window is closed."""
     fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     if sys.stderr is not None:          # pythonw, at sign-in, has no console
+        # The window shows the banner and real problems; the rest goes to the file.
         console = logging.StreamHandler()
-        console.setFormatter(fmt)
+        console.setLevel(logging.WARNING)
+        console.setFormatter(logging.Formatter("  %(levelname)s: %(message)s"))
         root.addHandler(console)
     try:
         folder = Path(data_dir) / "logs"
@@ -165,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
     keeper.start()
 
     local = f"http://localhost:{cfg.port}"
-    print(f"\n  {APP_NAME} {__version__}")
+    print(f"\n  {APP_NAME} {__version__}  ·  {COPYRIGHT}")
     print(f"  On this computer:  {local}")
     for address in addresses[:3]:
         print(f"  On your phone:     http://{address}:{cfg.port}")
@@ -177,6 +181,24 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  From another device you will be asked for this code: {auth.setup_code()}")
     print("  Press Ctrl+C to stop.\n")
 
+    from . import control
+    app.config["STOP_TOKEN"] = control.write_state(cfg.data_dir, cfg.port)
+
+    def finish() -> None:
+        keeper.stop()
+        scanner.stop()
+        control.clear_state(cfg.data_dir)
+
+    def stop_when_asked() -> None:
+        # Asked by the Control Panel: let the answer go out, tidy up, and end
+        # the process (the web server has no gentler way to be told).
+        time.sleep(0.4)
+        logging.getLogger(__name__).info("stopping, as the Control Panel asked")
+        finish()
+        logging.shutdown()
+        os._exit(0)
+
+    app.config["STOP"] = stop_when_asked
     if not args.no_browser:
         threading.Timer(1.0, webbrowser.open, args=(local,)).start()
     try:
@@ -184,8 +206,7 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         pass
     finally:
-        keeper.stop()
-        scanner.stop()
+        finish()
     return 0
 
 

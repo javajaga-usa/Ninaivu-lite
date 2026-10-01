@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import hmac
+import threading
 import time
 
-from flask import Blueprint, current_app, jsonify, render_template, send_from_directory
+from flask import Blueprint, current_app, jsonify, render_template, request, send_from_directory
 
 from . import auth
-from .common import cfg, conn
+from .common import body, cfg, conn, fail
 from .version import __version__
 
 bp = Blueprint("pages", __name__)
@@ -80,6 +82,20 @@ def _manifest(name: str, start: str, icons: str) -> str:
 @bp.get("/healthz")
 def health():
     return jsonify(ok=True, app="Ninaivu Lite", version=__version__)
+
+
+@bp.post("/api/local/stop")
+def local_stop():
+    """The Control Panel's Stop: only from this computer, and only with the
+    token the server wrote in its data folder when it started."""
+    stop = current_app.config.get("STOP")
+    token = current_app.config.get("STOP_TOKEN")
+    given = str(body().get("token") or "")
+    if not (stop and token and auth.is_local_request(request.remote_addr, request.headers)
+            and hmac.compare_digest(given, token)):
+        fail(403, "That isn't allowed.")
+    threading.Thread(target=stop, name="stopping", daemon=True).start()
+    return jsonify(ok=True)
 
 
 @bp.get("/readyz")

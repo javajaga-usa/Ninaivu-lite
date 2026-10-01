@@ -20,6 +20,7 @@
 # ...and these are the ones Windows genuinely wants CRLF for.
 *.bat       text eol=crlf
 *.cmd       text eol=crlf
+*.vbs       text eol=crlf
 
 # Binary, so git never touches them.
 *.png       binary

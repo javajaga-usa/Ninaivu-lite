@@ -12,14 +12,12 @@ set "LINK=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Ninaivu Lite.v
 if /i "%~1"=="off" (
   del "%LINK%" >nul 2>&1
   echo   Ninaivu Lite will no longer start with Windows.
-  echo   நினைவு லைட் இனி Windows உடன் தொடங்காது.
   pause
   exit /b 0
 )
 
 if not exist "%ROOT%\.venv\Scripts\pythonw.exe" (
   echo   Please start Ninaivu Lite once with start.cmd first.
-  echo   முதலில் start.cmd மூலம் நினைவு லைட்டை ஒருமுறை தொடங்கவும்.
   pause
   exit /b 1
 )
@@ -29,6 +27,5 @@ if not exist "%ROOT%\.venv\Scripts\pythonw.exe" (
 >> "%LINK%" echo shell.Run """%ROOT%\.venv\Scripts\pythonw.exe"" -m ninaivu_lite --no-browser", 0, False
 
 echo   Done: Ninaivu Lite will start by itself when you sign in.
-echo   முடிந்தது: நீங்கள் உள்நுழையும்போது நினைவு லைட் தானாகத் தொடங்கும்.
 pause
 endlocal

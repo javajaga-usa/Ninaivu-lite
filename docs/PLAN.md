@@ -2,7 +2,7 @@
 
 **நினைவு லைட்** · Your family's photographs, at home — the small, steady edition.
 
-> **Status:** 1.0.0 released (phases 0–4 done). See [CHANGELOG](../CHANGELOG.md).
+> **Status:** 1.1.0 (phases 0–4 done; Control Panel and copyright added). See [CHANGELOG](../CHANGELOG.md).
 
 ## 1. What Lite is
 
@@ -49,11 +49,13 @@ ruff targets `py310`.
 - **Console**: first-day guide, overview (with role preview), library settings, people,
   visibility, settings, backup download.
 - **Launcher** `start.cmd` / `start.sh`; start with Windows; systemd unit; daily index backups.
+- **Control Panel** (Ninaivu's, lighter; Tk only): start/stop/restart, addresses, start at sign-in,
+  log; opens after the first-time setup.
 - **Optional move to Ninaivu** via `--export` ([UPGRADE.md](UPGRADE.md)); Ninaivu itself is not changed.
 
 ### Not in Lite (stays in full Ninaivu)
 AI of every kind, cloud/phone backup, editing and rotation, deleting media, archive import,
-maps, disk health, tray/Control Panel, Tailscale/zeroconf, update checker, notifications,
+maps, disk health, tray icon, resource modes, Tailscale/zeroconf, update checker, notifications,
 screen lock, HTTPS.
 
 ### Later phases (after 1.0)
@@ -64,14 +66,17 @@ Upload from phone browser · HTTPS · map view (offline tiles) · optional face 
 ```
 ninaivu_lite/
   __main__.py     start, ports, banner, logging, --export, --reset-password
-  __init__.py     create_app: blueprints, write guard, private-library guard, headers, errors
+  __init__.py     light: version, copyright, lazy create_app
+  app.py          create_app: blueprints, write guard, private-library guard, headers, errors
   config.py       settings.json, typed, atomic save
   db.py           SQLite, numbered migrations; Ninaivu-shaped tables
   auth.py         users, scrypt, PINs, sessions, throttles, setup code
   scanner.py      incremental walk, dates, folder rules, two thumbnail passes, watching
   media.py dates.py folders.py backups.py net.py export.py
   common.py       request helpers, visibility filter, Ninaivu item shape
-  pages.py        /, /admin, /share/<token>, manifests, health
+  pages.py        /, /admin, /share/<token>, manifests, health, local stop
+  control.py      state file, start/stop from outside, start at sign-in (stdlib only)
+  panel.py        the Control Panel window (Tk)
   api_auth.py api_gallery.py api_share.py api_admin.py   Ninaivu-compatible JSON API
   templates/      index.html, admin.html, share.html   (Ninaivu's, trimmed)
   static/         Ninaivu's JS modules and CSS, trimmed; i18n/en.json, ta.json
