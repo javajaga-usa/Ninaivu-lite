@@ -8,7 +8,11 @@ name: Release installers
 # Signing is real only when the secrets exist. Without them every job still
 # builds, unsigned, and the release notes say so.
 #
-#   WINDOWS_SIGN_PFX_BASE64, WINDOWS_SIGN_PFX_PASSWORD   a code-signing certificate
+#   SIGNPATH_API_TOKEN                                   free signing by SignPath Foundation
+#     with the repository variables SIGNPATH_ORGANIZATION_ID, SIGNPATH_PROJECT_SLUG
+#     and SIGNPATH_SIGNING_POLICY_SLUG (docs/CODE-SIGNING.md); used for tags and
+#     "Run workflow" only, and each request waits for approval in SignPath
+#   WINDOWS_SIGN_PFX_BASE64, WINDOWS_SIGN_PFX_PASSWORD   or: a code-signing certificate of your own
 #   MAC_SIGN_P12_BASE64, MAC_SIGN_P12_PASSWORD           a Developer ID Application certificate
 #   MAC_SIGN_IDENTITY                                    its name, "Developer ID Application: … (TEAMID)"
 #   MAC_NOTARY_APPLE_ID, MAC_NOTARY_TEAM_ID, MAC_NOTARY_PASSWORD   an app-specific password
@@ -36,6 +40,8 @@ jobs:
     timeout-minutes: 45
     env:
       HAS_PFX: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 != '' }}
+      # Signed by SignPath only for a real release, and only once it is set up.
+      USE_SIGNPATH: ${{ secrets.SIGNPATH_API_TOKEN != '' && (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -73,6 +79,38 @@ jobs:
           tail = "\n".join(text.splitlines()[-45:])[-3500:]
           print("::error title=Windows build::" + tail.replace("%", "%25").replace("\r", "").replace("\n", "%0A"))
           PY
+      # SignPath takes the installer from a workflow artifact, checks that it
+      # was built here from this repository, waits for the approval, and hands
+      # back the signed file, which replaces the unsigned one.
+      - name: The unsigned installer, for SignPath
+        id: unsigned
+        if: env.USE_SIGNPATH == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-unsigned
+          path: installers/windows/build/nsis/*.exe
+      - name: Sign with SignPath
+        if: env.USE_SIGNPATH == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 7200
+          output-artifact-directory: installers/windows/build/signed
+      - name: Use the signed installer
+        if: env.USE_SIGNPATH == 'true'
+        shell: pwsh
+        run: |
+          $signed = Get-ChildItem installers\windows\build\signed\*.exe
+          if (-not $signed) { throw "SignPath returned no installer" }
+          Copy-Item $signed.FullName installers\windows\build\nsis\ -Force
+          $signature = Get-AuthenticodeSignature (Join-Path installers\windows\build\nsis $signed.Name)
+          if ($signature.Status -ne "Valid") { throw "The installer's signature is $($signature.Status)" }
+          Write-Host "Signed by $($signature.SignerCertificate.Subject)"
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -161,7 +199,7 @@ jobs:
     # changes the installers builds and tries them, and stops there.
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     env:
-      HAS_PFX: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 != '' }}
+      HAS_PFX: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 != '' || secrets.SIGNPATH_API_TOKEN != '' }}
       HAS_NOTARY: ${{ secrets.MAC_SIGN_P12_BASE64 != '' && secrets.MAC_NOTARY_PASSWORD != '' }}
     steps:
       - uses: actions/checkout@v4
@@ -178,6 +216,7 @@ jobs:
           echo "VERSION=$version" >> "$GITHUB_ENV"
       - name: Checksums
         run: |
+          rm -rf out/windows-unsigned
           mkdir files && find out -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.sh" \) -exec cp {} files/ \;
           (cd files && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
       - name: Release notes

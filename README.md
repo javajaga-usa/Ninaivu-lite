@@ -122,6 +122,16 @@ Every pull request runs on Windows, macOS and Linux with Python 3.10 and 3.13. T
 Ninaivu's (`ninaivu_lite/templates`, `ninaivu_lite/static`); strings are in
 `static/i18n/en.json` and `ta.json`, keyed by the English sentence.
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org). The Windows installer is built from this
+repository by the public release workflow on GitHub and every signing request is approved by
+hand. Committers, reviewers and approvers: [Jagadeesh Rajendran](https://github.com/javajaga-usa).
+Privacy: this program will not transfer any information to other networked systems unless
+specifically requested by the user or the person installing or operating it.
+Full policy: [docs/CODE-SIGNING.md](docs/CODE-SIGNING.md).
+
 ## Licence
 
 MIT. © 2026 Jagadeesh Rajendran. See [LICENSE](LICENSE).

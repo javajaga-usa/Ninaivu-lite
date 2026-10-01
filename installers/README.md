@@ -45,9 +45,15 @@ Needs the Python in `.python-version` from python.org (for its Tk), `pip install
 - on upgrade or uninstall, asks a running Ninaivu Lite to stop first. Uninstall
   leaves the data folder (`%LOCALAPPDATA%\Ninaivu-lite`) and, always, the photos.
 
-`build.ps1 -Sign` signs it with the certificate whose thumbprint is in
-`NINAIVU_SIGN_THUMBPRINT`. Unsigned, Windows SmartScreen says *Windows protected
-your PC*: **More info → Run anyway**.
+**Signing.** Unsigned, Windows SmartScreen says *Windows protected your PC*
+(**More info → Run anyway**), and a PC with **Smart App Control** on refuses the
+installer outright. The release workflow signs it for free through
+[SignPath Foundation](https://signpath.org) once the repository has the secret
+`SIGNPATH_API_TOKEN` and the variables `SIGNPATH_ORGANIZATION_ID`,
+`SIGNPATH_PROJECT_SLUG` and `SIGNPATH_SIGNING_POLICY_SLUG`; the policy it is
+signed under is [docs/CODE-SIGNING.md](../docs/CODE-SIGNING.md). With a
+certificate of your own instead, `build.ps1 -Sign` uses the one whose thumbprint
+is in `NINAIVU_SIGN_THUMBPRINT`.
 
 ## Linux and Raspberry Pi
 

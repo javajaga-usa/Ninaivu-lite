@@ -5,6 +5,15 @@
 [% extends "pyapp.nsi" %]
 
 [% block ui_pages %]
+  ; What Windows shows under Properties → Details, and what the code-signing
+  ; policy promises: the product is "Ninaivu Lite", at this version, every build.
+  VIProductVersion "[[ ib.version ]].0"
+  VIAddVersionKey "ProductName" "Ninaivu Lite"
+  VIAddVersionKey "ProductVersion" "[[ ib.version ]]"
+  VIAddVersionKey "FileVersion" "[[ ib.version ]]"
+  VIAddVersionKey "FileDescription" "Ninaivu Lite installer"
+  VIAddVersionKey "CompanyName" "Jagadeesh Rajendran"
+  VIAddVersionKey "LegalCopyright" "(c) 2026 Jagadeesh Rajendran. MIT licence."
   ; A components page, so "Start Ninaivu Lite at sign-in" can be unticked.
   !insertmacro MUI_PAGE_COMPONENTS
   ; The last page offers to open the Control Panel (ticked): from there
