@@ -56,3 +56,9 @@ def test_only_a_tag_or_a_person_publishes_a_release():
     release = read(".github/workflows/release.yml")
     job = release[release.index("\n  release:"):]
     assert "if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'" in job
+
+
+def test_windows_installer_template_is_plain_ascii():
+    """pynsist writes it in the Windows code page; one arrow in a comment stops the build."""
+    for name in ("ninaivu-lite.nsi", "installer.cfg"):
+        assert read(f"installers/windows/{name}").isascii(), name

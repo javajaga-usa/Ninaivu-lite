@@ -5,7 +5,7 @@
 [% extends "pyapp.nsi" %]
 
 [% block ui_pages %]
-  ; What Windows shows under Properties → Details, and what the code-signing
+  ; What Windows shows under Properties, Details, and what the code-signing
   ; policy promises: the product is "Ninaivu Lite", at this version, every build.
   VIProductVersion "[[ ib.version ]].0"
   VIAddVersionKey "ProductName" "Ninaivu Lite"
