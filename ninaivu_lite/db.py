@@ -238,6 +238,12 @@ MIGRATIONS: list[str] = [
     UPDATE assets SET upright = 0 WHERE kind = 'picture';
     CREATE INDEX assets_upright ON assets (upright, kind, missing);
     """,
+    # 6 — a profile picture a person chose from the library: the moment it was
+    # set, so the browser's cached copy is dropped when it changes. The small
+    # square itself is avatars/<id>.jpg in the data folder.
+    """
+    ALTER TABLE users ADD COLUMN avatar_at REAL;
+    """,
 ]
 
 

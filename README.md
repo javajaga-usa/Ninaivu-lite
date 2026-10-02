@@ -37,7 +37,9 @@ archive, and **Sudar**, the photo studio that runs in the browser.
   favourites, albums, simple search (name, folder, date, camera), a full-screen viewer with
   swipe and arrow keys, video playback, download.
 - **Sign-in like Ninaivu** — a profile picker; each person enters with no secret, a PIN or a
-  password; a *Just looking* tile shows public photos to visitors (can be turned off).
+  password (the administrator's tile takes the password); a *Just looking* tile shows public
+  photos to visitors (can be turned off). A tile shows initials on a colour, or a photograph
+  the person chose from the library.
 - **Three roles** — Admin, Family, Guest. Every photo is **Public**, **Family** or **Hidden**,
   set per folder (new files follow the folder) or per photo, with undo.
 - **Admin console** at `/admin` — overview, library folders and rescans, people (role,

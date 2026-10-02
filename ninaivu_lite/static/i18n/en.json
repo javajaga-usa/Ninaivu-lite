@@ -2946,5 +2946,10 @@
   "The archive “{destination}” sits inside source “{path}”. It is skipped during the scan, so files already archived are not read back in.": "The archive “{destination}” sits inside source “{path}”. It is skipped during the scan, so files already archived are not read back in.",
   "Choose the archive folder to audit.": "Choose the archive folder to audit.",
   "A download carries no metadata; a saved copy keeps the original's camera, exposure and place.": "A download carries no metadata; a saved copy keeps the original's camera, exposure and place.",
-  "Where the consolidated archive is built: inside your default library folder unless you browse to somewhere else, so what comes in is shown to the family as it lands. Choose a folder inside an existing archive and Ninaivu uses the archive's root instead, and says so.": "Where the consolidated archive is built: inside your default library folder unless you browse to somewhere else, so what comes in is shown to the family as it lands. Choose a folder inside an existing archive and Ninaivu uses the archive's root instead, and says so."
+  "Where the consolidated archive is built: inside your default library folder unless you browse to somewhere else, so what comes in is shown to the family as it lands. Choose a folder inside an existing archive and Ninaivu uses the archive's root instead, and says so.": "Where the consolidated archive is built: inside your default library folder unless you browse to somewhere else, so what comes in is shown to the family as it lands. Choose a folder inside an existing archive and Ninaivu uses the archive's root instead, and says so.",
+  "Use as my profile picture": "Use as my profile picture",
+  "Your profile picture is set.": "Your profile picture is set.",
+  "Remove picture": "Remove picture",
+  "Picture removed.": "Picture removed.",
+  "To use a photograph: open it in the gallery and choose “Use as my profile picture” from its ⋯ menu.": "To use a photograph: open it in the gallery and choose “Use as my profile picture” from its ⋯ menu."
 }

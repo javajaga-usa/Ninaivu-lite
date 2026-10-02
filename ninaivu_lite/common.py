@@ -102,6 +102,25 @@ def require_admin() -> auth.User:
     return who
 
 
+# --- profile pictures ------------------------------------------------------------------
+
+AVATARS_DIR = "avatars"
+
+
+def avatar_path(user_id: int) -> str:
+    """The small square a person chose: avatars/<id>.jpg in the data folder."""
+    return os.path.join(cfg().data_dir, AVATARS_DIR, f"{user_id}.jpg")
+
+
+def drop_avatar(user_id: int) -> None:
+    """Forget a person's picture: the file and the record of when it was set."""
+    try:
+        os.unlink(avatar_path(user_id))
+    except FileNotFoundError:
+        pass
+    auth.update_profile(conn(), user_id, avatar_at=None)
+
+
 # --- folders -------------------------------------------------------------------------
 
 

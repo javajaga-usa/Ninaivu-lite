@@ -1085,6 +1085,19 @@ function personCard(person) {
   };
   actions.appendChild(reset);
 
+  if (person.avatar) {
+    const picture = el('button', 'btn small ghost', i18n.t('Remove picture'));
+    picture.type = 'button';
+    picture.onclick = async () => {
+      try {
+        await accountsApi.removePersonAvatar(person.id);
+        toast(i18n.t('Picture removed.'));
+        loadPeople();
+      } catch (exc) { toast(exc.message, true); }
+    };
+    actions.appendChild(picture);
+  }
+
   if (person.sessions) {
     const signout = el('button', 'btn small ghost', i18n.t('Sign out everywhere'));
     signout.type = 'button';

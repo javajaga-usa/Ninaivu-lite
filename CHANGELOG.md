@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.6 — 2026-10-02
+
+- **The administrator has a tile on the sign-in screen.** Until now the picker left
+  administrators out, so the admin had to choose *Sign in with a username instead* every
+  time. Their tile is there now, locked: tapping it asks for the password, and nothing less
+  opens it. The console still takes the username and password.
+- **A photograph as your profile picture.** Open any photograph in the gallery and choose
+  *Use as my profile picture* from its ⋯ menu: the middle of it becomes a 256 px square kept
+  in the data folder (`avatars/`), shown on your tile and beside your name. *Remove picture*
+  in your profile brings the initials back; an administrator can remove anyone's under
+  *People*, and a deleted profile takes its picture with it. The picture is never guessed
+  from a name: nothing in a library says whose face is whose.
+
 ## 1.3.5 — 2026-10-02
 
 - **The Control Panel opens again.** 1.3.4's new UPDATES card asked for a stripe colour the

@@ -672,6 +672,8 @@ function applyPermissions() {
   viewer.canDownload = !!can.download;
   viewer.canSave = !!can.save_edits;
   viewer.canRotate = !!can.set_visibility;
+  // Anyone signed in may make a photograph their own profile picture.
+  viewer.canAvatar = !!state.user && !state.user.anonymous;
   // Video posters made by this browser: family and administrators only.
   posters.enabled = !!can.favorite;
   $('#v-fav').hidden = !can.favorite;
@@ -2012,6 +2014,15 @@ function wireGrid() {
 function wireViewer() {
   viewer.addEventListener('change', () => syncViewerVisibility());
   viewer.addEventListener('poster-source', (event) => posters.fromElement(event.detail.id, event.detail.video));
+  viewer.addEventListener('avatar', async (event) => {
+    try {
+      state.user = await accountsApi.setAvatar(event.detail.item.id);
+      renderIdentity();
+      toast(i18n.t('Your profile picture is set.'));
+    } catch (exc) {
+      toast(exc.message, true);
+    }
+  });
 
   viewer.addEventListener('mutated', async (event) => {
     const { id, favorite, rotation } = event.detail;

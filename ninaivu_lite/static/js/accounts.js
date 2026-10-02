@@ -51,6 +51,9 @@ export const accountsApi = {
   logout: () => json('/api/auth/logout', { method: 'POST' }),
   me: () => json('/api/me'),
   updateMe: (body) => json('/api/me', { method: 'POST', body }),
+  setAvatar: (assetId) => json('/api/me/avatar', { method: 'POST', body: { asset_id: assetId } }),
+  removeAvatar: () => json('/api/me/avatar', { method: 'DELETE' }),
+  removePersonAvatar: (id) => json(`/api/people/${id}/avatar`, { method: 'DELETE' }),
   changePassword: (body) => json('/api/me/password', { method: 'POST', body }),
   profiles: () => json('/api/auth/profiles'),
   enter: (id, secret) => json('/api/auth/enter', { method: 'POST', body: { id, secret } }),
@@ -510,9 +513,29 @@ export class ProfileSheet {
     card.appendChild(head);
 
     // --- picture -------------------------------------------------------
-    // Initials on the person's colour (Ninaivu Lite has no profile photos).
+    // A photograph the person chose from the library, or their initials on
+    // their colour. Choosing happens in the viewer, where the photographs
+    // are; here is the way there, and the way back to initials.
     const pictureRow = el('div', 'profile-picture');
     pictureRow.appendChild(avatarNode(user, 88));
+    const pictureActions = el('div', 'profile-picture-actions');
+    if (user.avatar) {
+      const removePicture = el('button', 'btn small ghost', i18n.t('Remove picture'));
+      removePicture.type = 'button';
+      removePicture.onclick = async () => {
+        try {
+          const updated = await accountsApi.removeAvatar();
+          this.user = updated;
+          this.onChange(updated);
+          this.render();
+          this.toast(i18n.t('Picture removed.'));
+        } catch (exc) { this.toast(exc.message, true); }
+      };
+      pictureActions.appendChild(removePicture);
+    }
+    pictureActions.appendChild(el('p', 'hint',
+      i18n.t('To use a photograph: open it in the gallery and choose “Use as my profile picture” from its ⋯ menu.')));
+    pictureRow.appendChild(pictureActions);
     card.appendChild(pictureRow);
 
     // --- identity ------------------------------------------------------

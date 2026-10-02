@@ -19,8 +19,8 @@ from flask import Blueprint, Response, jsonify, request
 
 from . import auth, backups, db, export, folders, media
 from . import importer as importer_rules
-from .common import (body, cfg, conn, fail, folder_ids, importer, library_exists,
-                     require_admin, scanner, split_library, subtree, visible)
+from .common import (body, cfg, conn, drop_avatar, fail, folder_ids, importer,
+                     library_exists, require_admin, scanner, split_library, subtree, visible)
 from .config import clean_house_name
 from .version import COPYRIGHT, LICENCE, __version__
 
@@ -658,6 +658,15 @@ def signout_person(user_id: int):
     return jsonify({"ok": True, "sessions_ended": auth.end_all_sessions(conn(), user_id)})
 
 
+@bp.delete("/api/people/<int:user_id>/avatar")
+def remove_person_avatar(user_id: int):
+    """Take a person's picture off the sign-in screen. Only they can put one up."""
+    require_admin()
+    _target(user_id)
+    drop_avatar(user_id)
+    return jsonify(_person(auth.get_user(conn(), user_id)))
+
+
 @bp.delete("/api/people/<int:user_id>")
 def delete_person(user_id: int):
     """Remove a profile for good. Photos are never touched."""
@@ -688,6 +697,8 @@ def delete_person(user_id: int):
             c.execute("DELETE FROM shares WHERE created_by = ?", (user_id,))
             c.execute("UPDATE users SET created_by = NULL WHERE created_by = ?", (user_id,))
             c.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    if target.avatar_at:
+        drop_avatar(user_id)
     return jsonify({"ok": True, "removed": {
         "username": target.username, "name": target.display_name, "role": target.role,
         "sessions": sessions, "favorites": favourites, "personal_rows": personal,
