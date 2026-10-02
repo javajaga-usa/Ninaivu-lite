@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.5 — 2026-10-02
+
+- **The Control Panel opens again.** 1.3.4's new UPDATES card asked for a stripe colour the
+  panel's palette did not have, so the window crashed while it was being built and nothing
+  appeared after installing. The colour is there now, and a test opens the panel for real
+  (where Tk and a display exist) so this cannot slip through again.
+
 ## 1.3.4 — 2026-10-02
 
 - **The Control Panel says when a newer version is out.** Once a day it asks GitHub for the

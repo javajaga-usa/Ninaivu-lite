@@ -44,7 +44,8 @@ STATUS = {  # foreground, background, border
     "stopped": ("#475569", "#f8fafc", "#cbd5e1"),
     "busy": ("#1d4ed8", "#eff6ff", "#93c5fd"),
 }
-CARD_ACCENT = {"addresses": "#10b981", "library": "#3b82f6", "options": "#64748b"}
+CARD_ACCENT = {"addresses": "#10b981", "library": "#3b82f6", "options": "#64748b",
+               "updates": "#f59e0b"}
 FONT = "Segoe UI" if sys.platform == "win32" else "Helvetica"
 #: ▶ ■ ↻ as in Ninaivu where the font surely has them (Segoe UI); words alone elsewhere.
 SYMBOL = sys.platform == "win32"
