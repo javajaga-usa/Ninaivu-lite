@@ -31,6 +31,18 @@ archive, and **Sudar**, the photo studio that runs in the browser.
 | Dependencies | Many, some large | Flask, Pillow, waitress |
 | Runs on | Capable PCs | Windows 10+, macOS, Linux, Raspberry Pi 4 |
 
+## Features at a glance
+
+| For the family | For the administrator | Under the hood |
+| --- | --- | --- |
+| Timeline by the day each photo was taken, with a date bar and a year row on phones | Admin console: overview, library folders, rescans, people, visibility, settings, backup | Three dependencies: Flask, Pillow, waitress |
+| Search by name, folder, date or camera | Three roles (Admin, Family, Guest) and Public / Family / Hidden per folder or per photo, with undo | Installers for Windows, macOS, Linux and Raspberry Pi that carry their own Python |
+| Full-screen viewer: swipe, keys, zoom, slideshow, ambient frame, details, rotate | People with a PIN, a password or nothing, each seeing one folder or all | Nothing leaves the house: no accounts, no cloud, no telemetry; one update check only when asked |
+| Favourites per person; albums from any folder, shareable | Import old drives, cards and backups into one hash-checked archive filed by date; Google Takeout kept whole | Photographs and videos are only ever read; edits and turns are kept beside them or in the index |
+| Share links with a password and an expiry; the visitor's copy carries no location | Sideways photos put right during the scan (camera tag, then faces with optional OpenCV) | gzip, long caches and a virtual grid: a 100,000-photo library scrolls on a phone |
+| Sudar photo studio in the browser: light, colour, detail, crops, looks, plain-words requests, clothing colour | Control Panel: start, stop, restart, addresses for phones, start with the computer, update check | SQLite index with numbered migrations; thumbnails and viewing copies cached in the data folder |
+| A photo as your sign-in picture; Tamil or English per person | Backups of settings, people and albums; export for Ninaivu | Tests on Windows, macOS and Linux, Python 3.10 and 3.13, every push |
+
 ## What it does
 
 - **Gallery** at `http://<computer>:8080/` — timeline with a date scrubber, folders,
