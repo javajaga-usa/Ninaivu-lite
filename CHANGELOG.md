@@ -11,6 +11,8 @@
   installer.
 - **A replaced profile picture is a new file**, never written over the old one, which a
   browser may still be reading; that failed on Windows in 1.3.6.
+- **The panel's tick boxes are as tall as their text.** They were drawn a fixed few pixels,
+  tiny on a sharp screen; now they follow the font, with a white tick on blue when on.
 
 ## 1.3.6 — 2026-10-02
 
