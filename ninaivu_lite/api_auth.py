@@ -9,8 +9,8 @@ import time
 from flask import Blueprint, jsonify, request, send_file
 
 from . import auth, media
-from .common import (asset_path, avatar_path, body, cfg, conn, drop_avatar, fail,
-                     require_signed_in, user, visible_asset)
+from .common import (asset_path, avatar_file, avatar_path, body, cfg, conn, drop_avatar,
+                     fail, require_signed_in, sweep_avatars, user, visible_asset)
 from .dates import long_path
 
 bp = Blueprint("auth_api", __name__)
@@ -231,13 +231,15 @@ def me_avatar():
         square = media.profile_picture(source, row["rotation"] or 0)
     except Exception:  # noqa: BLE001 — a file Pillow cannot open
         fail(400, "This photograph cannot be opened.")
-    target = avatar_path(who.id)
+    moment = time.time()
+    target = avatar_path(who.id, auth.avatar_stamp(moment))
     os.makedirs(os.path.dirname(target), exist_ok=True)
     temporary = f"{target}.tmp"
     with open(temporary, "wb") as stream:
         stream.write(square)
     os.replace(temporary, target)
-    auth.update_profile(conn(), who.id, avatar_at=time.time())
+    auth.update_profile(conn(), who.id, avatar_at=moment)
+    sweep_avatars(who.id, keep=target)
     return jsonify(auth.get_user(conn(), who.id).public())
 
 
@@ -252,10 +254,11 @@ def me_avatar_remove():
 def avatar(user_id: int):
     """Anyone may look: the sign-in screen shows these before anyone has signed in."""
     person = auth.get_user(conn(), user_id)
-    path = avatar_path(user_id)
-    if person is None or not person.avatar_at or not os.path.isfile(path):
+    path = avatar_file(person) if person else None
+    if not path or not os.path.isfile(path):
         fail(404, "No picture.")
     response = send_file(path, mimetype="image/jpeg", conditional=True,
-                         etag=f"avatar-{user_id}-{int(person.avatar_at)}", max_age=86400)
+                         etag=f"avatar-{user_id}-{auth.avatar_stamp(person.avatar_at)}",
+                         max_age=86400)
     response.headers["Cache-Control"] = "public, max-age=86400"
     return response

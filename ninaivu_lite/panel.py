@@ -86,6 +86,8 @@ class Panel:
         self.finished = threading.Event()
         self.busy = False
         self.is_running = False
+        #: set by Download: once the stop it asked for is done, the panel closes
+        self.close_when_done = False
 
         root.title(TITLE)
         root.configure(bg=BG)
@@ -112,8 +114,17 @@ class Panel:
         style.map("Start.TButton", background=[("active", "#15803d"), ("disabled", "#86efac")])
         style.configure("Stop.TButton", background="#dc2626", foreground="white", padding=(10, 4))
         style.map("Stop.TButton", background=[("active", "#b91c1c"), ("disabled", "#fca5a5")])
-        style.configure("TCheckbutton", background=SURFACE, foreground=INK, font=(FONT, 10))
-        style.map("TCheckbutton", background=[("active", SURFACE)])
+        # The tick box itself: the clam theme draws it a fixed few pixels, tiny
+        # beside the words on a sharp screen. Sized from the font instead, so
+        # it is as tall as a line of its own text at any density.
+        line = tkfont.Font(root=root, font=(FONT, 10)).metrics("linespace")
+        style.configure("TCheckbutton", background=SURFACE, foreground=INK, font=(FONT, 10),
+                        indicatorsize=max(16, round(line * 1.15)), indicatormargin=(0, 0, 8, 0),
+                        padding=(0, 3))
+        # Ticked: a white mark on the accent blue, as the buttons are.
+        style.map("TCheckbutton", background=[("active", SURFACE)],
+                  indicatorbackground=[("selected", ACCENT), ("!selected", SURFACE)],
+                  indicatorforeground=[("selected", "white")])
 
         outer = tk.Frame(root, bg=BG, padx=16, pady=10)
         outer.pack(fill="both", expand=True)
@@ -188,7 +199,7 @@ class Panel:
         tk.Label(row, textvariable=self.update_text, font=(FONT, 10), bg=SURFACE, fg=INK,
                  anchor="w", justify="left", wraplength=400).pack(side="left", fill="x", expand=True)
         self.download_button = ttk.Button(row, text="Download", style="Accent.TButton",
-                                          command=lambda: webbrowser.open(self.update_url))
+                                          command=self.download)
         ttk.Button(row, text="Check now",
                    command=lambda: self.check_updates(force=True)).pack(side="right")
         row = tk.Frame(body, bg=SURFACE)
@@ -297,6 +308,9 @@ class Panel:
                     self.progress.place_forget()
                     self.notice.set(event[1])
                     self._set_buttons()
+                    if self.close_when_done:
+                        self.close()
+                        return
                 elif event[0] == "notice":
                     self.notice.set(event[1])
                 elif event[0] == "update":
@@ -374,11 +388,45 @@ class Panel:
             return
         self.update_url = info["url"]
         if info["available"]:
-            self.update_text.set(f"Version {info['version']} is available (you have {__version__}).")
+            self.update_text.set(f"Version {info['version']} is available (you have {__version__}). "
+                                 "Before installing it, stop Ninaivu Lite and close this panel.")
             self.download_button.pack(side="right", padx=(0, 6))
         else:
             self.update_text.set(f"You have the latest version, {__version__}." if asked else "")
             self.download_button.pack_forget()
+
+    def download(self) -> None:
+        """The release page, then the one thing the installer needs: nothing of
+        the old program in use. Windows cannot replace a file in use, and a
+        running Ninaivu Lite or this panel keeps the program in use, so the
+        panel offers to stop the one and close the other, before the installer
+        has to ask."""
+        webbrowser.open(self.update_url)
+        if self.is_running:
+            question = ("Before running the installer, Ninaivu Lite must be stopped and this "
+                        "panel closed: files in use cannot be replaced.\n\n"
+                        "Stop Ninaivu Lite and close this panel now?")
+        else:
+            question = ("Before running the installer, this panel must be closed: files in "
+                        "use cannot be replaced.\n\nClose this panel now?")
+        if not self.ask(question):
+            self.notice.set(("Before running the installer: press Stop, then close this "
+                             "Control Panel.") if self.is_running
+                            else "Before running the installer, close this Control Panel.")
+            return
+        if self.is_running and self.controller.can_stop():
+            self.close_when_done = True
+            self.run(self.controller.stop, "Stopping…")
+        elif self.is_running:
+            self.notice.set("Ninaivu Lite was started from its own window: close that window, "
+                            "then close this panel, before running the installer.")
+        else:
+            self.close()
+
+    def ask(self, question: str) -> bool:
+        """A yes/no box over the window; a test replaces it."""
+        from tkinter import messagebox
+        return bool(messagebox.askyesno(TITLE, question, parent=self.root))
 
     def toggle_updates(self) -> None:
         on = self.updates_on.get()

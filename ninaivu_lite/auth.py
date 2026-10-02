@@ -118,6 +118,11 @@ def pin_problem(pin: str) -> str | None:
 
 # --- people ----------------------------------------------------------------------------
 
+def avatar_stamp(avatar_at: float | None) -> int:
+    """A picture's moment to the millisecond: its file name and its address."""
+    return int(round((avatar_at or 0) * 1000))
+
+
 def initials(name: str) -> str:
     parts = [p for p in re.split(r"[\s_-]+", (name or "").strip()) if p]
     if not parts:
@@ -182,7 +187,9 @@ class User:
     @property
     def avatar(self) -> str | None:
         """The picture's address, with its moment, so a new one is not cached as the old."""
-        return f"/api/avatar/{self.id}?v={int(self.avatar_at)}" if self.avatar_at else None
+        if not self.avatar_at:
+            return None
+        return f"/api/avatar/{self.id}?v={avatar_stamp(self.avatar_at)}"
 
     def colour(self) -> str:
         if self.id == 0:

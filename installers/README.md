@@ -42,7 +42,10 @@ Needs the Python in `.python-version` from python.org (for its Tk), `pip install
 - offers to **open the Control Panel** on its last page (ticked);
 - carries Noto Sans Tamil (SIL Open Font License) for clear Tamil on Windows
   and on Android phones;
-- on upgrade or uninstall, asks a running Ninaivu Lite to stop first. Uninstall
+- on upgrade or uninstall, asks a running Ninaivu Lite to stop first, and while
+  anything of it is still in use (the server started from its own window, or
+  the Control Panel left open) asks the person to stop it and close the panel,
+  with Retry, instead of failing on the first file it cannot write. Uninstall
   leaves the data folder (`%LOCALAPPDATA%\Ninaivu-lite`) and, always, the photos.
 
 **The uninstaller is signed too.** NSIS normally writes `uninstall.exe` on the

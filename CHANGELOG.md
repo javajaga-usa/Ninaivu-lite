@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.7 — 2026-10-02
+
+- **Upgrading on Windows no longer fails with a write error.** Windows cannot replace a
+  program that is in use, and a running Ninaivu Lite or an open Control Panel kept the old
+  one in use. The installer now asks the server to stop and then, while anything is still in
+  use, asks you to press *Stop* and close the Control Panel, with *Retry*, instead of failing
+  half-way. The uninstaller does the same. The panel says so in the update line itself, and
+  *Download* offers to stop Ninaivu Lite and close the panel for you before you run the
+  installer.
+- **A replaced profile picture is a new file**, never written over the old one, which a
+  browser may still be reading; that failed on Windows in 1.3.6.
+- **The panel's tick boxes are as tall as their text.** They were drawn a fixed few pixels,
+  tiny on a sharp screen; now they follow the font, with a white tick on blue when on.
+
 ## 1.3.6 — 2026-10-02
 
 - **The administrator has a tile on the sign-in screen.** Until now the picker left

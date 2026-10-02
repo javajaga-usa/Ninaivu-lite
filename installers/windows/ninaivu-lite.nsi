@@ -5,6 +5,36 @@
 [% extends "pyapp.nsi" %]
 
 [% block ui_pages %]
+  ; A running Ninaivu Lite, or an open Control Panel, holds pythonw.exe (and
+  ; python.exe, and the DLLs they loaded) open, and Windows will not let the
+  ; installer write over a file in use: the upgrade used to stop with a write
+  ; error. So, before any file is written: ask the server to stop, then, while
+  ; either program is still in use, ask the person to stop it and close the
+  ; panel, with Retry, rather than fail half-way.
+  !macro WaitUntilNotInUse
+    ; One id for this insertion's labels (the macro is used twice).
+    !define U ${__COUNTER__}
+    IfFileExists "$INSTDIR\Python\pythonw.exe" 0 not_in_use_${U}
+    ExecWait '"$INSTDIR\Python\pythonw.exe" -m ninaivu_lite.control --stop'
+    check_${U}:
+      ClearErrors
+      FileOpen $0 "$INSTDIR\Python\pythonw.exe" a
+      IfErrors in_use_${U}
+      FileClose $0
+      IfFileExists "$INSTDIR\Python\python.exe" 0 not_in_use_${U}
+      FileOpen $0 "$INSTDIR\Python\python.exe" a
+      IfErrors in_use_${U}
+      FileClose $0
+      Goto not_in_use_${U}
+    in_use_${U}:
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION \
+        "Ninaivu Lite is still running, so its files cannot be replaced.$\r$\n$\r$\nIn the Ninaivu Lite Control Panel press Stop (or close the window Ninaivu Lite was started from), then close the Control Panel itself, and press Retry." \
+        IDRETRY check_${U}
+      Abort "Ninaivu Lite is still running. Stop it and close the Control Panel, then run this installer again."
+    not_in_use_${U}:
+    !undef U
+  !macroend
+
   ; What Windows shows under Properties, Details, and what the code-signing
   ; policy promises: the product is "Ninaivu Lite", at this version, every build.
   VIProductVersion "[[ ib.version ]].0"
@@ -27,10 +57,9 @@
 [% endblock %]
 
 [% block install_files %]
-  ; An upgrade: ask a running Ninaivu Lite to stop first, so its files can be
-  ; replaced. Nothing happens on a first install (there is no Python yet).
-  IfFileExists "$INSTDIR\Python\pythonw.exe" 0 +2
-    ExecWait '"$INSTDIR\Python\pythonw.exe" -m ninaivu_lite.control --stop'
+  ; An upgrade: nothing is written while the old one is in use. Nothing
+  ; happens on a first install (there is no Python yet).
+  !insertmacro WaitUntilNotInUse
   [[ super() ]]
 [% endblock %]
 
@@ -48,10 +77,12 @@
 [% endblock %]
 
 [% block uninstall_files %]
-  ; Stop it and stop starting it, while the program is still there to ask.
+  ; Stop it and stop starting it, while the program is still there to ask,
+  ; and wait until nothing of it is in use, as an upgrade does.
   ; The data folder (%LOCALAPPDATA%\Ninaivu-lite: settings, index, previews)
   ; is left alone, and so, always, are the photographs.
   ExecWait '"$INSTDIR\Python\pythonw.exe" -m ninaivu_lite.control --stop --autostart off'
+  !insertmacro WaitUntilNotInUse
   [[ super() ]]
 [% endblock %]
 
