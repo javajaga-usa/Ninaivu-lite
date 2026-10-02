@@ -64,7 +64,7 @@ def test_the_panel_builds_and_closes(tmp_path, monkeypatch):
         assert asked == [True] and updates.enabled(tmp_path) is True
         for _ in range(60):                       # let the update thread answer
             root.update()                         # runs the panel's own pump
-            if view.update_text.get():
+            if "9.9.9" in view.update_text.get():
                 break
             time.sleep(0.05)
         assert "9.9.9" in view.update_text.get()
