@@ -26,10 +26,10 @@ function formatBytes(n) {
 
 /** Plain English for where a rotation came from. */
 const ROTATION_WHY = {
-  exif: 'from the camera',
-  faces: 'worked out from the people in it',
-  ai: 'worked out from the picture',
-  manual: 'you set this',
+  exif: i18n.key('from the camera'),
+  faces: i18n.key('worked out from the people in it'),
+  ai: i18n.key('worked out from the picture'),
+  manual: i18n.key('you set this'),
 };
 
 function formatClock(seconds) {
@@ -471,7 +471,7 @@ export class Viewer extends EventTarget {
     box.className = 'audio-hero';
     const title = document.createElement('div');
     title.className = 'title';
-    title.textContent = `${item.name} cannot play in the browser`;
+    title.textContent = i18n.t('{name} cannot play in the browser', { name: item.name });
     const link = document.createElement('a');
     link.className = 'btn primary';
     link.href = item.download;
@@ -481,6 +481,9 @@ export class Viewer extends EventTarget {
   }
 
   renderChrome(item) {
+    // The kind on the root: a phone keeps the arrows for a video, where a
+    // swipe would start on the player.
+    this.root.dataset.kind = item.kind;
     this.root.querySelector('#v-sudar').hidden = !this.canDownload || item.kind !== 'picture';
     this.root.querySelector('#v-rotate').hidden = !this.canRotate || item.kind !== 'picture';
     this.root.querySelector('#v-avatar').hidden = !this.canAvatar || item.kind !== 'picture';
@@ -572,7 +575,7 @@ export class Viewer extends EventTarget {
       item.iso ? ['ISO', item.iso] : null,
       item.focal_length ? [i18n.t('Focal length'), `${item.focal_length} mm`] : null,
       // Only when the photograph is shown turned, and saying who decided.
-      item.rotation ? [i18n.t('Turned'), `${item.rotation}° · ${ROTATION_WHY[item.rotation_source]
+      item.rotation ? [i18n.t('Turned'), `${item.rotation}° · ${i18n.t(ROTATION_WHY[item.rotation_source])
         || item.rotation_source}`] : null,
     ].filter(Boolean);
 
@@ -604,7 +607,7 @@ export class Viewer extends EventTarget {
     } catch (error) {
       item.favorite = previous;
       if (this.item === item) this.root.querySelector('#v-fav').classList.toggle('on', !!previous);
-      this.toast?.(`Could not update favorite: ${error.message}`, true);
+      this.toast?.(i18n.t('Could not update favourite: {error}', { error: error.message }), true);
     } finally {
       this.favoritePending = false;
     }

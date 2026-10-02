@@ -328,9 +328,9 @@ def _folders_changed() -> None:
     straight away), and let the scanner look."""
     c = cfg()
     c.save()
-    db.sync_folders(conn(), list(c.folders))
     s = scanner()
-    s.folders = list(c.folders)
+    s.folders = list(c.folders)          # before the sync: a scan starting now reads this
+    db.sync_folders(conn(), list(c.folders))
     s.generation += 1
     s.rescan()
 
@@ -377,7 +377,9 @@ def remove_library():
         names = ", ".join(assigned[:5])
         fail(409, f"{names} {'is' if len(assigned) == 1 else 'are'} assigned to that "
                   f"folder. Reassign them first, or confirm to remove it anyway: they "
-                  f"will see nothing until they are reassigned.", assigned=assigned)
+                  f"will see nothing until they are reassigned. Removing a folder also "
+                  f"forgets its photographs' favourites, album places and per-photo "
+                  f"visibility.", assigned=assigned)
     # Assignments are left as they are: one that matches no library folder
     # sees nothing, where clearing it would mean "everything".
     c.folders.remove(path)

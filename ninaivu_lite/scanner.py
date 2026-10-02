@@ -176,7 +176,11 @@ class Scanner:
                 seen.add(row[0])
                 if row[3]:
                     with conn:
-                        conn.execute("UPDATE assets SET missing = 0 WHERE id = ?", (row[0],))
+                        # Back after being away: a thumbnail that failed while it
+                        # was away is asked for again.
+                        conn.execute("UPDATE assets SET missing = 0, "
+                                     "thumb = CASE WHEN thumb = ? THEN 0 ELSE thumb END "
+                                     "WHERE id = ?", (db.THUMB_NONE, row[0]))
                 continue
             info = media.describe(full, name, kind, st)
             if rel_dir not in rules:
@@ -301,21 +305,28 @@ class Scanner:
             total = conn.execute(
                 f"SELECT COUNT(*) FROM assets a WHERE {where} AND a.missing = 0").fetchone()[0]
             self._set(state=state, thumbs_total=total, thumbs_left=total)
+            # Each row is tried once per pass. A row the attempt leaves in the
+            # queue (its drive asleep, its file gone) would otherwise come back
+            # in the next page, and the pass would spin on it at full CPU.
+            tried: set[int] = set()
             while not self._stop.is_set():
                 rows = conn.execute(
                     f"""SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.rotation, f.path AS root
                         FROM assets a JOIN folders f ON f.id = a.folder_id
                         WHERE {where} AND a.missing = 0
-                        ORDER BY a.captured_at DESC LIMIT 50""").fetchall()
+                        ORDER BY a.captured_at DESC LIMIT 50 OFFSET ?""",
+                    (len(tried),)).fetchall()
                 left = conn.execute(
                     f"SELECT COUNT(*) FROM assets a WHERE {where} AND a.missing = 0").fetchone()[0]
                 self._set(thumbs_left=left)
+                rows = [row for row in rows if row["id"] not in tried]
                 if not rows:
                     break
                 self.generation += 1
                 for row in rows:
                     if self._stop.is_set() or self._wake.is_set():
                         return  # a rescan was asked for: walk first, then carry on here
+                    tried.add(row["id"])
                     self._thumbnail(conn, row, sizes)
 
     # --- which way up ------------------------------------------------------------
@@ -385,6 +396,11 @@ class Scanner:
     def _thumbnail(self, conn: sqlite3.Connection, row: sqlite3.Row,
                    sizes: tuple[str, ...]) -> bool:
         full = full_path(row["root"], row["dir"], row["name"])
+        if not os.path.isfile(long_path(full)):
+            # Away, not broken: a drive asleep or unplugged. The row keeps its
+            # place in the queue for when the file is back; the next walk
+            # marks it missing if it is gone for good.
+            return False
         if row["kind"] == "video":
             sizes = ("s", "l")   # one ffmpeg call makes both
         ok, colour = media.make_thumbnails(full, row["kind"], self.thumbs_dir, row["id"], sizes,
@@ -392,12 +408,16 @@ class Scanner:
         version = int(time.time() * 1000) % 2_000_000_000
         with conn:
             if "s" in sizes:
+                # NONE only for a file that is there and cannot be read as a
+                # picture: that is final until the file changes.
                 conn.execute("UPDATE assets SET thumb = ?, color = COALESCE(?, color), "
                              "thumb_v = ? WHERE id = ?",
                              (db.THUMB_OK if ok else db.THUMB_NONE, colour, version, row["id"]))
             if "l" in sizes:
+                # 2: tried and failed, so the finishing pass does not ask again;
+                # a request for the big one (thumbnail_now) still may.
                 conn.execute("UPDATE assets SET large = ? WHERE id = ?",
-                             (1 if ok else 0, row["id"]))
+                             (1 if ok else 2, row["id"]))
         return ok
 
     def thumbnail_now(self, conn: sqlite3.Connection, asset_id: int, size: str = "s") -> bool:

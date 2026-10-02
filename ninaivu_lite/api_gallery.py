@@ -20,6 +20,7 @@ import mimetypes
 import os
 import re
 import sqlite3
+import threading
 import time
 import unicodedata
 import zipfile
@@ -687,7 +688,7 @@ def viewing_response(row: sqlite3.Row, path: str, max_age: int, turned: bool = F
             cache.parent.mkdir(parents=True, exist_ok=True)
             for old in cache.parent.glob(f"{row['id']}-*.jpg"):
                 old.unlink(missing_ok=True)
-            tmp = cache.with_name(f"{cache.name}.{os.getpid()}.tmp")
+            tmp = cache.with_name(f"{cache.name}.{os.getpid()}-{threading.get_ident()}.tmp")
             tmp.write_bytes(data)
             os.replace(tmp, cache)
         except OSError:
@@ -735,7 +736,8 @@ def preview(asset_id: int):
         fail(404, "Not found.")
     if media.browser_native(row["name"]):
         return guarded_file(row, user())
-    return viewing_response(row, original_path(row), 86400)
+    # A guest is told rotation 0 (asset_public), so the turn is baked in here.
+    return viewing_response(row, original_path(row), 86400, turned=user().is_guest)
 
 
 def attachment_header(name: str, fallback: str = "photo") -> str:
