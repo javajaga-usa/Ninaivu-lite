@@ -2644,9 +2644,29 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
    question that comes before a slideshow.
    ========================================================================== */
 
-/* The folded tools stay folded at every width: five everyday tools on the
-   bar, and the rest behind ⋮ with their names beside them, on a desktop as
-   on a phone. A bar of fourteen unnamed icons was the alternative. */
+/* On a wide screen every tool is on the bar, each with its name as a
+   tooltip: the gallery shows what it can do. The ⋮ menu is for narrower
+   screens, where it is what makes the bar fit. The same elements either way,
+   so every handler and shortcut is the same. */
+@media (min-width: 1180px) {
+  #v-more { display: none; }
+  .viewer-tools-more, .viewer-tools-more.open {
+    display: flex; position: static; flex-direction: row; align-items: center; gap: 2px;
+    min-width: 0; max-height: none; overflow: visible; padding: 0;
+    background: none; border: 0; box-shadow: none; border-radius: 0;
+  }
+  /* A hairline before the group, so the everyday tools and the rest read as two. */
+  .viewer-tools-more::before {
+    content: ""; width: 1px; height: 20px; margin: 0 8px 0 6px; flex: none;
+    background: rgba(255, 255, 255, .18);
+  }
+  .viewer-tools-more .icon-btn { width: 34px; height: 34px; justify-content: center; padding: 0; }
+  .viewer-tools-more .viewer-tools-more-label,
+  .viewer-tools-more.open .viewer-tools-more-label { display: none; }
+  .viewer-tools-more .vis-picker, .viewer-tools-more.open .vis-picker { margin: 0 4px; align-self: center; }
+  /* The icons keep a little space from Download and Close. */
+  #v-download { margin-left: 6px; }
+}
 
 /* The strip has half its width of empty space at each end, so the first and
    the last frame can be in the middle like any other. */
