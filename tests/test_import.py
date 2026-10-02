@@ -348,7 +348,7 @@ def test_the_console_runs_an_import(app, admin, drive, tmp_path):
                                  "in_library": False}
     assert admin.get("/api/archive/settings").get_json() == {
         "source_dirs": [{"path": str(drive)}], "destination_dir": str(dest),
-        "media_types": ["image", "video"]}
+        "media_types": ["image", "video"], "destination_is_default": False}
     recent = admin.get("/api/archive/recent?status=duplicate").get_json()
     assert [r["filename"] for r in recent] == ["beach copy.jpg"]
     years = {y["year"]: y["count"] for y in admin.get("/api/archive/years").get_json()}
@@ -435,3 +435,18 @@ def test_first_day_offers_the_import(app, admin, library):
     data = admin.get("/api/admin/first-day").get_json()
     assert data["import"]["sources"] == ["/old/drive"]
     assert data["import"]["destination"] == "/elsewhere"
+
+
+def test_the_destination_is_never_empty(app, admin, library, tmp_path):
+    root, _ = library
+    saved = admin.get("/api/archive/settings").get_json()
+    assert saved["destination_dir"] == os.path.join(str(root), "Ninaivu Archive")
+    assert saved["destination_is_default"] is True
+    # A folder the administrator chose is kept instead.
+    cfg = app.config["LITE"]
+    cfg.import_destination = str(tmp_path / "Elsewhere")
+    saved = admin.get("/api/archive/settings").get_json()
+    assert saved["destination_dir"] == str(tmp_path / "Elsewhere")
+    assert saved["destination_is_default"] is False
+    # Without a library yet, under Pictures (or home), never nothing.
+    assert importer.default_destination("").endswith("Ninaivu Archive")

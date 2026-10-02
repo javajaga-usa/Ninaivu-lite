@@ -3040,5 +3040,6 @@
   "Source “{path}” is already covered by source “{other}”.": "மூலம் “{path}” ஏற்கனவே மூலம் “{other}” க்குள் அடங்கியுள்ளது.",
   "The archive “{destination}” sits inside source “{path}”. It is skipped during the scan, so files already archived are not read back in.": "காப்பகம் “{destination}” மூலம் “{path}” க்குள் உள்ளது. தேடலின்போது அது தவிர்க்கப்படும், எனவே ஏற்கனவே காப்பகப்படுத்திய கோப்புகள் மீண்டும் படிக்கப்படா.",
   "Choose the archive folder to audit.": "தணிக்கை செய்ய காப்பகக் கோப்புறையைத் தேர்வுசெய்யவும்.",
-  "A download carries no metadata; a saved copy keeps the original's camera, exposure and place.": "பதிவிறக்கத்தில் மெட்டாடேட்டா இருக்காது; சேமித்த நகல் அசலின் கேமரா, வெளிப்பாடு, இடத்தை வைத்திருக்கும்."
+  "A download carries no metadata; a saved copy keeps the original's camera, exposure and place.": "பதிவிறக்கத்தில் மெட்டாடேட்டா இருக்காது; சேமித்த நகல் அசலின் கேமரா, வெளிப்பாடு, இடத்தை வைத்திருக்கும்.",
+  "Where the consolidated archive is built: inside your default library folder unless you browse to somewhere else, so what comes in is shown to the family as it lands. Choose a folder inside an existing archive and Ninaivu uses the archive's root instead, and says so.": "ஒருங்கிணைந்த காப்பகம் கட்டப்படும் இடம்: வேறு இடத்திற்கு நீங்கள் உலாவாத வரை உங்கள் இயல்பு நூலகக் கோப்புறைக்குள், எனவே வருவது வந்தவுடனே குடும்பத்திற்குக் காட்டப்படும். ஏற்கனவே உள்ள காப்பகத்திற்குள் ஒரு கோப்புறையைத் தேர்ந்தால், நினைவு காப்பகத்தின் மூலத்தையே பயன்படுத்தி, அதைச் சொல்லும்."
 }

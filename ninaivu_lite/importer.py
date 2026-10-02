@@ -247,6 +247,20 @@ def resolve_destination(chosen: str, known: list[str] = ()) -> dict[str, Any]:
     return out
 
 
+ARCHIVE_NAME = "Ninaivu Archive"
+
+
+def default_destination(library_root: str) -> str:
+    """Where the archive is built unless the administrator chooses otherwise:
+    inside the default library folder, so what comes in is indexed and shown
+    to the family as it lands; without a library yet, under Pictures."""
+    if library_root:
+        return os.path.join(library_root, ARCHIVE_NAME)
+    home = os.path.expanduser("~")
+    pictures = os.path.join(home, "Pictures")
+    return os.path.join(pictures if os.path.isdir(pictures) else home, ARCHIVE_NAME)
+
+
 def clean_sources(raw: Any) -> list[str]:
     out: list[str] = []
     for item in raw if isinstance(raw, list) else []:

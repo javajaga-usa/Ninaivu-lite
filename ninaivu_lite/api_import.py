@@ -73,8 +73,12 @@ def status():
 def settings():
     require_admin()
     c = cfg()
+    # Never empty: the archive goes inside the default library folder unless
+    # the administrator browses to somewhere else.
+    destination = c.import_destination or importer.default_destination(c.active_folder)
     return jsonify({"source_dirs": [{"path": p} for p in c.import_sources],
-                    "destination_dir": c.import_destination, "media_types": c.import_kinds})
+                    "destination_dir": destination, "media_types": c.import_kinds,
+                    "destination_is_default": not c.import_destination})
 
 
 @bp.post("/api/archive/validate")
