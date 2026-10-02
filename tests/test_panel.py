@@ -52,14 +52,16 @@ def test_the_panel_builds_and_closes(tmp_path, monkeypatch):
     root = _tk_root()
     try:
         # Off by default: the panel opens without asking GitHub anything.
+        # (One window for the whole test: Tk on macOS aborts when a second
+        # root is made after the first was destroyed.)
         view = panel.Panel(root, Controller(str(tmp_path)))
         root.update()
         assert asked == []
         assert view.update_text.get().startswith("Not checking")
-        view.close()
-        updates.set_enabled(tmp_path, True)
-        root = _tk_root()
-        view = panel.Panel(root, Controller(str(tmp_path)))
+        # Ticking the box is the asking.
+        view.updates_on.set(True)
+        view.toggle_updates()
+        assert asked == [True] and updates.enabled(tmp_path) is True
         for _ in range(60):                       # let the update thread answer
             root.update()                         # runs the panel's own pump
             if view.update_text.get():
