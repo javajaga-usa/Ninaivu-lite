@@ -270,8 +270,8 @@ async function start(user) {
   // What is running, in the heading strip, and the scan's own bar on the
   // Library page — both from the same poll; see onActivity.
   watchActivity();
-  await refresh();
-  // The Import page: wired once, shown when its tab is opened.
+  // The Import page: wired once, before the first refresh, so a tap on its
+  // tab during that refresh finds it ready rather than empty.
   if (!archivePanel) {
     archivePanel = new ArchivePanel({
       toast,
@@ -280,6 +280,7 @@ async function start(user) {
     });
     archivePanel.wire();
   }
+  await refresh();
   // The first day: once, right after the administrator is made.
   firstDay ||= new FirstDay({
     json, toast, openPage: (page) => showTab(page), refresh,

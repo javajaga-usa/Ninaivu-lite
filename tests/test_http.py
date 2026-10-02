@@ -48,3 +48,19 @@ def test_the_english_locale_is_an_identity_map():
     import json
     en = json.loads((Path("ninaivu_lite/static/i18n/en.json")).read_text(encoding="utf-8"))
     assert en and all(key == value for key, value in en.items())
+
+
+def test_oversized_bodies_are_refused_before_they_are_read(app, admin):
+    """A JSON body past a megabyte, and any body past the app's ceiling."""
+    from ninaivu_lite.app import MAX_REQUEST_BYTES
+    assert app.config["MAX_CONTENT_LENGTH"] == MAX_REQUEST_BYTES
+    big = '{"name": "' + "x" * (1024 * 1024 + 10) + '"}'
+    r = admin.post("/api/me", data=big, content_type="application/json")
+    assert r.status_code == 413
+    assert r.get_json()["error"] == "That is too large."
+    # The ceiling, by the declared length alone: refused before reading
+    # (the test client rewrites a Content-Length header, so the environ
+    # carries the claim instead).
+    r = admin.post("/api/me", data="{}", content_type="application/json",
+                   environ_overrides={"CONTENT_LENGTH": str(MAX_REQUEST_BYTES + 1)})
+    assert r.status_code == 413

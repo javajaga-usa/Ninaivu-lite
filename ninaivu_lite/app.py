@@ -28,7 +28,12 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "same-origin",
     "X-Frame-Options": "DENY",
     "Content-Security-Policy": CSP,
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
 }
+
+#: The largest request body any route takes: an edited photograph for the
+#: library (api_sudar.MAX_BYTES). Anything bigger is refused before it is read.
+MAX_REQUEST_BYTES = 100 * 1024 * 1024
 
 #: Answered for someone not signed in even when guest browsing is off.
 OPEN_PREFIXES = ("/static/", "/api/auth/", "/api/share/", "/share/")
@@ -51,6 +56,7 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
     app.config["IMPORTER"] = Importer(cfg.data_dir)
     app.json.ensure_ascii = False
     app.json.sort_keys = False
+    app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BYTES
 
     from . import api_admin, api_auth, api_gallery, api_import, api_share, api_sudar, pages
     for module in (pages, api_auth, api_gallery, api_share, api_admin, api_import, api_sudar):

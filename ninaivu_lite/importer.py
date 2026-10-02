@@ -786,7 +786,7 @@ class Importer:
                     return
             if dry:
                 candidate, identical = self._unique_path(conn, folder, name, src_hash,
-                                                         st.st_size, planning=True)
+                                                         st.st_size, planning=True, source=src)
                 if identical:
                     self._mark(conn, src, "plan-duplicate", hash=src_hash, taken=when,
                                date_source=source, duplicate_of=candidate)
@@ -870,7 +870,7 @@ class Importer:
         return None
 
     def _unique_path(self, conn: sqlite3.Connection, folder: str, name: str, digest: str | None,
-                     size: int, planning: bool = False) -> tuple[str, bool]:
+                     size: int, planning: bool = False, source: str = "") -> tuple[str, bool]:
         """A free name in *folder*, or the existing file when its bytes are
         the same (then nothing needs copying). Returns (path, identical)."""
         stem, ext = os.path.splitext(name)
@@ -882,8 +882,8 @@ class Importer:
                 if self._same_bytes(conn, candidate, digest, size):
                     return candidate, True
             elif not (planning and conn.execute(
-                    "SELECT 1 FROM import_files WHERE destination = ? AND status = 'planned'",
-                    (candidate,)).fetchone()):
+                    "SELECT 1 FROM import_files WHERE destination = ? AND status = 'planned' "
+                    "AND source != ?", (candidate, source)).fetchone()):
                 return candidate, False
             counter += 1
         raise RuntimeError(f"No free name could be found for {name}.")

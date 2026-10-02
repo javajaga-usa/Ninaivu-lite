@@ -1340,7 +1340,14 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
    edges. They stay for a mouse. */
 @media (hover: none) and (pointer: coarse) {
   .viewer-nav { display: none; }
+  /* A video fills the stage and takes the swipe itself: the arrows stay. */
+  .viewer[data-kind="video"] .viewer-nav { display: grid; }
+  /* The date rail is a hover affordance; on a phone the year strip does its job. */
+  .scrubber { display: none; }
+  /* A long press selects: no text selection or image callout on the way. */
+  .cell, .cell img { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 }
+.scrubber-thumb { touch-action: none; }
 
 /* On a phone "Select all" waits for selection mode (a long press starts it)
    instead of sitting on every day's header. */

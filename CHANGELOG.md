@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.4.2 — 2026-10-02
+
+A sweep for faults, by review and by driving every screen in a browser.
+
+- **Server, tightened.** Request bodies are capped at 100 MB before they are read and JSON at
+  1 MB; idle connections are dropped after a minute; a Permissions-Policy header denies the
+  camera, microphone, location and payment. A flood of failed sign-ins under made-up names
+  no longer wipes the lockouts protecting the administrator's password and the family's PINs.
+- **The scan no longer spins.** A photograph whose drive went away between the thumbnail
+  passes used to keep the finishing pass at full CPU until Rescan; each row is now tried once
+  per pass. A file that is merely away keeps its place in the queue instead of being written
+  off without a thumbnail, and one that comes back is asked for again. Two threads making the
+  same thumbnail no longer share a temporary file.
+- **Shared and guest copies the right way up.** A share link or a guest preview of a turned
+  photograph came out sideways; the turn is baked in now.
+- **A second dry run agrees with the first** instead of planning every file under a `_1` name.
+- **Phones can select.** A long press on a tile starts selecting (the only way in once
+  *Select all* waits for selection mode); a plain tap then adds. The viewer keeps its arrows
+  for videos on touch screens, where a swipe would start on the player; the date rail, a hover
+  affordance, is hidden there.
+- **The viewer forgets stale copies** after a bulk favourite or visibility change, so a photo
+  reopened shows the change. The gallery stops polling behind the sign-in gate. The console's
+  Import page is ready before the first refresh.
+- **Tamil everywhere.** Three dozen messages were English on a Tamil page (selection counts,
+  album dialogs, download and visibility toasts, the offline banner, the viewer's rotation
+  note, scan progress); they are translated now.
+- Removing a library folder now says it also forgets that folder's favourites, album places
+  and per-photo visibility.
+
 ## 1.4.1 — 2026-10-02
 
 - **The earlier look is back.** 1.4.0's finish (rounder tiles, the count pill, gradient

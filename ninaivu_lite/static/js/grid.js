@@ -35,6 +35,8 @@ const PREFETCH_SCREENS = 1.5;
 
 const KIND_NAMES = ['picture', 'video', 'audio'];
 
+const LONG_PRESS_MS = 450;
+
 const ICON = {
   video: '<svg viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z" fill="currentColor" stroke="none"/></svg>',
   audio: '<svg viewBox="0 0 24 24"><path d="M9 18V6l11-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>',
@@ -171,6 +173,15 @@ export class Grid extends EventTarget {
 
     this.container.addEventListener('click', (event) => this.onClick(event));
     this.container.addEventListener('dblclick', (event) => this.onClick(event, true));
+    // A phone has no hover to show the pick mark and no Ctrl to hold: a long
+    // press on a tile starts selecting, as it does in every photo app.
+    this.container.addEventListener('pointerdown', (event) => this.onPressStart(event));
+    this.container.addEventListener('pointermove', (event) => this.onPressMove(event));
+    this.container.addEventListener('pointerup', () => this.onPressEnd());
+    this.container.addEventListener('pointercancel', () => this.onPressEnd());
+    this.container.addEventListener('contextmenu', (event) => {
+      if (this.press || this.swallowClick) event.preventDefault();
+    });
   }
 
   /* ---------------------------------------------------------------- */
@@ -719,7 +730,47 @@ export class Grid extends EventTarget {
 
   /* -- interaction ---------------------------------------------------- */
 
+  onPressStart(event) {
+    if (event.pointerType !== 'touch') return;
+    const node = event.target.closest('.cell');
+    if (!node) return;
+    this.onPressEnd();
+    const id = Number(node.dataset.id);
+    const index = Number(node.dataset.n);
+    this.press = {
+      x: event.clientX, y: event.clientY,
+      timer: setTimeout(() => {
+        this.press = null;
+        this.swallowClick = true;           // the click that follows the press
+        if (this.selection.has(id)) this.selection.delete(id);
+        else this.selection.add(id);
+        this.lastAnchor = index;
+        this.cursor = index;
+        try { navigator.vibrate?.(12); } catch { /* not every phone */ }
+        this.emitSelection();
+        this.render();
+      }, LONG_PRESS_MS),
+    };
+  }
+
+  onPressMove(event) {
+    if (!this.press) return;
+    if (Math.abs(event.clientX - this.press.x) > 8 || Math.abs(event.clientY - this.press.y) > 8) {
+      this.onPressEnd();                    // a scroll, not a press
+    }
+  }
+
+  onPressEnd() {
+    if (!this.press) return;
+    clearTimeout(this.press.timer);
+    this.press = null;
+  }
+
   onClick(event, isDouble = false) {
+    if (this.swallowClick) {
+      this.swallowClick = false;
+      return;
+    }
     const sectionButton = event.target.closest('[data-select-section]');
     if (sectionButton) {
       const head = sectionButton.parentElement;

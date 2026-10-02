@@ -327,8 +327,9 @@ def shared_thumb(token: str, asset_id: int):
 def shared_file(token: str, asset_id: int):
     row = shared_asset(token, asset_id)
     path = original_path(row)
-    if may_carry_location(row):
-        return _no_referrer(viewing_response(row, path, 3600))
+    if may_carry_location(row) or row["rotation"]:
+        # The share page is told rotation 0, so the index's turn is baked in.
+        return _no_referrer(viewing_response(row, path, 3600, turned=True))
     return _no_referrer(original_response(row, path))
 
 
@@ -338,6 +339,6 @@ def shared_preview(token: str, asset_id: int):
     if row["kind"] != "picture":
         fail(404, "Not found.")
     path = original_path(row)
-    if media.browser_native(row["name"]) and not may_carry_location(row):
+    if media.browser_native(row["name"]) and not may_carry_location(row) and not row["rotation"]:
         return _no_referrer(original_response(row, path))
-    return _no_referrer(viewing_response(row, path, 3600))
+    return _no_referrer(viewing_response(row, path, 3600, turned=True))

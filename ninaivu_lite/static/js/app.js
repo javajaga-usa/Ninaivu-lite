@@ -399,7 +399,7 @@ function setServerOffline(reason = i18n.t('Cannot reach the Ninaivu server.')) {
   const banner = $('#offline-banner');
   if (banner) banner.hidden = false;
   const bannerText = $('#offline-banner-text');
-  if (bannerText) bannerText.textContent = `Can’t reach Ninaivu at ${location.host}. Reconnecting automatically…`;
+  if (bannerText) bannerText.textContent = i18n.t('Can’t reach Ninaivu at {host}. Reconnecting automatically…', { host: location.host });
 
   if (!grid?.layout?.cells?.length) {
     const empty = $('#empty');
@@ -419,8 +419,8 @@ function setServerOffline(reason = i18n.t('Cannot reach the Ninaivu server.')) {
     // this device, and a certificate is not the answer there (it is a public one).
     const away = onTailnet();
     if (text) text.textContent = away
-      ? `This device can’t reach Ninaivu at ${location.host}. Away from home it is reached through Tailscale, so check that Tailscale is on and connected on this device.`
-      : `This browser can’t reach Ninaivu at ${location.host}. Either the Ninaivu server is stopped, or this browser doesn’t trust Ninaivu’s HTTPS certificate.`;
+      ? i18n.t('This device can’t reach Ninaivu at {host}. Away from home it is reached through Tailscale, so check that Tailscale is on and connected on this device.', { host: location.host })
+      : i18n.t('This browser can’t reach Ninaivu at {host}. Either the Ninaivu server is stopped, or this browser doesn’t trust Ninaivu’s HTTPS certificate.', { host: location.host });
     const hint = $('#empty-hint');
     if (hint) {
       hint.hidden = false;
@@ -1236,7 +1236,7 @@ function cycleTheme() {
   const order = ['system', 'light', 'dark'];
   const current = document.documentElement.dataset.theme || 'system';
   applyTheme(order[(order.indexOf(current) + 1) % order.length]);
-  toast(`Theme: ${document.documentElement.dataset.theme}`);
+  toast(i18n.t('Theme: {theme}', { theme: document.documentElement.dataset.theme }));
 }
 window.cycleTheme = cycleTheme;
 
@@ -1270,7 +1270,8 @@ function wireVisibility() {
       if (!ids.length) return;
       try {
         const result = await accountsApi.setVisibility(ids, button.dataset.selVis);
-        toast(`${result.updated} item${result.updated === 1 ? '' : 's'} → ${visLabel(button.dataset.selVis)}.`);
+        ids.forEach((id) => viewer.cache.delete(id));
+        toast(i18n.t('{count} now visible to {audience}.', { count: result.updated, audience: visLabel(button.dataset.selVis) }));
         grid.clearSelection();
         await refreshStatus();
         reload();
@@ -1286,7 +1287,7 @@ function wireVisibility() {
         await accountsApi.setVisibility([item.id], button.dataset.vis);
         item.visibility = button.dataset.vis;
         syncViewerVisibility();
-        toast(`Now visible to ${visLabel(button.dataset.vis)}.`);
+        toast(i18n.t('Now visible to {audience}.', { audience: visLabel(button.dataset.vis) }));
         refreshStatus();
       } catch (exc) { toast(exc.message, true); }
     };
@@ -1294,8 +1295,8 @@ function wireVisibility() {
 }
 
 function visLabel(visibility) {
-  return { public: 'everyone', family: 'family only', hidden: 'admins only' }[visibility]
-    || visibility;
+  const words = { public: i18n.t('everyone'), family: i18n.t('family only'), hidden: i18n.t('admins only') };
+  return words[visibility] || visibility;
 }
 
 // Named here, translated where shown: this table is built before any locale
@@ -1456,7 +1457,7 @@ function renderFilterBar() {
     text.textContent = value;
     const button = document.createElement('button');
     button.type = 'button';
-    button.setAttribute('aria-label', `Remove ${label} filter`);
+    button.setAttribute('aria-label', i18n.t('Remove {label} filter', { label }));
     button.innerHTML = '<svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>';
     button.onclick = () => {
       clear();
@@ -1472,7 +1473,7 @@ function renderFilterBar() {
     if (album) {
       const shareBtn = document.createElement('button');
       shareBtn.className = 'btn ghost small';
-      shareBtn.innerHTML = '<svg viewBox="0 0 24 24" style="width:13px;height:13px;margin-right:4px;vertical-align:-2px;"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>Share Album';
+      shareBtn.innerHTML = '<svg viewBox="0 0 24 24" style="width:13px;height:13px;margin-right:4px;vertical-align:-2px;"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>' + i18n.t('Share album');
       shareBtn.onclick = () => openShareModal({ type: 'album', id: album.id, name: album.name });
       bar.appendChild(shareBtn);
 
@@ -1481,10 +1482,10 @@ function renderFilterBar() {
       delBtn.style.color = 'var(--danger)';
       delBtn.textContent = i18n.t('Delete Album');
       delBtn.onclick = async () => {
-        if (!confirm(`Delete album "${album.name}"? Photographs inside will not be deleted.`)) return;
+        if (!confirm(i18n.t('Delete album “{name}”? Photographs inside will not be deleted.', { name: album.name }))) return;
         try {
           await api.deleteAlbum(album.id);
-          toast(`Album "${album.name}" deleted.`);
+          toast(i18n.t('Album “{name}” deleted.', { name: album.name }));
           state.filters.album = 0;
           await loadAlbums();
           syncChips();
@@ -1628,7 +1629,7 @@ function openAlbumModal(ids = []) {
   input.value = '';
 
   if (ids.length > 0) {
-    title.textContent = `Add ${ids.length} ${ids.length === 1 ? 'photo' : 'photos'} to Album`;
+    title.textContent = ids.length === 1 ? i18n.t('Add 1 photo to album') : i18n.t('Add {count} photos to album', { count: ids.length });
     subtitle.textContent = i18n.t('Choose an album or enter a name to create a new one:');
   } else {
     title.textContent = i18n.t('Create New Album');
@@ -1639,7 +1640,7 @@ function openAlbumModal(ids = []) {
   list.innerHTML = '';
   const albums = state.albums || [];
   if (albums.length === 0) {
-    list.innerHTML = '<div class="hint" style="padding:8px;">No existing albums yet.</div>';
+    list.innerHTML = `<div class="hint" style="padding:8px;">${i18n.t('No existing albums yet.')}</div>`;
   } else {
     for (const album of albums) {
       const row = document.createElement('button');
@@ -1854,9 +1855,9 @@ function wireSelection() {
 
     const capped = ids.slice(0, 2000);
     if (capped.length < ids.length) {
-      toast(`Downloading the first ${capped.length} of ${ids.length}.`);
+      toast(i18n.t('Downloading the first {some} of {total}.', { some: capped.length, total: ids.length }));
     } else {
-      toast(`Preparing ${capped.length} photographs…`);
+      toast(i18n.t('Preparing {count} photographs…', { count: capped.length }));
     }
     // The server streams the archive as it reads, so the browser starts
     // saving straight away rather than waiting on a spinner.
@@ -1887,7 +1888,8 @@ async function bulk(fields) {
   if (!ids.length) return;
   try {
     await api.bulk(ids, fields);
-    toast(`Updated ${ids.length} item${ids.length > 1 ? 's' : ''}.`);
+    ids.forEach((id) => viewer.cache.delete(id));   // the viewer's copy is stale now
+    toast(ids.length === 1 ? i18n.t('Updated 1 item.') : i18n.t('Updated {count} items.', { count: ids.length }));
     grid.clearSelection();
     await refreshStatus();
     reload();
@@ -1989,10 +1991,12 @@ function wireScrubber() {
     thumb.setPointerCapture(event.pointerId);
   });
   thumb.addEventListener('pointermove', (event) => dragging && seek(event.clientY));
-  thumb.addEventListener('pointerup', () => {
+  const release = () => {
     dragging = false;
     scrubber.classList.remove('active');
-  });
+  };
+  thumb.addEventListener('pointerup', release);
+  thumb.addEventListener('pointercancel', release);
   scrubber.addEventListener('click', (event) => {
     if (event.target === thumb || thumb.contains(event.target)) return;
     seek(event.clientY);
@@ -2011,7 +2015,7 @@ function wireGrid() {
   grid.addEventListener('selection', (event) => {
     const count = event.detail.ids.length;
     $('#selection-bar').hidden = count === 0;
-    $('#sel-count').textContent = `${count} selected`;
+    $('#sel-count').textContent = i18n.t('{count} selected', { count });
   });
 
   grid.addEventListener('scroll', (event) => {
@@ -2192,7 +2196,9 @@ const COUNTS_EVERY_MS = 30000;
 // Coming back to the tab is the moment to catch up on what happened while it
 // was in the background, and to restart the loop that visibility stopped.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) refreshStatus();
+  // Only once the gallery has started: behind the sign-in gate there is
+  // nothing to refresh, and a session that has ended must not keep asking.
+  if (!document.hidden && state.status) refreshStatus();
 });
 
 // Ask now, and let the answer set the next tick's cadence.
@@ -2274,7 +2280,7 @@ function onActivity(activity) {
     refreshFacets();
     if (!state.loading) reload();
     if (scan.status === 'done' && (scan.added || scan.removed)) {
-      toast(`${scan.added.toLocaleString()} added, ${scan.removed.toLocaleString()} removed.`);
+      toast(i18n.t('{added} added, {removed} removed.', { added: scan.added.toLocaleString(), removed: scan.removed.toLocaleString() }));
     }
   }
 }
@@ -2359,7 +2365,7 @@ function openShareModal(item) {
   $('#share-create-btn').hidden = false;
   $('#share-password').value = '';
   if (item?.type === 'album') {
-    $('#share-title').textContent = `Share Album: ${item.name}`;
+    $('#share-title').textContent = i18n.t('Share album: {name}', { name: item.name });
   } else {
     $('#share-title').textContent = i18n.t('Share with Family & Friends');
   }

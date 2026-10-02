@@ -69,8 +69,15 @@ def fail(status: int, message: str, **extra: Any) -> NoReturn:
     raise ApiError(status, message, **extra)
 
 
+#: No JSON a screen sends is anywhere near this; a body claiming more is
+#: refused before it is read into memory.
+JSON_MAX_BYTES = 1024 * 1024
+
+
 def body() -> dict[str, Any]:
     """The JSON object sent, or {} for an empty body (logout, delete)."""
+    if (request.content_length or 0) > JSON_MAX_BYTES:
+        fail(413, "That is too large.")
     if not request.get_data(cache=True):
         return {}
     data = request.get_json(silent=True)

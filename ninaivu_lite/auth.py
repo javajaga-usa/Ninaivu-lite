@@ -485,7 +485,15 @@ class Throttle:
         now = time.time()
         with self._lock:
             if len(self._fails) > 10_000:
-                self._fails.clear()
+                # Forget what has aged out, never what is still counting: a
+                # flood of failures under made-up names used to wipe every
+                # lockout, the administrator's and the PINs' among them.
+                self._fails = {k: kept for k, v in self._fails.items()
+                               if (kept := [t for t in v if now - t < self.window])}
+                if len(self._fails) > 10_000:
+                    for stale in sorted(self._fails, key=lambda k: self._fails[k][-1])[:5_000]:
+                        if len(self._fails[stale]) < self.limit:
+                            del self._fails[stale]
             for key in keys:
                 self._fails.setdefault(key, []).append(now)
 

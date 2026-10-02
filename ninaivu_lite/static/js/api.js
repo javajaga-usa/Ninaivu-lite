@@ -275,12 +275,12 @@ export function subscribeProgress(onMessage) {
 // Scan phases measured in items (done, total) rather than files walked.
 // When tag_total is present, these provide the human-readable progress line.
 export const SCAN_COUNTS = {
-  tagging: (done, total) => `Analysing ${done} / ${total}`,
-  videos: (done, total) => `Describing ${done} / ${total} videos`,
-  naming: (done, total) => `Naming places in ${done} / ${total}`,
-  reading: (done, total) => `Reading text in ${done} / ${total}`,
-  faces: (done, total) => `Looking for faces in ${done} / ${total}`,
-  covers: (done, total) => `Drawing pictures for ${done} / ${total} sound files`,
+  tagging: (done, total) => i18n.t('Analysing {done} / {total}', { done, total }),
+  videos: (done, total) => i18n.t('Describing {done} / {total} videos', { done, total }),
+  naming: (done, total) => i18n.t('Naming places in {done} / {total}', { done, total }),
+  reading: (done, total) => i18n.t('Reading text in {done} / {total}', { done, total }),
+  faces: (done, total) => i18n.t('Looking for faces in {done} / {total}', { done, total }),
+  covers: (done, total) => i18n.t('Drawing pictures for {done} / {total} sound files', { done, total }),
 };
 
 // How long is left, in the words somebody would use out loud. Rounded hard on
@@ -289,12 +289,12 @@ export const SCAN_COUNTS = {
 // whether to leave the machine on tonight.
 export function timeLeft(seconds) {
   if (!seconds || seconds < 0) return '';
-  if (seconds < 90) return 'nearly done';
+  if (seconds < 90) return i18n.t('nearly done');
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `about ${minutes} minutes left`;
+  if (minutes < 60) return i18n.t('about {minutes} minutes left', { minutes });
   const hours = seconds / 3600;
-  if (hours < 2) return 'about an hour and a half left';
-  if (hours < 36) return `about ${Math.round(hours)} hours left`;
-  return `about ${Math.round(hours / 24)} days left`;
+  if (hours < 2) return i18n.t('about an hour and a half left');
+  if (hours < 36) return i18n.t('about {hours} hours left', { hours: Math.round(hours) });
+  return i18n.t('about {days} days left', { days: Math.round(hours / 24) });
 }
 

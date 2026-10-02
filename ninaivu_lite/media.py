@@ -12,6 +12,7 @@ import logging
 import os
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -363,7 +364,10 @@ def save_thumbnails(img: Image.Image, thumbs_dir: Path, asset_id: int,
         copy.thumbnail((edge, edge), Image.Resampling.LANCZOS)
         out = thumb_path(thumbs_dir, asset_id, size)
         out.parent.mkdir(parents=True, exist_ok=True)
-        tmp = out.with_name(out.name + ".tmp")
+        # A name of this thread's own: the scanner and a request for a tile
+        # on screen can be making the same thumbnail at the same moment, and
+        # two writers of one temporary file tear it (and on Windows, fail).
+        tmp = out.with_name(f"{out.name}.{os.getpid()}-{threading.get_ident()}.tmp")
         # method 2: a third of the encoding time of the default, and no
         # difference anyone can see at these sizes.
         copy.save(tmp, "WEBP", quality=THUMB_QUALITY, method=2)
