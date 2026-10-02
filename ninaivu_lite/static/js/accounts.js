@@ -683,13 +683,13 @@ export class ProfileSheet {
     }
     foot.appendChild(role);
     const footActions = el('div', 'row');
-    // Both faces log out the same way, but they mean different things by it.
-    // The gallery hands the tablet to somebody else; the console has no
-    // profiles to switch between, so calling it "Switch profile" there sent
-    // admins looking for a sign-out button that did not exist.
-    const leaving = el('button', 'btn ghost',
-      this.face === 'admin' ? i18n.t('Sign out') : i18n.t('Switch profile'));
+    // Both faces leave the same way and say so the same way: the door
+    // symbol and "Sign out". The gallery once called it "Switch profile",
+    // which read as something other than leaving.
+    const leaving = el('button', 'btn ghost');
     leaving.type = 'button';
+    leaving.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 17l5-5-5-5M21 12H9M12 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"/></svg>';
+    leaving.appendChild(document.createTextNode(i18n.t('Sign out')));
     leaving.onclick = async () => {
       try {
         await accountsApi.logout();

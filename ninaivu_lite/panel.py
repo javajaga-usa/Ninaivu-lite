@@ -115,11 +115,12 @@ class Panel:
         style.configure("Stop.TButton", background="#dc2626", foreground="white", padding=(10, 4))
         style.map("Stop.TButton", background=[("active", "#b91c1c"), ("disabled", "#fca5a5")])
         # The tick box itself: the clam theme draws it a fixed few pixels, tiny
-        # beside the words on a sharp screen. Sized from the font instead, so
-        # it is as tall as a line of its own text at any density.
-        line = tkfont.Font(root=root, font=(FONT, 10)).metrics("linespace")
+        # beside the words on a sharp screen. Sized to the font instead: the
+        # text's point size in pixels at this screen's density, so it matches
+        # the height of its own capitals and no more.
+        box = round(10 * float(root.tk.call("tk", "scaling")))
         style.configure("TCheckbutton", background=SURFACE, foreground=INK, font=(FONT, 10),
-                        indicatorsize=max(16, round(line * 1.15)), indicatormargin=(0, 0, 8, 0),
+                        indicatorsize=max(13, box), indicatormargin=(0, 0, 8, 0),
                         padding=(0, 3))
         # Ticked: a white mark on the accent blue, as the buttons are.
         style.map("TCheckbutton", background=[("active", SURFACE)],
