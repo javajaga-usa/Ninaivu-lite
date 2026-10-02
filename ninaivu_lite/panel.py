@@ -188,7 +188,7 @@ class Panel:
         tk.Label(row, textvariable=self.update_text, font=(FONT, 10), bg=SURFACE, fg=INK,
                  anchor="w", justify="left", wraplength=400).pack(side="left", fill="x", expand=True)
         self.download_button = ttk.Button(row, text="Download", style="Accent.TButton",
-                                          command=lambda: webbrowser.open(self.update_url))
+                                          command=self.download)
         ttk.Button(row, text="Check now",
                    command=lambda: self.check_updates(force=True)).pack(side="right")
         row = tk.Frame(body, bg=SURFACE)
@@ -379,6 +379,17 @@ class Panel:
         else:
             self.update_text.set(f"You have the latest version, {__version__}." if asked else "")
             self.download_button.pack_forget()
+
+    def download(self) -> None:
+        """The release page, and the one thing the installer needs: nothing of
+        the old program in use. The installer asks too, but later, after the
+        download; said here it is read before."""
+        webbrowser.open(self.update_url)
+        self.notice.set(
+            ("Before running the installer: press Stop, then close this Control Panel. "
+             "Files in use cannot be replaced.") if self.is_running else
+            ("Before running the installer, close this Control Panel. "
+             "Files in use cannot be replaced."))
 
     def toggle_updates(self) -> None:
         on = self.updates_on.get()

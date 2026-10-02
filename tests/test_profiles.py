@@ -13,6 +13,12 @@ from ninaivu_lite import auth, db
 from conftest import ids, sign_in
 
 
+def square_of(library, me):
+    """Where the picture the address names lives on disk."""
+    _, data = library
+    return data / "avatars" / f"{me['id']}-{me['avatar'].split('v=')[1]}.jpg"
+
+
 def profiles(app):
     return {p["name"]: p for p in app.test_client().get("/api/auth/profiles").get_json()["profiles"]}
 
@@ -45,8 +51,7 @@ def test_a_person_chooses_a_photograph_as_their_picture(app, family, library):
     assert r.status_code == 200
     me = r.get_json()
     assert me["avatar"].startswith(f"/api/avatar/{me['id']}?v=")
-    _, data = library
-    square = data / "avatars" / f"{me['id']}.jpg"
+    square = square_of(library, me)
     assert square.is_file()
     with Image.open(square) as img:
         assert img.size == (256, 256)
@@ -60,12 +65,17 @@ def test_a_person_chooses_a_photograph_as_their_picture(app, family, library):
     assert "public" in picture.headers["Cache-Control"]
     with Image.open(io.BytesIO(picture.data)) as img:
         assert img.size == (256, 256)
-    # Choosing again replaces it, with a new address so no cache keeps the old.
+    picture.close()
+    # Choosing again is a new file at a new address, so no cache keeps the
+    # old and nothing is written over a file a browser may still be reading.
     r2 = family.post("/api/me/avatar", json={"asset_id": ids(app)["sunset.jpg"]})
     assert r2.status_code == 200
+    second = square_of(library, r2.get_json())
+    assert second != square and second.is_file()
+    assert not square.exists()                         # swept, once nothing holds it
     # Back to initials.
     assert family.delete("/api/me/avatar").get_json()["avatar"] is None
-    assert not square.exists()
+    assert not second.exists()
     assert anyone.get(me["avatar"]).status_code == 404
     assert anyone.get("/api/avatar/424242").status_code == 404
 
@@ -83,9 +93,8 @@ def test_nobody_anonymous_sets_a_picture(app):
 
 
 def test_an_administrator_takes_a_picture_down_and_a_removed_person_leaves_no_file(app, admin, family, library):
-    _, data = library
     me = family.post("/api/me/avatar", json={"asset_id": ids(app)["beach.jpg"]}).get_json()
-    square = data / "avatars" / f"{me['id']}.jpg"
+    square = square_of(library, me)
     assert square.is_file()
     assert family.delete(f"/api/people/{me['id']}/avatar").status_code == 403
     r = admin.delete(f"/api/people/{me['id']}/avatar")
@@ -95,7 +104,8 @@ def test_an_administrator_takes_a_picture_down_and_a_removed_person_leaves_no_fi
     assert admin.delete("/api/people/424242/avatar").status_code == 404
     # Deleting the profile takes the picture with it.
     again = family.post("/api/me/avatar", json={"asset_id": ids(app)["beach.jpg"]}).get_json()
-    assert square.is_file() and again["avatar"]
+    square = square_of(library, again)
+    assert square.is_file()
     assert admin.delete(f"/api/people/{me['id']}").status_code == 200
     assert not square.exists()
 
@@ -112,5 +122,7 @@ def test_an_older_index_gains_the_column(app):
     target = ids(app)["beach.jpg"]
     assert c.post(f"/api/asset/{target}/rotate", json={"rotation": 90}).status_code == 200
     me = c.post("/api/me/avatar", json={"asset_id": target}).get_json()
-    with Image.open(os.path.join(app.config["LITE"].data_dir, "avatars", f"{me['id']}.jpg")) as img:
+    stamp = me["avatar"].split("v=")[1]
+    with Image.open(os.path.join(app.config["LITE"].data_dir, "avatars",
+                                 f"{me['id']}-{stamp}.jpg")) as img:
         assert img.size == (256, 256)

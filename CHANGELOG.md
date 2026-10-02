@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.7 — 2026-10-02
+
+- **Upgrading on Windows no longer fails with a write error.** Windows cannot replace a
+  program that is in use, and a running Ninaivu Lite or an open Control Panel kept the old
+  one in use. The installer now asks the server to stop and then, while anything is still in
+  use, asks you to press *Stop* and close the Control Panel, with *Retry*, instead of failing
+  half-way. The uninstaller does the same. The panel's *Download* button says so before you
+  start.
+- **A replaced profile picture is a new file**, never written over the old one, which a
+  browser may still be reading; that failed on Windows in 1.3.6.
+
 ## 1.3.6 — 2026-10-02
 
 - **The administrator has a tile on the sign-in screen.** Until now the picker left

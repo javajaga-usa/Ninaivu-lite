@@ -107,17 +107,37 @@ def require_admin() -> auth.User:
 AVATARS_DIR = "avatars"
 
 
-def avatar_path(user_id: int) -> str:
-    """The small square a person chose: avatars/<id>.jpg in the data folder."""
-    return os.path.join(cfg().data_dir, AVATARS_DIR, f"{user_id}.jpg")
+def avatar_path(user_id: int, stamp: int) -> str:
+    """The small square a person chose: avatars/<id>-<stamp>.jpg in the data
+    folder. A new picture is a new file, never written over the old one,
+    which a browser may still be reading (Windows refuses that)."""
+    return os.path.join(cfg().data_dir, AVATARS_DIR, f"{user_id}-{stamp}.jpg")
+
+
+def avatar_file(person: auth.User) -> str | None:
+    return avatar_path(person.id, auth.avatar_stamp(person.avatar_at)) if person.avatar_at else None
+
+
+def sweep_avatars(user_id: int, keep: str | None = None) -> None:
+    """Remove a person's picture files, but *keep*. One still being read
+    cannot go on Windows; it is tried again at the next change."""
+    folder = os.path.join(cfg().data_dir, AVATARS_DIR)
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return
+    for name in names:
+        path = os.path.join(folder, name)
+        if name.startswith(f"{user_id}-") and name.endswith(".jpg") and path != keep:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
 
 
 def drop_avatar(user_id: int) -> None:
-    """Forget a person's picture: the file and the record of when it was set."""
-    try:
-        os.unlink(avatar_path(user_id))
-    except FileNotFoundError:
-        pass
+    """Forget a person's picture: the files and the record of when it was set."""
+    sweep_avatars(user_id)
     auth.update_profile(conn(), user_id, avatar_at=None)
 
 

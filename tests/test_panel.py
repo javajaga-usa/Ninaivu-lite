@@ -54,6 +54,15 @@ def test_the_panel_builds_and_closes(tmp_path, monkeypatch):
             time.sleep(0.05)
         assert "9.9.9" in view.update_text.get()
         assert view.download_button.winfo_manager() == "pack"
+        opened = []
+        monkeypatch.setattr(panel.webbrowser, "open", lambda url: opened.append(url))
+        view.is_running = True
+        view.download()
+        assert opened == [updates.RELEASES_PAGE]
+        assert view.notice.get().startswith("Before running the installer: press Stop, then close")
+        view.is_running = False
+        view.download()
+        assert view.notice.get().startswith("Before running the installer, close this Control Panel")
         view.updates_on.set(False)
         view.toggle_updates()
         assert view.update_text.get() == ""

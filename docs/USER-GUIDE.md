@@ -39,6 +39,9 @@ addresses to open, and has:
 - **Updates** — the panel asks GitHub once a day whether a newer Ninaivu Lite exists and, if
   so, says which version with a **Download** button to the release page. Nothing about your
   library is sent. Untick *Tell me when a new version is available* to stop it asking.
+  Before running the installer you downloaded, press **Stop** and close the Control Panel:
+  Windows cannot replace a program that is in use, and the installer waits and asks until
+  it is not. Your settings, people, index and photographs are untouched by an upgrade.
 
 Closing the Control Panel leaves Ninaivu Lite running. On a Raspberry Pi or a server without
 a screen, use `tools/ninaivu-lite.service` instead.
