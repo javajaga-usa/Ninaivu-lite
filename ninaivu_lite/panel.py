@@ -209,6 +209,10 @@ class Panel:
         ttk.Checkbutton(row, text="Tell me when a new version is available (asks GitHub once a day)",
                         variable=self.updates_on,
                         command=self.toggle_updates).pack(side="left")
+        # Nothing is asked of GitHub until the box is ticked or Check now is
+        # pressed; said so, in place of an answer, while it is off.
+        if not self.updates_on.get():
+            self.update_text.set("Not checking. Press Check now, or tick the box below.")
 
         self.notice = tk.StringVar(value="Closing this panel leaves Ninaivu Lite running.")
         tk.Label(outer, textvariable=self.notice, font=(FONT, 10), bg=BG, fg=MUTED,
@@ -435,7 +439,7 @@ class Panel:
         if on:
             self.check_updates(force=True)
         else:
-            self.update_text.set("")
+            self.update_text.set("Not checking. Press Check now, or tick the box below.")
             self.download_button.pack_forget()
 
     def toggle_autostart(self) -> None:

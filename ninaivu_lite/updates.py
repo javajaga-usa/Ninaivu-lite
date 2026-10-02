@@ -1,11 +1,13 @@
-"""Is there a newer Ninaivu Lite? Asked of GitHub's releases page, once a day.
+"""Is there a newer Ninaivu Lite? Asked of GitHub's releases page, only when
+a person asks: by ticking the box in the Control Panel (then once a day) or
+by pressing "Check now". Nothing is sent until then.
 
 One small request to ``api.github.com`` for the latest release's tag, with a
 five-second timeout, from a background thread, and the answer kept in the
 data folder so the question is not asked again for a day. Nothing about the
 household goes with it: the request carries no identifier beyond the
-program's name. It can be switched off in the Control Panel, and the switch
-lives in the same small file, not in the server's settings.
+program's name. The switch lives in the same small file, not in the
+server's settings, and is off until ticked.
 
 Standard library only; never raises.
 """
@@ -88,7 +90,8 @@ def save_state(data_dir: str | os.PathLike, state: dict[str, Any]) -> None:
 
 
 def enabled(data_dir: str | os.PathLike) -> bool:
-    return load_state(data_dir).get("enabled", True) is not False
+    """Off until the person ticks the box: no request leaves the house unasked."""
+    return load_state(data_dir).get("enabled") is True
 
 
 def set_enabled(data_dir: str | os.PathLike, on: bool) -> None:

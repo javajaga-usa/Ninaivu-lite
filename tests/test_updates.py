@@ -50,7 +50,9 @@ def test_offline_keeps_the_last_answer_and_says_nothing_before_the_first(tmp_pat
     assert kept["version"] == "2.0.0" and kept["available"]
 
 
-def test_the_switch_lives_beside_the_answer(tmp_path):
+def test_the_switch_lives_beside_the_answer_and_starts_off(tmp_path):
+    assert updates.enabled(tmp_path) is False            # nothing is asked unasked
+    updates.set_enabled(tmp_path, True)
     assert updates.enabled(tmp_path) is True
     updates.set_enabled(tmp_path, False)
     assert updates.enabled(tmp_path) is False
