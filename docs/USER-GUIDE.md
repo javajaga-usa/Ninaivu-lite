@@ -35,7 +35,10 @@ addresses to open, and has:
   with no window to keep open;
 - **Open the family app** and **Open the console**;
 - **Start Ninaivu Lite when I sign in** — tick it once and it starts with the computer;
-- **Open the log** and **Open the data folder**, for when something needs looking into.
+- **Open the log** and **Open the data folder**, for when something needs looking into;
+- **Updates** — the panel asks GitHub once a day whether a newer Ninaivu Lite exists and, if
+  so, says which version with a **Download** button to the release page. Nothing about your
+  library is sent. Untick *Tell me when a new version is available* to stop it asking.
 
 Closing the Control Panel leaves Ninaivu Lite running. On a Raspberry Pi or a server without
 a screen, use `tools/ninaivu-lite.service` instead.

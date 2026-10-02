@@ -24,6 +24,7 @@ import threading
 import webbrowser
 from pathlib import Path
 
+from . import updates
 from .control import Controller
 from .version import APP_NAME, COPYRIGHT, LICENCE, __version__
 
@@ -175,6 +176,27 @@ class Panel:
         ttk.Button(row, text="Open the data folder",
                    command=lambda: self.reveal(controller.data_dir)).pack(side="right", padx=(0, 6))
 
+        # -- a newer version? ---------------------------------------------------------
+        # One small question to GitHub a day, from a thread; the answer is a
+        # line here and a button to the download page, never anything more.
+        body = self._card(outer, "updates", "UPDATES")
+        row = tk.Frame(body, bg=SURFACE)
+        row.pack(fill="x")
+        self.update_text = tk.StringVar(value="")
+        self.update_url = updates.RELEASES_PAGE
+        tk.Label(row, textvariable=self.update_text, font=(FONT, 10), bg=SURFACE, fg=INK,
+                 anchor="w", justify="left", wraplength=400).pack(side="left", fill="x", expand=True)
+        self.download_button = ttk.Button(row, text="Download", style="Accent.TButton",
+                                          command=lambda: webbrowser.open(self.update_url))
+        ttk.Button(row, text="Check now",
+                   command=lambda: self.check_updates(force=True)).pack(side="right")
+        row = tk.Frame(body, bg=SURFACE)
+        row.pack(fill="x", pady=(6, 0))
+        self.updates_on = tk.BooleanVar(value=updates.enabled(controller.data_dir))
+        ttk.Checkbutton(row, text="Tell me when a new version is available (asks GitHub once a day)",
+                        variable=self.updates_on,
+                        command=self.toggle_updates).pack(side="left")
+
         self.notice = tk.StringVar(value="Closing this panel leaves Ninaivu Lite running.")
         tk.Label(outer, textvariable=self.notice, font=(FONT, 10), bg=BG, fg=MUTED,
                  wraplength=640, justify="left", anchor="w").pack(fill="x", pady=(8, 0))
@@ -195,6 +217,7 @@ class Panel:
         root.geometry(f"+{x}+{y}")
         root.protocol("WM_DELETE_WINDOW", self.close)
         threading.Thread(target=self.watch, name="panel-watch", daemon=True).start()
+        self.check_updates()
         root.after(150, self.pump)
 
     # -- building --------------------------------------------------------------------------
@@ -275,6 +298,8 @@ class Panel:
                     self._set_buttons()
                 elif event[0] == "notice":
                     self.notice.set(event[1])
+                elif event[0] == "update":
+                    self.show_update(event[1], event[2])
         except queue.Empty:
             pass
         if not self.finished.is_set():
@@ -327,6 +352,41 @@ class Panel:
                                                               sticky="w")
 
     # -- the rest ---------------------------------------------------------------------------
+
+    # -- updates ----------------------------------------------------------------------
+
+    def check_updates(self, force: bool = False) -> None:
+        """Ask on a thread; the answer comes back through the queue."""
+        if not force and not self.updates_on.get():
+            return
+
+        def work():
+            info = updates.check(self.controller.data_dir, force=force)
+            self.events.put(("update", info, force))
+
+        threading.Thread(target=work, name="panel-updates", daemon=True).start()
+
+    def show_update(self, info, asked: bool) -> None:
+        if info is None:
+            self.update_text.set("Could not reach GitHub to check." if asked else "")
+            self.download_button.pack_forget()
+            return
+        self.update_url = info["url"]
+        if info["available"]:
+            self.update_text.set(f"Version {info['version']} is available (you have {__version__}).")
+            self.download_button.pack(side="right", padx=(0, 6))
+        else:
+            self.update_text.set(f"You have the latest version, {__version__}." if asked else "")
+            self.download_button.pack_forget()
+
+    def toggle_updates(self) -> None:
+        on = self.updates_on.get()
+        updates.set_enabled(self.controller.data_dir, on)
+        if on:
+            self.check_updates(force=True)
+        else:
+            self.update_text.set("")
+            self.download_button.pack_forget()
 
     def toggle_autostart(self) -> None:
         on = self.at_sign_in.get()
