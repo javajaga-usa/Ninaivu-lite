@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.4 — 2026-10-02
+
+- **The Control Panel says when a newer version is out.** Once a day it asks GitHub for the
+  latest release (one small request, nothing about the library in it) and, when there is a
+  newer one, shows the version with a **Download** button to the release page. *Check now*
+  asks at once; the box beneath switches the daily question off. The answer and the switch
+  live in `update-check.json` in the data folder, not in the server's settings.
+
 ## 1.3.3 — 2026-10-02
 
 - **The archive destination is never empty.** The Import page opens with the archive set to
