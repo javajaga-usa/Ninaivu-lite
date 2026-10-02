@@ -45,8 +45,11 @@ Needs the Python in `.python-version` from python.org (for its Tk), `pip install
 - on upgrade or uninstall, asks a running Ninaivu Lite to stop first, and while
   anything of it is still in use (the server started from its own window, or
   the Control Panel left open) asks the person to stop it and close the panel,
-  with Retry, instead of failing on the first file it cannot write. Uninstall
-  leaves the data folder (`%LOCALAPPDATA%\Ninaivu-lite`) and, always, the photos.
+  with Retry, instead of failing on the first file it cannot write. An upgrade
+  then deletes the old program (its Python, packages and commands) before the new
+  files are written, so none of an old version is left behind. Upgrade and
+  uninstall both leave the data folder (`%LOCALAPPDATA%\Ninaivu-lite`: people,
+  settings, index) and, always, the photos.
 
 **The uninstaller is signed too.** NSIS normally writes `uninstall.exe` on the
 person's computer, where nothing can sign it, so the build makes it first:

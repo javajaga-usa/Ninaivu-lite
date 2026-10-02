@@ -1,7 +1,8 @@
 ; pynsist's own template with four additions: a "start at sign-in" box, the
 ; Control Panel on the Desktop, the Control Panel opened when the installer
-; finishes, and a tidy stop before an upgrade or an uninstall. Everything else
-; is pynsist's; see https://github.com/takluyver/pynsist/blob/master/nsist/pyapp.nsi
+; finishes, and a tidy stop before an upgrade or an uninstall, with the old
+; program removed before an upgrade. Everything else is pynsist's; see
+; https://github.com/takluyver/pynsist/blob/master/nsist/pyapp.nsi
 [% extends "pyapp.nsi" %]
 
 [% block ui_pages %]
@@ -56,10 +57,25 @@
   [[ super() ]]
 [% endblock %]
 
-[% block install_files %]
-  ; An upgrade: nothing is written while the old one is in use. Nothing
-  ; happens on a first install (there is no Python yet).
+[% block install_pkgs %]
+  ; An upgrade: nothing is written while the old one is in use, then the old
+  ; program is removed whole, so no file of an earlier version is left among the
+  ; new ones. Only the installed program goes (the private Python, the packages,
+  ; the commands, the files beside them): the family's data
+  ; (%LOCALAPPDATA%\Ninaivu-lite: people, settings, index, previews) lives
+  ; elsewhere and is not touched, and the photographs never are. Nothing
+  ; happens on a first install (there is nothing there yet), and only these
+  ; named folders are removed, never the whole install folder, in case it was
+  ; chosen to be a shared one.
   !insertmacro WaitUntilNotInUse
+  DetailPrint "Removing the previous Ninaivu Lite program files..."
+  RMDir /r "$INSTDIR\Python"
+  RMDir /r "$INSTDIR\pkgs"
+  RMDir /r "$INSTDIR\bin"
+  Delete "$INSTDIR\README.md"
+  Delete "$INSTDIR\LICENSE"
+  Delete "$INSTDIR\CHANGELOG.md"
+  Delete "$INSTDIR\_system_path.py"
   [[ super() ]]
 [% endblock %]
 
