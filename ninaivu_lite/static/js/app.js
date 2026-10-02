@@ -740,7 +740,10 @@ async function refreshStatus() {
   }
 
   renderLibraryName();
-  renderCounts(stats);
+  // The quick status call leaves the counts out (they are a whole-library
+  // count); after a favourite or a bulk change they are asked for on their
+  // own, so the sidebar's numbers follow the change instead of the next reload.
+  if (stats) renderCounts(stats); else refreshCounts();
 
   // The strip is the activity poll's to draw — /api/status carries the scan
   // but knows nothing about the other jobs, and half a list is worse than a

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.10 — 2026-10-02
+
+- **The Favourites count follows your favourites.** The sidebar's number only changed on a
+  reload: after a favourite, the quick status refresh left the counts out. They are asked for
+  again now, so the number moves as soon as a photograph is favourited or unfavourited.
+
 ## 1.3.9 — 2026-10-02
 
 - **The update check asks only when you do.** The Control Panel no longer asks GitHub by
