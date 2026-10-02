@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.3 — 2026-10-02
+
+- **The archive destination is never empty.** The Import page opens with the archive set to
+  a `Ninaivu Archive` folder inside the default library folder (under Pictures when there is
+  no library yet), so what comes in is shown to the family as it lands. Browse changes it, and
+  a folder the administrator chose is kept from then on. The first-day step uses the same rule.
+
 ## 1.3.2 — 2026-10-01
 
 - **Video previews without ffmpeg.** None of the installers carry ffmpeg, so every video showed

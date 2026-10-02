@@ -18,6 +18,7 @@ from typing import Any
 from flask import Blueprint, Response, jsonify, request
 
 from . import auth, backups, db, export, folders, media
+from . import importer as importer_rules
 from .common import (body, cfg, conn, fail, folder_ids, importer, library_exists,
                      require_admin, scanner, split_library, subtree, visible)
 from .config import clean_house_name
@@ -487,11 +488,11 @@ def first_day():
         "SELECT COUNT(*) FROM users WHERE role != 'admin' AND active = 1").fetchone()[0]
     # The import step suggests building the archive inside the library folder,
     # so what it brings in is indexed and shown to the family straight away.
-    suggested = os.path.join(c.active_folder, "Ninaivu Archive") if c.active_folder else ""
     return jsonify({"done": bool(c.first_day_done),
                     "library": {"chosen": bool(c.folders), "root": c.active_folder},
                     "import": {"sources": list(c.import_sources),
-                               "destination": c.import_destination or suggested,
+                               "destination": c.import_destination
+                               or importer_rules.default_destination(c.active_folder),
                                "running": importer().running},
                     "people": people})
 
