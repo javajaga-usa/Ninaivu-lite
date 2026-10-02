@@ -131,7 +131,12 @@ def serve(app, host: str, port: int) -> None:
             "waitress is not installed; using Flask's built-in server")
         app.run(host=host, port=port, threaded=True, use_reloader=False)
         return
-    waitress_serve(app, host=host, port=port, threads=8, ident=APP_NAME)
+    from .app import MAX_REQUEST_BYTES
+    # Eight threads for a household; a body larger than any route takes is
+    # refused by waitress before Flask sees it; a connection that sends
+    # nothing for a minute is dropped rather than holding a thread.
+    waitress_serve(app, host=host, port=port, threads=8, ident=APP_NAME,
+                   max_request_body_size=MAX_REQUEST_BYTES, channel_timeout=60)
 
 
 def main(argv: list[str] | None = None) -> int:
