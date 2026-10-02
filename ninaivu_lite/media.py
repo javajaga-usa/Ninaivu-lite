@@ -303,6 +303,31 @@ def _open_photo(path: str, edge: int) -> Image.Image:
     return img
 
 
+def strip_video(path: str, out: str) -> bool:
+    """*path* remuxed to *out* with every metadata atom dropped (the phone's
+    GPS location among them) and the streams copied, not re-encoded: a copy
+    for guests and share links. False when ffmpeg is absent or refuses."""
+    if not FFMPEG:
+        return False
+    tmp = f"{out}.{os.getpid()}-{threading.get_ident()}.tmp{os.path.splitext(out)[1]}"
+    try:
+        proc = subprocess.run(
+            [FFMPEG, "-v", "quiet", "-y", "-i", dates.long_path(path), "-map_metadata", "-1",
+             "-map_metadata:s", "-1", "-c", "copy", "-movflags", "+faststart", tmp],
+            capture_output=True, timeout=300, check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if proc.returncode == 0 and os.path.getsize(tmp) > 0:
+            os.replace(tmp, out)
+            return True
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        os.unlink(tmp)
+    except OSError:
+        pass
+    return False
+
+
 def video_frame(path: str) -> Image.Image | None:
     if not FFMPEG:
         return None

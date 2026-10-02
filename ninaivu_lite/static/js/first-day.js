@@ -20,7 +20,22 @@ function el(tag, cls, text) {
   return node;
 }
 
-const STEPS = ['library', 'import', 'people'];
+const STEPS = ['library', 'import', 'people', 'tour'];
+
+/** The gallery's features, as a family would list them. Written as keys so
+ *  the locale guard sees them; shown on the first day's last step. */
+const TOUR = [
+  [i18n.key('Timeline'), i18n.key('Every photograph and video by the day it was taken, with a date bar to jump years and a search by name, folder, date or camera.')],
+  [i18n.key('Phones and tablets'), i18n.key('The same gallery on every screen in the house over Wi-Fi; add it to a phone\'s home screen like an app.')],
+  [i18n.key('Favourites and albums'), i18n.key('Each person keeps their own favourites; albums gather photographs from any folder and can be shared.')],
+  [i18n.key('Who sees what'), i18n.key('Public, Family or Hidden, per folder or per photo, with undo; a Just looking tile for visitors.')],
+  [i18n.key('Share links'), i18n.key('One photo or an album, with a password and an expiry if you like; the visitor\'s copy carries no location.')],
+  [i18n.key('Sudar, the photo studio'), i18n.key('Light, colour, detail, crops and looks in the browser, or say it in plain words; the original is never touched.')],
+  [i18n.key('Sideways photos put right'), i18n.key('The camera\'s tag, then the faces in a photo, decide which way is up during the scan; a turn by hand in the viewer corrects any.')],
+  [i18n.key('Import old drives'), i18n.key('Sweep cards, phone backups and old disks into one archive filed by date, every copy checked, duplicates left in place.')],
+  [i18n.key('Tamil and English'), i18n.key('Every screen in either language, chosen by each person.')],
+  [i18n.key('Backups and the Control Panel'), i18n.key('A backup of settings, people and albums whenever you ask; a small window starts, stops and watches Ninaivu Lite.')],
+];
 
 export class FirstDay {
   constructor({ json, toast, pickFolder, openPage, refresh }) {
@@ -101,6 +116,21 @@ export class FirstDay {
     const body = $('#fd-body');
     body.replaceChildren();
     this[`render_${name}`](body);
+  }
+
+  /* -- 4. what it can do: the whole of it on one page, before the console -- */
+
+  render_tour(body) {
+    $('#fd-title').textContent = i18n.t('What your family can do');
+    body.append(el('p', 'lede',
+      i18n.t('Everything here works on the computer at home. Nothing leaves the house, and no file is ever changed.')));
+    const grid = el('div', 'fd-tour');
+    for (const [title, line] of TOUR) {
+      const card = el('div', 'fd-tour-card');
+      card.append(el('strong', null, i18n.t(title)), el('span', null, i18n.t(line)));
+      grid.append(card);
+    }
+    body.append(grid);
   }
 
   /* -- 1. the library folder -------------------------------------------- */

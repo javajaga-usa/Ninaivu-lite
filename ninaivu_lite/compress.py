@@ -89,5 +89,15 @@ def shrink(response: Response) -> Response:
     return response
 
 
+def _unsuffix_etags() -> None:
+    """A browser that was given the gzipped answer sends its ETag back with
+    the "-gz" suffix; the file's own conditional check must see the bare
+    ETag, or every revisit is a full download instead of a 304."""
+    given = request.environ.get("HTTP_IF_NONE_MATCH")
+    if given and "-gz" in given:
+        request.environ["HTTP_IF_NONE_MATCH"] = given.replace('-gz"', '"')
+
+
 def install(app: Flask) -> None:
+    app.before_request(_unsuffix_etags)
     app.after_request(shrink)

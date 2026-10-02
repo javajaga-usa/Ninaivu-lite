@@ -64,3 +64,12 @@ def test_oversized_bodies_are_refused_before_they_are_read(app, admin):
     r = admin.post("/api/me", data="{}", content_type="application/json",
                    environ_overrides={"CONTENT_LENGTH": str(MAX_REQUEST_BYTES + 1)})
     assert r.status_code == 413
+
+
+def test_a_gzipped_answer_still_earns_a_304(app):
+    c = app.test_client()
+    first = c.get("/static/i18n/ta.json", headers={"Accept-Encoding": "gzip"})
+    assert first.status_code == 200 and first.headers["ETag"].endswith('-gz"')
+    again = c.get("/static/i18n/ta.json", headers={"Accept-Encoding": "gzip",
+                                                   "If-None-Match": first.headers["ETag"]})
+    assert again.status_code == 304

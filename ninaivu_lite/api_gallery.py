@@ -715,12 +715,39 @@ def original_response(row: sqlite3.Row, path: str, max_age: int = 3600) -> Respo
     return response
 
 
+def stripped_video_response(row: sqlite3.Row, path: str, max_age: int) -> Response:
+    """A video with its metadata removed (a phone writes where it was shot
+    into the file), kept in the data folder like the viewing copies. Without
+    ffmpeg, or for a file it cannot remux, the original: better a video that
+    plays than one that does not, and the guide says which it is."""
+    try:
+        st = os.stat(long_path(path))
+    except OSError:
+        fail(404, "This file is not available right now.")
+    ext = os.path.splitext(row["name"])[1].lower() or ".mp4"
+    cache = views_dir() / f"{row['id'] % 256:02x}" / f"{row['id']}-{st.st_size}-{int(st.st_mtime)}{ext}"
+    if not cache.is_file():
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        for old in cache.parent.glob(f"{row['id']}-*{ext}"):
+            old.unlink(missing_ok=True)
+        if not media.strip_video(path, str(cache)):
+            return original_response(row, path, max_age)
+    mime, _ = mimetypes.guess_type(row["name"])
+    response = send_file(cache, mimetype=mime or "video/mp4", conditional=True,
+                         etag=cache.stem, max_age=max_age)
+    response.headers["Accept-Ranges"] = "bytes"
+    response.headers["Cache-Control"] = f"private, max-age={max_age}"
+    return response
+
+
 def guarded_file(row: sqlite3.Row, who: auth.User) -> Response:
     path = original_path(row)
     if who.is_guest and may_carry_location(row):
         # A guest gets the gallery's view of a photograph, never its EXIF:
         # the original's bytes say where it was taken.
         return viewing_response(row, path, 3600, turned=True)
+    if who.is_guest and row["kind"] == "video":
+        return stripped_video_response(row, path, 3600)
     return original_response(row, path)
 
 

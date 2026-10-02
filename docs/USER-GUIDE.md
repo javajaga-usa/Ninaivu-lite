@@ -110,12 +110,14 @@ picture is shown to whoever reaches the sign-in screen, so choose one you are ha
 
 ## 5. Using the gallery
 
-- **Timeline** — newest first; drag the date bar on the right to jump to a year.
+- **Timeline** — newest first; drag the date bar on the right to jump to a year. On a phone
+  a row of years sits above the photographs instead: tap one to see that year.
 - **Folders** — the left menu lists folders with their counts.
 - **Search** — type a file name, a folder, a year or month, or a camera name.
 - **Viewer** — tap a photo. Swipe or use ← → to move, Esc to close. ♡ adds it to your
   favourites; ⓘ shows the date, size and camera; ⬇ downloads the original.
-- **Select** — *Select all* on a day, or tick photos, to add them to an album or download them
+- **Select** — *Select all* on a day, or tick photos (on a phone, press and hold a photo, then
+  tap others), to add them to an album or download them
   together.
 - **Albums** — make an album from a selection; albums can be shared.
 - **Language** — English or தமிழ், from the language button at the top. Each person's choice
@@ -152,7 +154,8 @@ file with its hash.
 
 From the viewer or an album, choose **Share**. You can add a password and an expiry date.
 Send the link to someone on your home network. They see only that photo or album, as a copy
-without location or camera details. Your list of links is in your profile; you can turn a link
+without location or camera details; a video is sent with its location removed too, when
+ffmpeg is installed on the computer (without it, the video is sent as it is). Your list of links is in your profile; you can turn a link
 off at any time.
 
 > Links work only on your home network. Ninaivu Lite is not meant to be reached from the internet.
