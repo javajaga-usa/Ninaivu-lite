@@ -86,6 +86,8 @@ class Panel:
         self.finished = threading.Event()
         self.busy = False
         self.is_running = False
+        #: set by Download: once the stop it asked for is done, the panel closes
+        self.close_when_done = False
 
         root.title(TITLE)
         root.configure(bg=BG)
@@ -297,6 +299,9 @@ class Panel:
                     self.progress.place_forget()
                     self.notice.set(event[1])
                     self._set_buttons()
+                    if self.close_when_done:
+                        self.close()
+                        return
                 elif event[0] == "notice":
                     self.notice.set(event[1])
                 elif event[0] == "update":
@@ -374,22 +379,45 @@ class Panel:
             return
         self.update_url = info["url"]
         if info["available"]:
-            self.update_text.set(f"Version {info['version']} is available (you have {__version__}).")
+            self.update_text.set(f"Version {info['version']} is available (you have {__version__}). "
+                                 "Before installing it, stop Ninaivu Lite and close this panel.")
             self.download_button.pack(side="right", padx=(0, 6))
         else:
             self.update_text.set(f"You have the latest version, {__version__}." if asked else "")
             self.download_button.pack_forget()
 
     def download(self) -> None:
-        """The release page, and the one thing the installer needs: nothing of
-        the old program in use. The installer asks too, but later, after the
-        download; said here it is read before."""
+        """The release page, then the one thing the installer needs: nothing of
+        the old program in use. Windows cannot replace a file in use, and a
+        running Ninaivu Lite or this panel keeps the program in use, so the
+        panel offers to stop the one and close the other, before the installer
+        has to ask."""
         webbrowser.open(self.update_url)
-        self.notice.set(
-            ("Before running the installer: press Stop, then close this Control Panel. "
-             "Files in use cannot be replaced.") if self.is_running else
-            ("Before running the installer, close this Control Panel. "
-             "Files in use cannot be replaced."))
+        if self.is_running:
+            question = ("Before running the installer, Ninaivu Lite must be stopped and this "
+                        "panel closed: files in use cannot be replaced.\n\n"
+                        "Stop Ninaivu Lite and close this panel now?")
+        else:
+            question = ("Before running the installer, this panel must be closed: files in "
+                        "use cannot be replaced.\n\nClose this panel now?")
+        if not self.ask(question):
+            self.notice.set(("Before running the installer: press Stop, then close this "
+                             "Control Panel.") if self.is_running
+                            else "Before running the installer, close this Control Panel.")
+            return
+        if self.is_running and self.controller.can_stop():
+            self.close_when_done = True
+            self.run(self.controller.stop, "Stopping…")
+        elif self.is_running:
+            self.notice.set("Ninaivu Lite was started from its own window: close that window, "
+                            "then close this panel, before running the installer.")
+        else:
+            self.close()
+
+    def ask(self, question: str) -> bool:
+        """A yes/no box over the window; a test replaces it."""
+        from tkinter import messagebox
+        return bool(messagebox.askyesno(TITLE, question, parent=self.root))
 
     def toggle_updates(self) -> None:
         on = self.updates_on.get()

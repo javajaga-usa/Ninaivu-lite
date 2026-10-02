@@ -54,8 +54,19 @@ def test_the_panel_builds_and_closes(tmp_path, monkeypatch):
             time.sleep(0.05)
         assert "9.9.9" in view.update_text.get()
         assert view.download_button.winfo_manager() == "pack"
+        assert "stop Ninaivu Lite and close this panel" in view.update_text.get()
+        # The switch: off empties the line and is remembered; on asks again.
+        view.updates_on.set(False)
+        view.toggle_updates()
+        assert view.update_text.get() == ""
+        assert updates.enabled(tmp_path) is False
+        view.updates_on.set(True)
+        view.toggle_updates()
+        assert updates.enabled(tmp_path) is True
         opened = []
         monkeypatch.setattr(panel.webbrowser, "open", lambda url: opened.append(url))
+        # Declined: the page opens and the advice stays on the notice line.
+        monkeypatch.setattr(view, "ask", lambda question: False)
         view.is_running = True
         view.download()
         assert opened == [updates.RELEASES_PAGE]
@@ -63,10 +74,20 @@ def test_the_panel_builds_and_closes(tmp_path, monkeypatch):
         view.is_running = False
         view.download()
         assert view.notice.get().startswith("Before running the installer, close this Control Panel")
-        view.updates_on.set(False)
-        view.toggle_updates()
-        assert view.update_text.get() == ""
-        assert updates.enabled(tmp_path) is False
+        # Accepted while running: the server is stopped, then the panel closes.
+        stopped = []
+        monkeypatch.setattr(view, "ask", lambda question: True)
+        monkeypatch.setattr(view.controller, "can_stop", lambda: True)
+        monkeypatch.setattr(view.controller, "stop", lambda: stopped.append(1) or "Stopped.")
+        view.is_running = True
+        view.download()
+        for _ in range(60):
+            root.update()
+            if view.finished.is_set():
+                break
+            time.sleep(0.05)
+        assert stopped == [1]
+        assert view.finished.is_set()
     finally:
         try:
             root.destroy()
