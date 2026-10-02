@@ -36,9 +36,10 @@ addresses to open, and has:
 - **Open the family app** and **Open the console**;
 - **Start Ninaivu Lite when I sign in** — tick it once and it starts with the computer;
 - **Open the log** and **Open the data folder**, for when something needs looking into;
-- **Updates** — the panel asks GitHub once a day whether a newer Ninaivu Lite exists and, if
-  so, says which version with a **Download** button to the release page. Nothing about your
-  library is sent. Untick *Tell me when a new version is available* to stop it asking.
+- **Updates** — press **Check now** to ask GitHub whether a newer Ninaivu Lite exists; if so,
+  the panel says which version with a **Download** button to the release page. Tick *Tell me
+  when a new version is available* and it asks once a day by itself. Nothing is asked until
+  you do one of those, and nothing about your library is ever sent.
   Before running the installer you downloaded, press **Stop** and close the Control Panel:
   Windows cannot replace a program that is in use. **Download** offers to do both for you,
   and the installer waits and asks until nothing is in use. Your settings, people, index

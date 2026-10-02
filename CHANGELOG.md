@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.9 — 2026-10-02
+
+- **The update check asks only when you do.** The Control Panel no longer asks GitHub by
+  itself: *Check now* asks once, and the daily check runs only after you tick *Tell me when a
+  new version is available*, which now starts unticked. The privacy statement in the code
+  signing policy says so, in place of "no update checks", which stopped being true in 1.3.4.
+
 ## 1.3.8 — 2026-10-02
 
 - **The panel's tick boxes match their text.** 1.3.7 made them a whole line tall, too big on a

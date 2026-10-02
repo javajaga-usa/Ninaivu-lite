@@ -42,23 +42,38 @@ def test_the_panel_builds_and_closes(tmp_path, monkeypatch):
     from ninaivu_lite import updates
     from ninaivu_lite.control import Controller
 
-    monkeypatch.setattr(updates, "check", lambda data_dir, force=False: {
-        "version": "9.9.9", "url": updates.RELEASES_PAGE, "available": True, "checked_at": 0})
+    asked = []
+
+    def check(data_dir, force=False):
+        asked.append(force)
+        return {"version": "9.9.9", "url": updates.RELEASES_PAGE, "available": True, "checked_at": 0}
+
+    monkeypatch.setattr(updates, "check", check)
     root = _tk_root()
     try:
+        # Off by default: the panel opens without asking GitHub anything.
+        # (One window for the whole test: Tk on macOS aborts when a second
+        # root is made after the first was destroyed.)
         view = panel.Panel(root, Controller(str(tmp_path)))
+        root.update()
+        assert asked == []
+        assert view.update_text.get().startswith("Not checking")
+        # Ticking the box is the asking.
+        view.updates_on.set(True)
+        view.toggle_updates()
+        assert asked == [True] and updates.enabled(tmp_path) is True
         for _ in range(60):                       # let the update thread answer
             root.update()                         # runs the panel's own pump
-            if view.update_text.get():
+            if "9.9.9" in view.update_text.get():
                 break
             time.sleep(0.05)
         assert "9.9.9" in view.update_text.get()
         assert view.download_button.winfo_manager() == "pack"
         assert "stop Ninaivu Lite and close this panel" in view.update_text.get()
-        # The switch: off empties the line and is remembered; on asks again.
+        # The switch: off says so and is remembered; on asks again.
         view.updates_on.set(False)
         view.toggle_updates()
-        assert view.update_text.get() == ""
+        assert view.update_text.get().startswith("Not checking")
         assert updates.enabled(tmp_path) is False
         view.updates_on.set(True)
         view.toggle_updates()

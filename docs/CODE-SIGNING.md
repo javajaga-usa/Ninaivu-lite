@@ -35,8 +35,12 @@ This program will not transfer any information to other networked systems unless
 specifically requested by the user or the person installing or operating it.
 
 Ninaivu Lite runs on a computer in your home and answers only to devices on your home
-network. It has no accounts with us, no telemetry, no update checks and no cloud service:
-your photographs, their details and the people you add stay on your computer.
+network. It has no accounts with us, no telemetry and no cloud service: your photographs,
+their details and the people you add stay on your computer. The one request it can make
+outside the house is to ask GitHub for the latest release's version number, and only when
+you ask: by pressing *Check now* in the Control Panel, or by ticking *Tell me when a new
+version is available* (then once a day, until unticked). The box starts unticked, and the
+request carries nothing about you or your library.
 
 ## Reporting a problem
 
