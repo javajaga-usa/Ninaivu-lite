@@ -1365,54 +1365,6 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
   .year-strip:not([hidden]) { display: flex; }
 }
 
-/* ==========================================================================
-   Finish: the last few millimetres that make the same parts read as one
-   considered object. Tokens from :root, nothing new to maintain.
-   ========================================================================== */
-
-/* Tiles: a rounder corner and a hairline edge that reads on any photograph. */
-.cell { border-radius: var(--r-md); }
-.cell::before { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08), inset 0 -24px 24px -24px rgba(0, 0, 0, .12); }
-.cell.selected img { border-radius: var(--r-sm); }
-.cell .badge { box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
-
-/* Day headers: the date carries the line, the count sits in a quiet pill. */
-.section-head { font-size: 16px; font-weight: 650; }
-.section-head .sub {
-  font-size: 11.5px; font-weight: 520; color: var(--text-2);
-  background: var(--surface-2); border: 1px solid var(--border-soft);
-  padding: 1px 8px; border-radius: 999px; line-height: 1.5;
-}
-/* In a packed header the count has a grid column to itself: the pill hugs
-   its words rather than filling the column. */
-.section-head.packed .sub { justify-self: start; }
-
-/* Primary actions: the accent with a breath of the second accent in it. */
-.btn.primary:not(.danger) {
-  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 72%, var(--accent-2)));
-  border-color: transparent;
-}
-
-/* Chips and year pills: a little lift when chosen. */
-.chip.active { box-shadow: 0 4px 12px var(--accent-weak), 0 1px 2px rgba(16, 21, 28, .12); }
-.year-strip .chip { background: var(--surface); box-shadow: var(--shadow-sm); border-color: var(--border-soft); }
-
-/* Toasts float as glass, not as a card. */
-.toast {
-  background: color-mix(in srgb, var(--surface) 84%, transparent);
-  backdrop-filter: saturate(1.4) blur(12px); -webkit-backdrop-filter: saturate(1.4) blur(12px);
-}
-
-/* The viewer's filmstrip: a touch larger, rounder, and the current frame
-   ringed in white with the accent's glow around it. */
-.filmstrip img { height: 58px; border-radius: 6px; }
-.filmstrip img.current { box-shadow: 0 0 0 2px #fff, 0 0 0 5px color-mix(in srgb, var(--accent) 55%, transparent); }
-.viewer-tools > .icon-btn:hover, .viewer-tools-more .icon-btn:hover { background: rgba(255, 255, 255, .12); }
-
-/* Sign-in tiles: the whole tile lifts, not only the face. */
-.picker-tile:hover, .picker-tile:focus-visible { transform: translateY(-2px); background: var(--surface-2); }
-.gate-card, .sheet-card { box-shadow: var(--shadow-lg), 0 0 0 1px color-mix(in srgb, var(--text) 4%, transparent); }
-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .001ms !important;

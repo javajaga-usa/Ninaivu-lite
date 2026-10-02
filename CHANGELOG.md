@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.1 — 2026-10-02
+
+- **The earlier look is back.** 1.4.0's finish (rounder tiles, the count pill, gradient
+  buttons, glass toasts, the larger filmstrip, lifting sign-in tiles) is removed; the fixes
+  stay: the badges' corners, the viewer and phone changes, the Favourites count and the
+  lighter loading.
+
 ## 1.4.0 — 2026-10-02
 
 - **Lighter over the wire.** The page, scripts, styles, Tamil strings and large API answers
