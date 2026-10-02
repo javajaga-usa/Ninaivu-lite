@@ -378,7 +378,9 @@ export class Gate {
       withName: true,
       withCode: !!this.state.setup_code_required,
       submit: i18n.t('Create profile'), busy: i18n.t('Creating…'),
-      action: (body) => accountsApi.setup(body),
+      // The language the card was read in goes on the new profile, or the
+      // console would open in the home's default and undo the choice.
+      action: (body) => accountsApi.setup({ ...body, language: i18n.language() }),
     });
   }
 
