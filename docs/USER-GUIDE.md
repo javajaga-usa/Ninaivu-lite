@@ -99,7 +99,7 @@ On the gallery page everyone picks their own picture:
 
 An administrator's tile is locked and asks for their password. The console,
 `http://<computer>:8080/admin`, takes the username and password. To leave the gallery, open your
-profile (top right) and choose *Switch profile*.
+profile (top right) and choose *Sign out* (the door symbol).
 
 **Your picture on the sign-in screen.** Every tile starts as your initials on your colour. To
 use a photograph instead, open it in the gallery and choose *Use as my profile picture* from

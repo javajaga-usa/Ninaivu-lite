@@ -4,6 +4,9 @@
 
 - **The panel's tick boxes match their text.** 1.3.7 made them a whole line tall, too big on a
   sharp screen; they are now the font's own size, the height of its capitals, at any density.
+- **"Sign out", with the door symbol, everywhere.** The gallery's menu item and the profile
+  sheet's button said *Switch profile* beside a sign-out symbol; both now say *Sign out*, as the
+  console does.
 
 ## 1.3.7 — 2026-10-02
 
