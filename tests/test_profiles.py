@@ -8,7 +8,8 @@ import os
 
 from PIL import Image
 
-from ninaivu_lite import auth, db
+from ninaivu_lite import auth, create_app, db
+from ninaivu_lite.scanner import Scanner
 
 from conftest import ids, sign_in
 
@@ -126,3 +127,37 @@ def test_an_older_index_gains_the_column(app):
     with Image.open(os.path.join(app.config["LITE"].data_dir, "avatars",
                                  f"{me['id']}-{stamp}.jpg")) as img:
         assert img.size == (256, 256)
+
+
+def test_setup_keeps_the_language_the_card_was_read_in(library):
+    """Somebody who picked Tamil on the setup card gets a Tamil console: the
+    language goes on the new profile and becomes the home's default, instead
+    of the profile taking the home's English and undoing the choice."""
+    from ninaivu_lite.config import Config
+    root, data = library
+    cfg = Config(data_dir=str(data), folders=[str(root)], active=str(root))
+    application = create_app(cfg, scanner=Scanner(cfg.data_dir, cfg.folders))
+    c = application.test_client()
+    r = c.post("/api/auth/setup", json={"username": "appa", "password": "admin passphrase",
+                                        "name": "Appa", "language": "ta"})
+    assert r.status_code == 200, r.get_json()
+    assert r.get_json()["user"]["language"] == "ta"
+    assert c.get("/api/me").get_json()["language"] == "ta"
+    assert cfg.language == "ta"
+    assert Config.load(str(data)).language == "ta"
+
+
+def test_setup_without_a_language_takes_the_homes(library):
+    from ninaivu_lite.config import Config
+    root, data = library
+    cfg = Config(data_dir=str(data), folders=[str(root)], active=str(root))
+    application = create_app(cfg, scanner=Scanner(cfg.data_dir, cfg.folders))
+    c = application.test_client()
+    bad = c.post("/api/auth/setup", json={"username": "appa", "password": "admin passphrase",
+                                          "name": "Appa", "language": "fr"})
+    assert bad.status_code == 400
+    r = c.post("/api/auth/setup", json={"username": "appa", "password": "admin passphrase",
+                                        "name": "Appa"})
+    assert r.status_code == 200
+    assert r.get_json()["user"]["language"] == "en"
+    assert cfg.language == "en"

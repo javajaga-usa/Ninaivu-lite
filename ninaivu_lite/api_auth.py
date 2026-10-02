@@ -22,6 +22,7 @@ throttle_setup = auth.Throttle(limit=10, window=300)
 
 COLOR_RE = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 LANG_RE = re.compile(r"^[a-z]{2,3}(-[a-z0-9]{2,8})?$")
+LANGUAGES = ("en", "ta")
 
 
 def _is_local() -> bool:
@@ -92,13 +93,21 @@ def auth_setup():
             throttle_setup.fail(key, "setup:all")
             fail(403, "Enter the setup code shown where Ninaivu Lite was started.",
                  setup_code_required=True)
+    # The language the setup card was read in: the administrator's own, and
+    # the home's default for everyone who has not chosen one yet.
+    language = str(data.get("language") or "").strip().lower()
+    if language and language not in LANGUAGES:
+        fail(400, "The language must be en or ta.")
     try:
         who = auth.create_user(conn(), str(data.get("username") or ""),
                                password=str(data.get("password") or ""),
                                name=str(data.get("name") or ""), role=auth.ROLE_ADMIN,
-                               language=cfg().language)
+                               language=language or cfg().language)
     except auth.AccountError as exc:
         fail(400, str(exc))
+    if language and language != cfg().language:
+        cfg().language = language
+        cfg().save()
     return _signed_in(who)
 
 
