@@ -4,6 +4,15 @@
 
 A sweep for faults, by review and by driving every screen in a browser.
 
+- **Windows installer shows the logo.** `ninaivu-lite.ico` held PNG-compressed images, which
+  the installer builder (NSIS) cannot read, so the installer, the uninstaller and the
+  Control Panel's icon came out blank. The icon is now plain bitmaps at every size, and a
+  test keeps it so.
+- **Windows upgrade starts clean.** The installer now removes the previous program (the private
+  Python, the packages, the commands) before writing the new files, so nothing of an old
+  version is left among them. Only the installation goes: the family's data
+  (`%LOCALAPPDATA%\Ninaivu-lite`: people, settings, index, previews) and the photographs are
+  not touched.
 - **Server, tightened.** Request bodies are capped at 100 MB before they are read and JSON at
   1 MB; idle connections are dropped after a minute; a Permissions-Policy header denies the
   camera, microphone, location and payment. A flood of failed sign-ins under made-up names
