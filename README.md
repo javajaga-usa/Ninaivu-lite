@@ -77,6 +77,10 @@ and downloads nothing.
 
 How they are built: [installers/README.md](installers/README.md).
 
+Code signing for the Windows installer is provided by [SignPath.io](https://about.signpath.io),
+with a certificate from the [SignPath Foundation](https://signpath.org); the policy is in
+[docs/CODE-SIGNING.md](docs/CODE-SIGNING.md).
+
 ## Start from a download of this repository
 
 You need **Python 3.10 or newer** (3.13 recommended: it is the one the installers carry) — from [python.org](https://www.python.org/downloads/);
