@@ -485,10 +485,13 @@ export class Viewer extends EventTarget {
     this.root.querySelector('#v-rotate').hidden = !this.canRotate || item.kind !== 'picture';
     this.root.querySelector('#v-avatar').hidden = !this.canAvatar || item.kind !== 'picture';
     this.root.querySelector('#v-name').textContent = item.name;
+    // On a phone the line has the width of the bar's left half: the size
+    // (in Details anyway) is left off rather than wrapped onto a second line.
+    const narrow = window.matchMedia('(max-width: 620px)').matches;
     const bits = [
       item.date,
       item.width ? `${item.width}×${item.height}` : '',
-      item.size_h,
+      narrow ? '' : item.size_h,
       item.duration ? formatClock(item.duration) : '',
     ].filter(Boolean);
     this.root.querySelector('#v-sub').textContent = bits.join('  ·  ');

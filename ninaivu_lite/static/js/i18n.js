@@ -177,6 +177,9 @@ export function folderDate(path) {
 /** Fetch a locale's strings. English needs none. */
 async function load(code) {
   if (loaded[code]) return loaded[code];
+  // en.json maps every key to itself (the keys are the English), so English
+  // needs no fetch: a quarter of a megabyte that said nothing new.
+  if (code === 'en') { loaded.en = {}; return loaded.en; }
   try {
     const response = await fetch(`/static/i18n/${code}.json`, {
       headers: { Accept: 'application/json' },

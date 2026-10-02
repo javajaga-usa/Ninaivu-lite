@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.4.0 — 2026-10-02
+
+- **Lighter over the wire.** The page, scripts, styles, Tamil strings and large API answers
+  are sent gzipped (a fifth of their size); static files whose address carries their hash are
+  cached for a year; and English, whose strings are the keys themselves, no longer fetches a
+  quarter-megabyte of them. A phone's first load is about a megabyte lighter.
+- **The viewer, tidied.** The everyday five tools stay on the bar and the rest sit behind ⋮
+  with their names, at every width. On a phone the header stays on one line, the round arrows
+  make way for swiping, and a toast no longer sits on the filmstrip.
+- **The grid, on a phone.** A row of years above the photographs, one tap each, where there
+  is no sidebar; *Select all* appears only once a long press starts selecting.
+- **Finish.** Rounder tiles with a hairline edge, the day's count in a quiet pill, gradient
+  primary buttons, glass toasts, a larger ringed filmstrip, and sign-in tiles that lift. A
+  video's sign and the selection mark each have a corner of their own now.
+
+## 1.3.10 — 2026-10-02
+
+- **The Favourites count follows your favourites.** The sidebar's number only changed on a
+  reload: after a favourite, the quick status refresh left the counts out. They are asked for
+  again now, so the number moves as soon as a photograph is favourited or unfavourited.
+
 ## 1.3.9 — 2026-10-02
 
 - **The update check asks only when you do.** The Control Panel no longer asks GitHub by
