@@ -93,8 +93,15 @@ On the gallery page everyone picks their own picture:
 - **Just looking** shows only Public photos, with no sign-in. Turn it off in the console under
   *Settings* if the library should be private.
 
-Administrators sign in on the console, `http://<computer>:8080/admin`, with their username and
-password. To leave the gallery, open your profile (top right) and choose *Switch profile*.
+An administrator's tile is locked and asks for their password. The console,
+`http://<computer>:8080/admin`, takes the username and password. To leave the gallery, open your
+profile (top right) and choose *Switch profile*.
+
+**Your picture on the sign-in screen.** Every tile starts as your initials on your colour. To
+use a photograph instead, open it in the gallery and choose *Use as my profile picture* from
+its ⋯ menu: the middle of it becomes a small square beside your name. *Remove picture* in your
+profile puts the initials back; an administrator can remove anyone's from *People*. The
+picture is shown to whoever reaches the sign-in screen, so choose one you are happy to show.
 
 ## 5. Using the gallery
 

@@ -5,7 +5,7 @@ Three roles, each seeing up to one visibility level:
 ========  ==========================  =====================================
 Role      Sees                        Signs in
 ========  ==========================  =====================================
-admin     Public, Family and Hidden   username and password (console too)
+admin     Public, Family and Hidden   tap the profile and give the password (console too)
 family    Public and Family           tap a profile; PIN or password if set
 guest     Public only                 tap a profile; PIN or password if set
 ========  ==========================  =====================================
@@ -143,6 +143,7 @@ class User:
     has_password: bool = False
     home_label: str | None = None
     language: str | None = None
+    avatar_at: float | None = None
 
     @property
     def is_admin(self) -> bool:
@@ -174,7 +175,14 @@ class User:
 
     @property
     def entry(self) -> str:
+        if self.is_admin:
+            return "password"
         return "pin" if self.has_pin else ("password" if self.has_password else "open")
+
+    @property
+    def avatar(self) -> str | None:
+        """The picture's address, with its moment, so a new one is not cached as the old."""
+        return f"/api/avatar/{self.id}?v={int(self.avatar_at)}" if self.avatar_at else None
 
     def colour(self) -> str:
         if self.id == 0:
@@ -190,7 +198,7 @@ class User:
             "role": self.role,
             "role_label": ROLE_LABELS.get(self.role, self.role),
             "active": self.active,
-            "avatar": None,
+            "avatar": self.avatar,
             "color": self.colour(),
             "initials": initials(self.display_name),
             "anonymous": self.id == 0,
@@ -232,6 +240,7 @@ def _user(row: sqlite3.Row | None) -> User | None:
         last_login=row["last_login"], library=row["library"],
         has_pin=bool(row["pin"]), has_password=bool(row["password"]),
         home_label=row["home_label"], language=row["language"],
+        avatar_at=row["avatar_at"],
     )
 
 
@@ -251,8 +260,9 @@ def list_users(conn: sqlite3.Connection, include_inactive: bool = True) -> list[
 
 
 def pickable_profiles(conn: sqlite3.Connection) -> list[User]:
-    """Profiles on the picker: active, not administrators."""
-    return [u for u in list_users(conn, include_inactive=False) if not u.is_admin]
+    """Profiles on the picker: everyone active, the administrators too. Theirs
+    is a locked tile that asks for the password; the name is already known."""
+    return list_users(conn, include_inactive=False)
 
 
 def needs_setup(conn: sqlite3.Connection) -> bool:
@@ -325,7 +335,7 @@ def set_pin(conn: sqlite3.Connection, user_id: int, pin: str | None) -> None:
 def update_profile(conn: sqlite3.Connection, user_id: int, **fields: Any) -> None:
     allowed = {k: v for k, v in fields.items()
                if k in {"display_name", "color", "role", "library", "home_label", "language",
-                        "active"}}
+                        "active", "avatar_at"}}
     if not allowed:
         return
     with conn:
@@ -366,12 +376,16 @@ def authenticate(conn: sqlite3.Connection, username: str, password: str) -> User
 
 
 def enter_profile(conn: sqlite3.Connection, user_id: int, secret: str = "") -> User | None:
-    """Sign in from the profile picker. Administrators use the password login."""
+    """Sign in from the profile picker. An administrator's tile takes the
+    password and nothing less, as the username login does."""
     row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     user = _user(row)
-    if user is None or not user.active or user.is_admin:
+    if user is None or not user.active:
         return None
-    if user.has_pin:
+    if user.is_admin:
+        if not verify_password(secret, row["password"]):
+            return None
+    elif user.has_pin:
         if not verify_password(secret, row["pin"]):
             return None
     elif user.has_password:

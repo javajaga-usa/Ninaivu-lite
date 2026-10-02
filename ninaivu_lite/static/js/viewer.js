@@ -92,6 +92,8 @@ export class Viewer extends EventTarget {
     this.canSave = false;
     /** Set by the app: whether a photograph may be turned by hand (admins). */
     this.canRotate = false;
+    //: signed in: a photograph can become the person's own profile picture
+    this.canAvatar = false;
     this.toast = null;
     this.onChange = null;
 
@@ -117,6 +119,9 @@ export class Viewer extends EventTarget {
     q('#v-info').onclick = () => this.toggleInfo();
     if (q('#v-info-close')) q('#v-info-close').onclick = () => this.toggleInfo(false);
     q('#v-rotate').onclick = () => this.rotate();
+    q('#v-avatar').onclick = () => {
+      this.dispatchEvent(new CustomEvent('avatar', { detail: { item: this.item } }));
+    };
     // Sudar, the photo studio: loaded the first time it is opened, because
     // most visits never press it and its engine is the largest script here.
     q('#v-sudar').onclick = async () => {
@@ -478,6 +483,7 @@ export class Viewer extends EventTarget {
   renderChrome(item) {
     this.root.querySelector('#v-sudar').hidden = !this.canDownload || item.kind !== 'picture';
     this.root.querySelector('#v-rotate').hidden = !this.canRotate || item.kind !== 'picture';
+    this.root.querySelector('#v-avatar').hidden = !this.canAvatar || item.kind !== 'picture';
     this.root.querySelector('#v-name').textContent = item.name;
     const bits = [
       item.date,

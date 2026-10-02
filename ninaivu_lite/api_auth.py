@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import os
 import re
+import time
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
 
-from . import auth
-from .common import body, cfg, conn, fail, require_signed_in, user
+from . import auth, media
+from .common import (asset_path, avatar_path, body, cfg, conn, drop_avatar, fail,
+                     require_signed_in, user, visible_asset)
+from .dates import long_path
 
 bp = Blueprint("auth_api", __name__)
 
@@ -127,8 +131,6 @@ def auth_enter():
     target = auth.get_user(conn(), user_id)
     if target is None or not target.active:
         fail(400, "Pick a profile.")
-    if target.is_admin:
-        fail(403, "Administrators sign in on the admin console.")
     keys = (f"{request.remote_addr}|enter|{user_id}",)
     if throttle_short.blocked(*keys) or throttle_long.blocked(f"enter|{user_id}"):
         fail(429, "Too many attempts. Wait a while and try again.")
@@ -203,3 +205,57 @@ def me_password():
     except auth.AccountError as exc:
         fail(400, str(exc))
     return jsonify(ok=True)
+
+
+# --- your picture ----------------------------------------------------------------------------
+# A profile picture is one a person chose from the library, never one the
+# server guessed: the middle of that photograph as a 256 px square, kept in
+# the data folder, shown on the sign-in screen (so to anyone who reaches it)
+# and beside the name everywhere else.
+
+@bp.post("/api/me/avatar")
+def me_avatar():
+    who = require_signed_in()
+    data = body()
+    try:
+        asset_id = int(data.get("asset_id"))
+    except (TypeError, ValueError):
+        fail(400, "Choose a photograph from the library.")
+    row = visible_asset(asset_id, who)
+    if row["kind"] != "picture":
+        fail(400, "Choose a photograph, not a video.")
+    source = asset_path(row)
+    if not os.path.isfile(long_path(source)):
+        fail(404, "This file is not available right now.")
+    try:
+        square = media.profile_picture(source, row["rotation"] or 0)
+    except Exception:  # noqa: BLE001 — a file Pillow cannot open
+        fail(400, "This photograph cannot be opened.")
+    target = avatar_path(who.id)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    temporary = f"{target}.tmp"
+    with open(temporary, "wb") as stream:
+        stream.write(square)
+    os.replace(temporary, target)
+    auth.update_profile(conn(), who.id, avatar_at=time.time())
+    return jsonify(auth.get_user(conn(), who.id).public())
+
+
+@bp.delete("/api/me/avatar")
+def me_avatar_remove():
+    who = require_signed_in()
+    drop_avatar(who.id)
+    return jsonify(auth.get_user(conn(), who.id).public())
+
+
+@bp.get("/api/avatar/<int:user_id>")
+def avatar(user_id: int):
+    """Anyone may look: the sign-in screen shows these before anyone has signed in."""
+    person = auth.get_user(conn(), user_id)
+    path = avatar_path(user_id)
+    if person is None or not person.avatar_at or not os.path.isfile(path):
+        fail(404, "No picture.")
+    response = send_file(path, mimetype="image/jpeg", conditional=True,
+                         etag=f"avatar-{user_id}-{int(person.avatar_at)}", max_age=86400)
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    return response

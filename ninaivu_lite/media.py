@@ -373,6 +373,17 @@ def save_thumbnails(img: Image.Image, thumbs_dir: Path, asset_id: int,
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
+def profile_picture(path: str, rotation: int = 0, size: int = 256) -> bytes:
+    """The middle of a photograph as a small square JPEG, upright, no metadata:
+    a profile picture for the sign-in screen."""
+    with _open_photo(path, size * 2) as img:
+        img = turn(img.convert("RGB"), rotation)
+        img = ImageOps.fit(img, (size, size), Image.Resampling.LANCZOS)
+        out = io.BytesIO()
+        img.save(out, "JPEG", quality=88, optimize=True)
+        return out.getvalue()
+
+
 def viewing_copy(path: str, max_edge: int = 2560, rotation: int = 0) -> bytes:
     """A JPEG a browser can show, upright and without metadata: for HEIC and
     TIFF, which browsers cannot open, and for guests, who get no EXIF.
