@@ -1529,7 +1529,7 @@ function clearFilters() {
 }
 
 function syncChips() {
-  document.querySelectorAll('#year-list .chip').forEach((chip) => {
+  document.querySelectorAll('#year-list .chip, #year-strip .chip').forEach((chip) => {
     chip.classList.toggle('active', chip.dataset.year === state.filters.from.slice(0, 4));
   });
   document.querySelectorAll('#folder-list button').forEach((button) => {
@@ -1750,29 +1750,39 @@ function wireAlbums() {
 }
 
 function renderYears() {
-  const box = $('#year-list');
   const years = state.facets?.years || [];
   $('#years-block').hidden = years.length < 2;
-  box.innerHTML = '';
-  for (const year of years) {
-    const chip = document.createElement('button');
-    chip.className = 'chip';
-    chip.type = 'button';
-    chip.dataset.year = year.year;
-    chip.textContent = year.year;
+  // The same chips twice: in the sidebar, and in the strip above the grid
+  // that a phone shows in the sidebar's place.
+  const strip = $('#year-strip');
+  strip.hidden = years.length < 2;
+  for (const box of [$('#year-list'), strip]) {
+    box.innerHTML = '';
+    for (const year of years) box.appendChild(yearChip(year, box === strip));
+  }
+  syncChips();
+}
+
+function yearChip(year, plain = false) {
+  const chip = document.createElement('button');
+  chip.className = 'chip';
+  chip.type = 'button';
+  chip.dataset.year = year.year;
+  chip.textContent = year.year;
+  if (!plain) {
     const n = document.createElement('span');
     n.className = 'n';
     n.textContent = year.count;
     chip.appendChild(n);
-    chip.onclick = () => {
-      const active = state.filters.from.slice(0, 4) === year.year;
-      state.filters.from = active ? '' : `${year.year}-01-01`;
-      state.filters.to = active ? '' : `${year.year}-12-31`;
-      syncChips();
-      reload({ resetScroll: true });
-    };
-    box.appendChild(chip);
   }
+  chip.onclick = () => {
+    const active = state.filters.from.slice(0, 4) === year.year;
+    state.filters.from = active ? '' : `${year.year}-01-01`;
+    state.filters.to = active ? '' : `${year.year}-12-31`;
+    syncChips();
+    reload({ resetScroll: true });
+  };
+  return chip;
 }
 
 function renderFolders() {

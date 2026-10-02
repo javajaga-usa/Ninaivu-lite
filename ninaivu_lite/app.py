@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 
 from flask import Flask, g, request
 
-from . import common
+from . import common, compress
 from .common import ApiError
 from .config import Config
 from .importer import Importer
@@ -102,6 +102,11 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
             response.headers.add("Vary", "Cookie")
             response.headers.setdefault("Cache-Control", "no-store")
         return response
+
+    # Registered after `headers`, so it runs first (Flask runs the hooks in
+    # reverse): the gzip and the year-long cache for versioned static files
+    # are decided with the headers above already in place.
+    compress.install(app)
 
     @app.teardown_appcontext
     def close_db(_exc):
