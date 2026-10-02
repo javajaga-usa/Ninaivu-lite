@@ -103,3 +103,34 @@ def test_a_shared_photograph_comes_out_the_way_up_the_index_says(app, admin, lib
     preview = anyone.get(f"/api/share/{token}/preview/{target}")
     with Image.open(io.BytesIO(preview.data)) as img:
         assert img.size == (480, 640)
+
+
+def test_a_guest_gets_a_video_without_its_location(app, admin, guest, library, monkeypatch):
+    """With ffmpeg: the metadata is gone. Without: the original, as the guide says."""
+    import shutil
+    import subprocess
+    from ninaivu_lite import media
+    root, _ = library
+    if not media.FFMPEG:
+        import pytest
+        pytest.skip("no ffmpeg here")
+    clip = root / "family" / "located.mp4"
+    subprocess.run([media.FFMPEG, "-v", "quiet", "-y", "-f", "lavfi", "-i",
+                    "testsrc=duration=1:size=64x64:rate=5", "-metadata",
+                    "location=+12.9716+077.5946/", "-metadata", "comment=SECRETMARK",
+                    str(clip)], check=True, timeout=120)
+    assert b"SECRETMARK" in clip.read_bytes()
+    assert admin.post("/api/scan", json={}).status_code == 200
+    scanner = app.config["SCANNER"]
+    scanner.scan_once(db.connect(app.config["LITE"].data_dir))
+    target = ids(app)["located.mp4"]
+    assert admin.post("/api/visibility", json={"ids": [target], "visibility": "public"}).status_code == 200
+    # The family gets the file as it is; a guest gets the stripped copy.
+    assert b"SECRETMARK" in admin.get(f"/api/file/{target}").data
+    served = guest.get(f"/api/file/{target}")
+    assert served.status_code == 200 and b"SECRETMARK" not in served.data
+    assert served.headers["Accept-Ranges"] == "bytes"
+    # Without ffmpeg the original is sent (and the guide says so).
+    monkeypatch.setattr(media, "FFMPEG", None)
+    shutil.rmtree(os.path.join(app.config["LITE"].data_dir, "views"), ignore_errors=True)
+    assert b"SECRETMARK" in guest.get(f"/api/file/{target}").data

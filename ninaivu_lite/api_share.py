@@ -27,6 +27,7 @@ from . import auth, db, media
 from .api_gallery import (
     as_id,
     may_carry_location,
+    stripped_video_response,
     original_path,
     original_response,
     own_album,
@@ -330,6 +331,8 @@ def shared_file(token: str, asset_id: int):
     if may_carry_location(row) or row["rotation"]:
         # The share page is told rotation 0, so the index's turn is baked in.
         return _no_referrer(viewing_response(row, path, 3600, turned=True))
+    if row["kind"] == "video":
+        return _no_referrer(stripped_video_response(row, path, 3600))
     return _no_referrer(original_response(row, path))
 
 
