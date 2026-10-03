@@ -170,6 +170,7 @@ def test_the_control_panel_offers_a_new_drive_once(tmp_path, monkeypatch):
 # --- phones on a cable --------------------------------------------------------------------
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="gvfs names hold a colon, which Windows refuses")
 def test_a_phone_opened_by_the_linux_desktop_is_a_phone(tmp_path):
     gvfs = tmp_path / "gvfs"
     (gvfs / "mtp:host=Google_Pixel_7_29081JEGR").mkdir(parents=True)
