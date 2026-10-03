@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- **A pendrive or an external drive plugged in is asked about.** The console, and the Control
+  Panel when it is open, ask in Tamil and English: *Import media from this drive* (the Import
+  page opens with the drive as its source), *Export media to this drive* (the library's photos
+  and videos are copied into a `Ninaivu Lite` folder on it, only what is new, never
+  overwriting), or *Not now*. Found with the standard library alone: on Windows, removable
+  drives and USB, SD and FireWire hard drives (the computer's own disks are never asked about);
+  on macOS `/Volumes`; on Linux `/media` and `/run/media`. (`drives.py`, `api_drives.py`,
+  `static/js/drives.js`)
+- **A phone on a USB cable is asked about too**, with *Import media from this phone* (copying
+  the library onto a phone is not offered). On Windows a phone has no drive letter (MTP), so
+  it is found through the Windows shell, with PowerShell asked only when the set of portable
+  devices changes; Import fetches the camera folders (DCIM, Pictures, Movies) over the cable,
+  runs them through the ordinary Import, and deletes the temporary copies that arrived safely.
+  Next time only new photos cross the cable. On Linux a phone the desktop has opened
+  (`/run/user/<uid>/gvfs/mtp:…`) goes straight to the Import page. Not on macOS, which has no
+  built-in way to read an Android phone as files. (`phones.py`)
+
 ## 1.4.2 — 2026-10-02
 
 A sweep for faults, by review and by driving every screen in a browser.

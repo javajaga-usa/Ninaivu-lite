@@ -12,6 +12,7 @@ import {
 import { onUnauthorized, reportUnauthorized, sessionRestored, thumbUrl, SCAN_COUNTS, timeLeft } from './api.js';
 import { renderActivity, subscribeActivity } from './activity.js';
 import { ArchivePanel } from './archive.js';
+import { DrivePrompt } from './drives.js';
 import { enterPressesTheButton } from './enter-key.js';
 import { FirstDay } from './first-day.js';
 import * as i18n from './i18n.js';
@@ -104,6 +105,7 @@ let gate;
 let profileSheet;
 let firstDay;
 let archivePanel;
+let drivePrompt;
 
 /* ======================================================================== */
 
@@ -288,6 +290,16 @@ async function start(user) {
   });
   firstDay.maybeOpen();
   if (user.must_change) profileSheet.open(user);
+  // A pendrive or an external drive plugged in: bring its photos in, or copy
+  // the library out to it.
+  drivePrompt ||= new DrivePrompt({
+    json, toast,
+    openImport: async (path) => {
+      await archivePanel.useDrive(path);
+      showTab('archive');
+    },
+  });
+  drivePrompt.start();
 }
 
 async function refresh() {

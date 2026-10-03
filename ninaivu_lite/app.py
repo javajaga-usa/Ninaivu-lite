@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 
 from flask import Flask, g, request
 
-from . import common, compress
+from . import common, compress, drives, phones
 from .common import ApiError
 from .config import Config
 from .importer import Importer
@@ -54,12 +54,17 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
     app.config["SCANNER"] = scanner or Scanner(cfg.data_dir, cfg.folders)
     app.config["SCANNER"].auto = cfg.watch
     app.config["IMPORTER"] = Importer(cfg.data_dir)
+    app.config["DRIVES"] = drives.Watcher()
+    app.config["EXPORTER"] = drives.Exporter()
+    app.config["PHONE_IMPORT"] = phones.PhoneImport()
     app.json.ensure_ascii = False
     app.json.sort_keys = False
     app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BYTES
 
-    from . import api_admin, api_auth, api_gallery, api_import, api_share, api_sudar, pages
-    for module in (pages, api_auth, api_gallery, api_share, api_admin, api_import, api_sudar):
+    from . import (api_admin, api_auth, api_drives, api_gallery, api_import, api_share,
+                   api_sudar, pages)
+    for module in (pages, api_auth, api_gallery, api_share, api_admin, api_import, api_drives,
+                   api_sudar):
         app.register_blueprint(module.bp)
 
     asset_cache: dict[str, str] = {}

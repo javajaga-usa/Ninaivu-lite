@@ -150,6 +150,28 @@ export (Takeout) comes across with its dates, places and descriptions, and *Make
 recreates its albums once the archive is indexed. *Export manifest* writes a list of every
 file with its hash.
 
+### A pendrive, an external drive or a phone plugged in
+
+Plug a USB pendrive, a memory card, an external hard drive or a phone (by its cable) into the
+computer Ninaivu Lite runs on, and the console (and the Control Panel, if it is open) asks
+what to do with it:
+
+- **Import media from this drive** opens *Import* with the drive as the source. Check the
+  destination and press *Start*. Nothing on the drive is changed.
+- **Export media to this drive** copies the library's photos and videos onto the drive, into
+  a `Ninaivu Lite` folder, keeping the library's own folders. Only what is new is copied the
+  next time; nothing already on the drive is overwritten or deleted.
+- **Not now** asks again only when the drive is next plugged in.
+
+The computer's own disks, and a drive the library itself is on, are never asked about.
+
+**A phone** is offered *Import media from this phone* only. Unlock it and choose *File
+transfer* (Android) or *Trust this computer* (iPhone), or Windows cannot see its photos. On
+Windows, Ninaivu Lite copies the camera folders (DCIM, Pictures, Movies) across the cable,
+imports them into the archive, then removes its temporary copies; the next time, only new
+photos come across. Nothing on the phone is changed. On Linux, open the phone in the file
+manager first; on a Mac, phones are not detected.
+
 ## 6. Sharing with someone outside the family
 
 From the viewer or an album, choose **Share**. You can add a password and an expiry date.
