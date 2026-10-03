@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.5.0 — 2026-10-03
+
+Also carries everything in 1.4.2, which was not released on its own.
 
 - **A pendrive or an external drive plugged in is asked about.** The console, and the Control
   Panel when it is open, ask in Tamil and English: *Import media from this drive* (the Import

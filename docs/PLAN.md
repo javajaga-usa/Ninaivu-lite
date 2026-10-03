@@ -70,7 +70,7 @@ ruff targets `py310`.
   cascades, optional) in a quiet pass after the thumbnails, and turned in the index only.
   `POST /api/asset/<id>/rotate` is the administrator's hand.
 
-### Added after 1.4.2
+### Added in 1.5
 - **Drive plugged in** (`drives.py`, `api_drives.py`, `static/js/drives.js`, the Control Panel):
   a pendrive or external drive is asked about once each time it is plugged in: import from it
   (the Import page, with the drive as source) or export the library onto it. Standard library
