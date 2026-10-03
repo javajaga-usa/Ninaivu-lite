@@ -3,13 +3,17 @@ and the library copied onto it without touching what is already there."""
 
 from __future__ import annotations
 
+import os
 import queue
+import shutil
 import sys
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from conftest import make_jpeg
+from test_import import noisy_jpeg
 
 from ninaivu_lite import drives, panel
 
@@ -161,3 +165,105 @@ def test_the_control_panel_offers_a_new_drive_once(tmp_path, monkeypatch):
     panel.Panel.offer_drive(view, offered[0][1])
     assert opened and opened[0].startswith("http://localhost:8080/admin?drive=")
     assert opened[0].endswith("&do=import")
+
+
+# --- phones on a cable --------------------------------------------------------------------
+
+
+def test_a_phone_opened_by_the_linux_desktop_is_a_phone(tmp_path):
+    gvfs = tmp_path / "gvfs"
+    (gvfs / "mtp:host=Google_Pixel_7_29081JEGR").mkdir(parents=True)
+    (gvfs / "smb-share:server=nas").mkdir()
+    found = drives._gvfs_phones(str(gvfs))
+    assert [(d.label, d.kind, d.shell) for d in found] == [("Google Pixel 7 29081JEGR", "phone", False)]
+
+
+def test_nothing_is_copied_onto_a_phone(app, admin, tmp_path, monkeypatch):
+    monkeypatch.setattr(drives, "CACHE_SECONDS", 0)
+    phone = drives.Drive("ph1", str(tmp_path), "Pixel", 0, 0, kind="phone")
+    app.config["DRIVES"] = drives.Watcher(lister=lambda: [phone])
+    entry = admin.get("/api/admin/drives").get_json()["drives"][0]
+    assert entry["kind"] == "phone" and entry["pending"] is True
+    refused = admin.post("/api/admin/drives/export", json={"id": "ph1"})
+    assert refused.status_code == 409 and "phone" in refused.get_json()["error"]
+
+
+class FakeShell:
+    """PowerShell copying a phone's DCIM, as phones.FETCH_SCRIPT would:
+    files that are on the skip list are not copied again."""
+
+    def __init__(self, camera, env):
+        self.stdout = []
+        dest = Path(env["NL_DEST"])
+        skip = set()
+        if Path(env["NL_SKIP"]).exists():
+            skip = set(Path(env["NL_SKIP"]).read_text(encoding="utf-8").split("\n"))
+        files = sorted(camera.iterdir())
+        self.stdout.append(f'{{"total":{len(files)}}}\n'.encode())
+        for n, f in enumerate(files, 1):
+            rel = os.path.join("Internal shared storage", "DCIM", "Camera", f.name)
+            if rel not in skip:
+                (dest / rel).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, dest / rel)
+            self.stdout.append(f'{{"done":{n}}}\n'.encode())
+        self.stdout.append(b'{"finished":true}\n')
+
+    def wait(self):
+        return 0
+
+    def poll(self):
+        return 0
+
+
+def test_a_phone_windows_shows_only_in_explorer_is_fetched_imported_and_tidied(
+        app, admin, tmp_path, monkeypatch):
+    from ninaivu_lite import phones
+    monkeypatch.setattr(drives, "CACHE_SECONDS", 0)
+    camera = tmp_path / "phone-camera"
+    # Big enough for the Import, which passes over icons and thumbnails.
+    noisy_jpeg(camera / "IMG_20240101_101010.jpg", "2024:01:01 10:10:10", seed=1)
+    noisy_jpeg(camera / "IMG_20240102_101010.jpg", "2024:01:02 10:10:10", seed=2)
+    monkeypatch.setattr(phones, "_powershell", lambda script, env=None: FakeShell(camera, env))
+    phone = drives.Drive("ph1", "::{20D04FE0}\\\\?\\usb#vid_18d1", "Pixel 7", 0, 0,
+                         kind="phone", shell=True)
+    app.config["DRIVES"] = drives.Watcher(lister=lambda: [phone])
+
+    def run():
+        assert admin.post("/api/admin/drives/phone-import", json={"id": "ph1"}).status_code == 200
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            state = admin.get("/api/admin/drives/phone-import").get_json()
+            if not state["running"]:
+                return state
+            time.sleep(0.05)
+        raise AssertionError("the phone import did not finish")
+
+    state = run()
+    assert state["phase"] == "done", state
+    assert state["message"]["vars"] == {"added": "2", "already": "0"}
+    archive = Path(state["destination"])
+    assert len(list(archive.rglob("IMG_*.jpg"))) == 2
+    mirror = Path(phones.mirror_for(app.config["LITE"].data_dir, phone))
+    assert not list(mirror.rglob("*.jpg"))                   # the copies were tidied away
+    listing = Path(phones.imported_list(app.config["LITE"].data_dir, phone))
+    assert len(listing.read_text(encoding="utf-8").splitlines()) == 2
+
+    # Next time: only the new photograph crosses the cable.
+    noisy_jpeg(camera / "IMG_20240103_101010.jpg", "2024:01:03 10:10:10", seed=3)
+    state = run()
+    assert state["message"]["vars"] == {"added": "1", "already": "0"}
+    assert len(list(archive.rglob("IMG_*.jpg"))) == 3
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows' shell and PowerShell")
+def test_the_windows_phone_scripts_run_here():
+    """No phone on the test machine: the listing runs and finds none, and the
+    fetch script is valid PowerShell."""
+    from ninaivu_lite import phones
+    assert isinstance(phones.wpd_devices(), tuple)
+    assert phones._ask_shell() == []
+    check = phones._powershell("[void][scriptblock]::Create($env:NL_SCRIPT); 'parsed'",
+                               {"NL_SCRIPT": phones.FETCH_SCRIPT})
+    out, _ = check.communicate(timeout=60)
+    assert b"parsed" in out
+    assert isinstance(phones.listed(), list)

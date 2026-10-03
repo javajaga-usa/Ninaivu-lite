@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 
 from flask import Flask, g, request
 
-from . import common, compress, drives
+from . import common, compress, drives, phones
 from .common import ApiError
 from .config import Config
 from .importer import Importer
@@ -56,6 +56,7 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
     app.config["IMPORTER"] = Importer(cfg.data_dir)
     app.config["DRIVES"] = drives.Watcher()
     app.config["EXPORTER"] = drives.Exporter()
+    app.config["PHONE_IMPORT"] = phones.PhoneImport()
     app.json.ensure_ascii = False
     app.json.sort_keys = False
     app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BYTES

@@ -381,12 +381,13 @@ class Panel:
     # -- a drive plugged in ------------------------------------------------------------------
 
     def look_for_drives(self, folders: list[str]) -> None:
-        """On the watch thread: each drive newly plugged in is offered once.
+        """On the watch thread: each drive or phone newly plugged in is offered once.
         The drive the library or the data folder lives on is not a visitor."""
         home = [*folders, str(self.controller.data_dir)]
         for drive in self.drive_watcher.pending():
             self.drive_watcher.answer(drive.id)
-            if not any(drives.is_within(path, drive.path) for path in home if path):
+            if drive.kind == "phone" or not any(drives.is_within(path, drive.path)
+                                                for path in home if path):
                 self.events.put(("drive", drive))
 
     def offer_drive(self, drive: drives.Drive) -> None:
@@ -419,8 +420,12 @@ class Panel:
 
         body = tk.Frame(win, bg=SURFACE, padx=20, pady=16)
         body.pack(fill="both", expand=True)
-        name = drive.label if drive.label == drive.path else f"{drive.label} ({drive.path})"
-        tk.Label(body, text="ஒரு டிரைவ் இணைக்கப்பட்டது  ·  A drive was connected",
+        phone = drive.kind == "phone"
+        name = drive.label if drive.label == drive.path or drive.shell \
+            else f"{drive.label} ({drive.path})"
+        heading = ("ஒரு தொலைபேசி இணைக்கப்பட்டது  ·  A phone was connected" if phone
+                   else "ஒரு டிரைவ் இணைக்கப்பட்டது  ·  A drive was connected")
+        tk.Label(body, text=heading,
                  font=(FONT, 13, "bold"), bg=SURFACE, fg=INK).pack(anchor="w")
         tk.Label(body, text=name, font=(FONT, 11), bg=SURFACE, fg=MUTED).pack(anchor="w",
                                                                              pady=(4, 10))
@@ -429,11 +434,13 @@ class Panel:
                  font=(FONT, 10), bg=SURFACE, fg=INK, justify="left").pack(anchor="w")
         buttons = tk.Frame(body, bg=SURFACE)
         buttons.pack(fill="x", pady=(12, 0))
-        ttk.Button(buttons, text="இறக்குமதி  ·  Import media from this drive",
+        ttk.Button(buttons, text="இறக்குமதி  ·  Import media from this "
+                                 + ("phone" if phone else "drive"),
                    style="Accent.TButton",
                    command=lambda: pick("import")).pack(fill="x", pady=(0, 6))
-        ttk.Button(buttons, text="ஏற்றுமதி  ·  Export media to this drive",
-                   command=lambda: pick("export")).pack(fill="x", pady=(0, 6))
+        if not phone:   # a phone's storage is no place for the whole library
+            ttk.Button(buttons, text="ஏற்றுமதி  ·  Export media to this drive",
+                       command=lambda: pick("export")).pack(fill="x", pady=(0, 6))
         ttk.Button(buttons, text="இப்போது வேண்டாம்  ·  Not now",
                    command=lambda: pick(None)).pack(fill="x")
         win.protocol("WM_DELETE_WINDOW", lambda: pick(None))

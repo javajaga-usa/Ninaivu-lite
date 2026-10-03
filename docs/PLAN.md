@@ -75,6 +75,9 @@ ruff targets `py310`.
   a pendrive or external drive is asked about once each time it is plugged in: import from it
   (the Import page, with the drive as source) or export the library onto it. Standard library
   only; polled every few seconds while the console or panel is open.
+- **Phone on a cable** (`phones.py`): import only. On Windows (MTP, no drive letter) through
+  the Windows shell via PowerShell, asked only when the portable devices change; fetched into
+  a folder beside the data folder, imported, then tidied. Linux via gvfs; not on macOS.
 
 ### Not in Lite (stays in full Ninaivu)
 AI with models (faces, search by description, generative edits, background and object tools,

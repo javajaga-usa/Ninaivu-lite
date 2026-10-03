@@ -3034,5 +3034,20 @@
   "Copied {copied} photos and videos to the drive. {errors} could not be copied; see the log.": "Copied {copied} photos and videos to the drive. {errors} could not be copied; see the log.",
   "Stopped. What was copied stays on the drive.": "Stopped. What was copied stays on the drive.",
   "Could not write to the drive. Is it still plugged in, and not read-only?": "Could not write to the drive. Is it still plugged in, and not read-only?",
-  "Copied {copied} photos and videos to the drive.": "Copied {copied} photos and videos to the drive."
+  "Copied {copied} photos and videos to the drive.": "Copied {copied} photos and videos to the drive.",
+  "Importing from the phone": "Importing from the phone",
+  "A phone was connected": "A phone was connected",
+  "Import media from this phone": "Import media from this phone",
+  "Copy its camera photos and videos into the archive, sorted by date. Nothing on the phone is changed.": "Copy its camera photos and videos into the archive, sorted by date. Nothing on the phone is changed.",
+  "Nothing showing? Unlock the phone and choose File transfer (on an iPhone, Trust this computer).": "Nothing showing? Unlock the phone and choose File transfer (on an iPhone, Trust this computer).",
+  "Copying from the phone: {done} of {total} files": "Copying from the phone: {done} of {total} files",
+  "Looking for photos and videos on the phone…": "Looking for photos and videos on the phone…",
+  "Adding to the archive: {done} of {total} files": "Adding to the archive: {done} of {total} files",
+  "Copying the library onto a phone isn't offered. Use a pendrive or an external drive.": "Copying the library onto a phone isn't offered. Use a pendrive or an external drive.",
+  "Open Import and add the phone as a source.": "Open Import and add the phone as a source.",
+  "Stopped. Nothing on the phone was changed.": "Stopped. Nothing on the phone was changed.",
+  "{added} new photos and videos from the phone are in the archive. {already} were there already.": "{added} new photos and videos from the phone are in the archive. {already} were there already.",
+  "The phone could not be read. Keep it plugged in and unlocked, and try again.": "The phone could not be read. Keep it plugged in and unlocked, and try again.",
+  "The phone did not share its photos. Unlock it, and choose File transfer (on an iPhone, Trust this computer), then try again.": "The phone did not share its photos. Unlock it, and choose File transfer (on an iPhone, Trust this computer), then try again.",
+  "A run is already going. Stop it first.": "A run is already going. Stop it first."
 }

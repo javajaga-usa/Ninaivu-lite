@@ -3129,5 +3129,20 @@
   "Copied {copied} photos and videos to the drive. {errors} could not be copied; see the log.": "{copied} புகைப்படங்களும் காணொளிகளும் டிரைவுக்கு நகலெடுக்கப்பட்டன. {errors} நகலெடுக்க முடியவில்லை; பதிவைப் பாருங்கள்.",
   "Stopped. What was copied stays on the drive.": "நிறுத்தப்பட்டது. நகலெடுக்கப்பட்டவை டிரைவிலேயே இருக்கும்.",
   "Could not write to the drive. Is it still plugged in, and not read-only?": "டிரைவில் எழுத முடியவில்லை. அது இன்னும் இணைப்பில் உள்ளதா, படிக்க-மட்டும் நிலையில் இல்லையா?",
-  "Copied {copied} photos and videos to the drive.": "{copied} புகைப்படங்களும் காணொளிகளும் டிரைவுக்கு நகலெடுக்கப்பட்டன."
+  "Copied {copied} photos and videos to the drive.": "{copied} புகைப்படங்களும் காணொளிகளும் டிரைவுக்கு நகலெடுக்கப்பட்டன.",
+  "Importing from the phone": "தொலைபேசியிலிருந்து இறக்குமதி செய்கிறது",
+  "A phone was connected": "ஒரு தொலைபேசி இணைக்கப்பட்டது",
+  "Import media from this phone": "இந்தத் தொலைபேசியிலிருந்து படங்களை இறக்குமதி செய்",
+  "Copy its camera photos and videos into the archive, sorted by date. Nothing on the phone is changed.": "இதன் கேமரா புகைப்படங்களையும் காணொளிகளையும் தேதி வாரியாகக் காப்பகத்தில் நகலெடுக்கும். தொலைபேசியில் எதுவும் மாற்றப்படாது.",
+  "Nothing showing? Unlock the phone and choose File transfer (on an iPhone, Trust this computer).": "எதுவும் தெரியவில்லையா? தொலைபேசியைத் திறந்து, File transfer என்பதைத் தேர்ந்தெடுங்கள் (iPhone-இல், Trust this computer).",
+  "Copying from the phone: {done} of {total} files": "தொலைபேசியிலிருந்து நகலெடுக்கிறது: {total} கோப்புகளில் {done}",
+  "Looking for photos and videos on the phone…": "தொலைபேசியில் புகைப்படங்களையும் காணொளிகளையும் தேடுகிறது…",
+  "Adding to the archive: {done} of {total} files": "காப்பகத்தில் சேர்க்கிறது: {total} கோப்புகளில் {done}",
+  "Copying the library onto a phone isn't offered. Use a pendrive or an external drive.": "நூலகத்தைத் தொலைபேசிக்கு நகலெடுக்கும் வசதி இல்லை. பென்டிரைவ் அல்லது வெளி டிரைவைப் பயன்படுத்துங்கள்.",
+  "Open Import and add the phone as a source.": "இறக்குமதியைத் திறந்து, தொலைபேசியை ஒரு மூலமாகச் சேருங்கள்.",
+  "Stopped. Nothing on the phone was changed.": "நிறுத்தப்பட்டது. தொலைபேசியில் எதுவும் மாற்றப்படவில்லை.",
+  "{added} new photos and videos from the phone are in the archive. {already} were there already.": "தொலைபேசியிலிருந்து {added} புதிய புகைப்படங்களும் காணொளிகளும் காப்பகத்தில் சேர்ந்தன. {already} ஏற்கனவே இருந்தன.",
+  "The phone could not be read. Keep it plugged in and unlocked, and try again.": "தொலைபேசியைப் படிக்க முடியவில்லை. அதை இணைப்பிலும் திறந்த நிலையிலும் வைத்து மீண்டும் முயலுங்கள்.",
+  "The phone did not share its photos. Unlock it, and choose File transfer (on an iPhone, Trust this computer), then try again.": "தொலைபேசி தன் படங்களைப் பகிரவில்லை. அதைத் திறந்து, File transfer என்பதைத் தேர்ந்தெடுத்து (iPhone-இல், Trust this computer), மீண்டும் முயலுங்கள்.",
+  "A run is already going. Stop it first.": "ஓர் ஓட்டம் ஏற்கனவே நடக்கிறது. முதலில் அதை நிறுத்துங்கள்."
 }

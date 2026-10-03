@@ -1,8 +1,9 @@
-"""Pendrives and external hard drives: which are plugged in now, and copying
-the library onto one.
+"""Pendrives, external hard drives and phones on a cable: which are plugged
+in now, and copying the library onto a drive.
 
     connected()      the drives a person carried in: USB sticks, memory cards,
-                     external hard drives; never the computer's own disks
+                     external hard drives, phones (see phones.py); never the
+                     computer's own disks
     Watcher          which of them nobody has been asked about yet
     Exporter         the library's photos and videos onto one, in a thread
 
@@ -51,6 +52,11 @@ class Drive:
     label: str       # its name, or the path when it has none
     total: int
     free: int
+    #: "drive", or "phone" for a phone on a USB cable
+    kind: str = "drive"
+    #: a phone Windows shows only in Explorer (MTP): no path to open, so its
+    #: photos are fetched through the Windows shell (phones.py)
+    shell: bool = False
 
     def to_json(self) -> dict[str, Any]:
         return asdict(self)
@@ -206,6 +212,27 @@ def _mount_drives(parents: list[str]) -> list[Drive]:
     return found
 
 
+def _gvfs_phones(parent: str | None = None) -> list[Drive]:
+    """Linux: a phone on a cable, opened by the desktop (GNOME's gvfs) under
+    /run/user/<uid>/gvfs as mtp:host=… or gphoto2:host=…: plain folders."""
+    if parent is None:
+        if not hasattr(os, "getuid"):
+            return []
+        parent = f"/run/user/{os.getuid()}/gvfs"
+    try:
+        names = sorted(os.listdir(parent))
+    except OSError:
+        return []
+    found = []
+    for name in names:
+        if not name.startswith(("mtp:", "gphoto2:")):
+            continue
+        path = os.path.join(parent, name)
+        label = name.split("=", 1)[-1].replace("_", " ") or name
+        found.append(Drive(_drive_id(path, label, "phone", 0), path, label, 0, 0, kind="phone"))
+    return found
+
+
 def _posix_parents() -> list[str]:
     if sys.platform == "darwin":
         return ["/Volumes"]
@@ -219,8 +246,12 @@ def connected() -> list[Drive]:
     """The drives plugged in now; [] when they cannot be read."""
     try:
         if sys.platform == "win32":
-            return _windows_drives()
-        return _mount_drives(_posix_parents())
+            from . import phones
+            return _windows_drives() + phones.listed()
+        found = _mount_drives(_posix_parents())
+        if sys.platform.startswith("linux"):
+            found += _gvfs_phones()
+        return found
     except Exception:  # noqa: BLE001 — a prompt is a nicety; never break the caller
         log.exception("could not list the drives")
         return []

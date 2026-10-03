@@ -1,8 +1,12 @@
 /**
- * A pendrive or an external hard drive was plugged in: one question.
+ * A pendrive, an external hard drive or a phone was plugged in: one question.
  *
- *   Import media from this drive   → the Import page, with the drive as its source
- *   Export media to this drive     → the library copied onto it (drives.Exporter)
+ *   Import media from this drive   → the Import page, with the drive as its source;
+ *                                    a phone Windows reaches only through Explorer
+ *                                    is fetched, imported and tidied by the server
+ *                                    (phones.PhoneImport)
+ *   Export media to this drive     → the library copied onto it (drives.Exporter);
+ *                                    not offered for a phone
  *   Not now                        → asked again only when it is plugged in again
  *
  * The console asks the server which drives are plugged in every few seconds
@@ -18,6 +22,22 @@ import * as i18n from './i18n.js';
 import { bytes as size, said } from './archive.js';
 
 const POLL_MS = 4000;
+
+/** The two things that run on after the question: their routes and words. */
+const JOBS = {
+  export: {
+    start: '/api/admin/drives/export',
+    status: '/api/admin/drives/export',
+    stop: '/api/admin/drives/export/stop',
+    title: i18n.key('Copying to the drive'),
+  },
+  phone: {
+    start: '/api/admin/drives/phone-import',
+    status: '/api/admin/drives/phone-import',
+    stop: '/api/admin/drives/phone-import/stop',
+    title: i18n.key('Importing from the phone'),
+  },
+};
 
 const el = (tag, className, text) => {
   const node = document.createElement(tag);
@@ -42,9 +62,11 @@ export class DrivePrompt {
     this.openImport = openImport;
     this.timer = null;
     this.modal = null;
-    /** The drive on screen, and whether the dialog shows the copy's progress. */
+    /** The drive on screen, and the job ('export' or 'phone') the dialog follows, if any. */
     this.drive = null;
-    this.watchingExport = false;
+    this.job = null;
+    this.jobTimer = null;
+    this.lastJob = null;
     /** The drive ids already shown this visit, so Esc does not bring it straight back. */
     this.shown = new Set();
     i18n.onChange(() => { if (this.modal && !this.modal.hidden) this.redraw(); });
@@ -60,15 +82,12 @@ export class DrivePrompt {
   /* -- asking ------------------------------------------------------------- */
 
   async check() {
+    if (this.job) return;
     let data;
     try {
       data = await this.json('/api/admin/drives');
     } catch { return; /* the console's own error handling covers a dead server */ }
-    this.last = data;
-    if (this.watchingExport) {
-      this.showExport(data.export);
-      return;
-    }
+    if (this.job) return;
     if (this.modal && !this.modal.hidden) {
       // Taken out, or answered on another screen (the Control Panel, another
       // tab): nothing left to ask here.
@@ -102,14 +121,14 @@ export class DrivePrompt {
     }
     this.shown.add(drive.id);
     if (action === 'import') this.importFrom(drive);
-    else if (action === 'export') this.exportTo(drive);
+    else if (action === 'export' && drive.kind !== 'phone') this.run('export', drive);
     else this.ask(drive);
   }
 
   ask(drive) {
     this.drive = drive;
     this.shown.add(drive.id);
-    this.watchingExport = false;
+    this.job = null;
     this.redraw();
     this.modal.hidden = false;
     this.modal.querySelector('.btn.primary')?.focus();
@@ -135,16 +154,21 @@ export class DrivePrompt {
     card.replaceChildren();
     const drive = this.drive;
     if (!drive) return;
-    const title = el('h2', '', i18n.t(this.watchingExport ? 'Copying to the drive'
-      : 'A drive was connected'));
+    const phone = drive.kind === 'phone';
+    const heading = this.job ? JOBS[this.job].title
+      : (phone ? 'A phone was connected' : 'A drive was connected');
+    const title = el('h2', '', i18n.t(heading));
     title.id = 'drive-title';
     card.appendChild(title);
-    const name = drive.label && drive.label !== drive.path ? `${drive.label} (${drive.path})` : drive.path;
+    const name = drive.label && drive.label !== drive.path && !drive.shell
+      ? `${drive.label} (${drive.path})` : drive.label || drive.path;
     card.appendChild(el('p', 'hint drive-name', name));
-    card.appendChild(el('p', 'hint', i18n.t('{free} free of {total}',
-      { free: size(drive.free), total: size(drive.total) })));
+    if (drive.total) {
+      card.appendChild(el('p', 'hint', i18n.t('{free} free of {total}',
+        { free: size(drive.free), total: size(drive.total) })));
+    }
 
-    if (this.watchingExport) {
+    if (this.job) {
       const bar = el('div', 'scan-bar');
       this.fill = el('i');
       bar.appendChild(this.fill);
@@ -155,13 +179,13 @@ export class DrivePrompt {
       foot.appendChild(el('div', 'spacer'));
       this.stopButton = el('button', 'btn ghost', i18n.t('Stop'));
       this.stopButton.type = 'button';
-      this.stopButton.onclick = () => this.stopExport();
+      this.stopButton.onclick = () => this.stopJob();
       const close = el('button', 'btn primary', i18n.t('Close'));
       close.type = 'button';
       close.onclick = () => this.close();
       foot.append(this.stopButton, close);
       card.appendChild(foot);
-      if (this.last?.export) this.showExport(this.last.export);
+      if (this.lastJob) this.showJob(this.lastJob);
       return;
     }
 
@@ -175,15 +199,25 @@ export class DrivePrompt {
       button.onclick = action;
       return button;
     };
-    choices.append(
-      choice('Import media from this drive',
-        'Copy its photos and videos into the archive, sorted by date. The drive is not changed.',
-        true, () => this.importFrom(drive)),
-      choice('Export media to this drive',
-        'Copy the library’s photos and videos onto the drive, in a “Ninaivu Lite” folder.',
-        false, () => this.exportTo(drive)),
-    );
+    if (phone) {
+      choices.append(choice('Import media from this phone',
+        'Copy its camera photos and videos into the archive, sorted by date. Nothing on the phone is changed.',
+        true, () => this.importFrom(drive)));
+    } else {
+      choices.append(
+        choice('Import media from this drive',
+          'Copy its photos and videos into the archive, sorted by date. The drive is not changed.',
+          true, () => this.importFrom(drive)),
+        choice('Export media to this drive',
+          'Copy the library’s photos and videos onto the drive, in a “Ninaivu Lite” folder.',
+          false, () => this.run('export', drive)),
+      );
+    }
     card.appendChild(choices);
+    if (phone) {
+      card.appendChild(el('p', 'hint subtle drive-note', i18n.t(
+        'Nothing showing? Unlock the phone and choose File transfer (on an iPhone, Trust this computer).')));
+    }
     const foot = el('div', 'modal-foot');
     foot.appendChild(el('div', 'spacer'));
     const later = el('button', 'btn ghost', i18n.t('Not now'));
@@ -195,7 +229,7 @@ export class DrivePrompt {
 
   close() {
     if (this.modal) this.modal.hidden = true;
-    this.watchingExport = false;
+    this.job = null;
     this.drive = null;
   }
 
@@ -208,67 +242,79 @@ export class DrivePrompt {
   }
 
   notNow() {
-    if (this.watchingExport) { this.close(); return; }
+    if (this.job) { this.close(); return; }
     if (this.drive) this.answer(this.drive);
     this.close();
   }
 
   async importFrom(drive) {
+    // A phone Windows shows only in Explorer has no folder to open: the
+    // server fetches it over the cable and imports it in one go.
+    if (drive.shell) { this.run('phone', drive); return; }
     this.close();
     await this.answer(drive);
     await this.openImport(drive.path);
     this.toast(i18n.t('The drive is the source. Check the destination, then press Start.'));
   }
 
-  async exportTo(drive) {
+  async run(job, drive) {
     try {
-      await this.json('/api/admin/drives/export', { method: 'POST', body: { id: drive.id } });
+      await this.json(JOBS[job].start, { method: 'POST', body: { id: drive.id } });
     } catch (exc) {
       this.toast(exc.message, true);
       this.close();
       return;
     }
     this.drive = drive;
-    this.watchingExport = true;
+    this.job = job;
+    this.lastJob = null;
     this.redraw();
     this.modal.hidden = false;
-    this.followExport();
+    this.follow(job);
   }
 
-  /** Until the copy ends, even with the dialog closed: then say how it went. */
-  followExport() {
-    if (this.exportTimer) return;
-    this.exportTimer = setInterval(async () => {
+  /** Until the job ends, even with the dialog closed: then say how it went. */
+  follow(job) {
+    if (this.jobTimer) return;
+    this.jobTimer = setInterval(async () => {
       let state;
-      try { state = await this.json('/api/admin/drives/export'); } catch { return; }
-      if (this.watchingExport) this.showExport(state);
+      try { state = await this.json(JOBS[job].status); } catch { return; }
+      this.lastJob = state;
+      const watching = this.job === job;
+      if (watching) this.showJob(state);
       if (!state.running) {
-        clearInterval(this.exportTimer);
-        this.exportTimer = null;
+        clearInterval(this.jobTimer);
+        this.jobTimer = null;
         // Said in the dialog when it is open; a toast when it was closed.
-        if (state.message && !this.watchingExport) this.toast(said(state.message), state.phase === 'failed');
+        if (state.message && !watching) this.toast(said(state.message), state.phase === 'failed');
       }
     }, 1000);
   }
 
-  showExport(state) {
+  showJob(state) {
     if (!state || !this.fill) return;
-    const total = state.bytes_total || 0;
-    const percent = total ? Math.min(100, Math.round((state.bytes_done / total) * 100))
+    const total = this.job === 'export' ? state.bytes_total : state.total;
+    const done = this.job === 'export' ? state.bytes_done : state.done;
+    const percent = total ? Math.min(100, Math.round(((done || 0) / total) * 100))
       : (state.running ? 0 : 100);
     this.fill.style.width = `${percent}%`;
-    if (state.phase === 'counting') this.line.textContent = i18n.t('Counting the photos and videos…');
-    else if (state.running) {
-      this.line.textContent = i18n.t('{done} of {total} files', {
-        done: (state.done || 0).toLocaleString(), total: (state.total || 0).toLocaleString(),
-      });
-    } else this.line.textContent = state.message ? said(state.message) : '';
+    const count = { done: (state.done || 0).toLocaleString(), total: (state.total || 0).toLocaleString() };
+    if (!state.running) this.line.textContent = state.message ? said(state.message) : '';
+    else if (state.phase === 'counting') this.line.textContent = i18n.t('Counting the photos and videos…');
+    else if (state.phase === 'fetching') {
+      this.line.textContent = state.total
+        ? i18n.t('Copying from the phone: {done} of {total} files', count)
+        : i18n.t('Looking for photos and videos on the phone…');
+    } else if (state.phase === 'importing') {
+      this.line.textContent = i18n.t('Adding to the archive: {done} of {total} files', count);
+    } else this.line.textContent = i18n.t('{done} of {total} files', count);
     this.stopButton.hidden = !state.running;
   }
 
-  async stopExport() {
+  async stopJob() {
+    if (!this.job) return;
     try {
-      await this.json('/api/admin/drives/export/stop', { method: 'POST' });
+      await this.json(JOBS[this.job].stop, { method: 'POST' });
     } catch (exc) { this.toast(exc.message, true); }
   }
 }
