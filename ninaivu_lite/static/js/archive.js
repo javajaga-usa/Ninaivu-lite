@@ -215,6 +215,19 @@ export class ArchivePanel {
     this.revalidate();
   }
 
+  /** A drive just plugged in, and Import chosen for it: the drive is the
+   *  one source, since the sources saved last time may be drives that are
+   *  not plugged in now, and would stop the job from starting. */
+  async useDrive(path) {
+    if (!this.loaded) {
+      this.loaded = true;
+      await this.loadSettings();
+    }
+    this.sources = [path];
+    this.renderSources();
+    this.revalidate();
+  }
+
   addSource(raw) {
     const path = (raw || '').trim();
     if (!path) {
@@ -851,7 +864,7 @@ function detail(row) {
   return '';
 }
 
-function bytes(n) {
+export function bytes(n) {
   const value = Number(n) || 0;
   if (value < 1024) return `${value} B`;
   const units = ['KB', 'MB', 'GB', 'TB', 'PB'];

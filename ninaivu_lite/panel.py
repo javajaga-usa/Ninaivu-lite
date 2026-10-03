@@ -23,8 +23,9 @@ import sys
 import threading
 import webbrowser
 from pathlib import Path
+from urllib.parse import urlencode
 
-from . import updates
+from . import drives, updates
 from .control import Controller
 from .version import APP_NAME, COPYRIGHT, LICENCE, __version__
 
@@ -88,6 +89,8 @@ class Panel:
         self.is_running = False
         #: set by Download: once the stop it asked for is done, the panel closes
         self.close_when_done = False
+        #: pendrives and external drives plugged in while the panel is open
+        self.drive_watcher = drives.Watcher()
 
         root.title(TITLE)
         root.configure(bg=BG)
@@ -278,6 +281,8 @@ class Panel:
                 summary = self.controller.library_summary()
                 self.events.put(("reading", running, port, phones, summary,
                                  self.controller.can_stop()))
+                if running:
+                    self.look_for_drives(summary.get("folders") or [])
             except Exception as exc:  # noqa: BLE001 — a bad reading must not end the loop
                 self.events.put(("notice", f"Could not read the status: {exc}"))
             self.finished.wait(2.5)
@@ -320,6 +325,8 @@ class Panel:
                     self.notice.set(event[1])
                 elif event[0] == "update":
                     self.show_update(event[1], event[2])
+                elif event[0] == "drive":
+                    self.offer_drive(event[1])
         except queue.Empty:
             pass
         if not self.finished.is_set():
@@ -370,6 +377,82 @@ class Panel:
                 tk.Label(box, text=value, font=(FONT, 10), bg=SURFACE, fg=MUTED, anchor="w",
                          wraplength=620, justify="left").grid(row=i, column=0, columnspan=2,
                                                               sticky="w")
+
+    # -- a drive plugged in ------------------------------------------------------------------
+
+    def look_for_drives(self, folders: list[str]) -> None:
+        """On the watch thread: each drive newly plugged in is offered once.
+        The drive the library or the data folder lives on is not a visitor."""
+        home = [*folders, str(self.controller.data_dir)]
+        for drive in self.drive_watcher.pending():
+            self.drive_watcher.answer(drive.id)
+            if not any(drives.is_within(path, drive.path) for path in home if path):
+                self.events.put(("drive", drive))
+
+    def offer_drive(self, drive: drives.Drive) -> None:
+        """The question, in Tamil and English, since the panel has no language
+        of its own; the answer is carried out in the console."""
+        choice = self.ask_drive(drive)
+        if choice not in ("import", "export"):
+            return
+        query = urlencode({"drive": drive.path, "do": choice})
+        webbrowser.open(f"{self.controller.url(True)}?{query}")
+        self.notice.set("Opening the console in your browser to "
+                        + ("import from " if choice == "import" else "copy the library to ")
+                        + f"{drive.label}.")
+
+    def ask_drive(self, drive: drives.Drive) -> str | None:
+        """A small window over the panel: Import, Export or Not now. A test
+        replaces it."""
+        tk = self.tk
+        from tkinter import ttk
+        win = tk.Toplevel(self.root)
+        win.title(TITLE)
+        win.configure(bg=SURFACE)
+        win.transient(self.root)
+        win.resizable(False, False)
+        answer: dict[str, str | None] = {"choice": None}
+
+        def pick(choice: str | None) -> None:
+            answer["choice"] = choice
+            win.destroy()
+
+        body = tk.Frame(win, bg=SURFACE, padx=20, pady=16)
+        body.pack(fill="both", expand=True)
+        name = drive.label if drive.label == drive.path else f"{drive.label} ({drive.path})"
+        tk.Label(body, text="ஒரு டிரைவ் இணைக்கப்பட்டது  ·  A drive was connected",
+                 font=(FONT, 13, "bold"), bg=SURFACE, fg=INK).pack(anchor="w")
+        tk.Label(body, text=name, font=(FONT, 11), bg=SURFACE, fg=MUTED).pack(anchor="w",
+                                                                             pady=(4, 10))
+        tk.Label(body, text="இதை வைத்து என்ன செய்ய விரும்புகிறீர்கள்?\n"
+                            "What would you like to do with it?",
+                 font=(FONT, 10), bg=SURFACE, fg=INK, justify="left").pack(anchor="w")
+        buttons = tk.Frame(body, bg=SURFACE)
+        buttons.pack(fill="x", pady=(12, 0))
+        ttk.Button(buttons, text="இறக்குமதி  ·  Import media from this drive",
+                   style="Accent.TButton",
+                   command=lambda: pick("import")).pack(fill="x", pady=(0, 6))
+        ttk.Button(buttons, text="ஏற்றுமதி  ·  Export media to this drive",
+                   command=lambda: pick("export")).pack(fill="x", pady=(0, 6))
+        ttk.Button(buttons, text="இப்போது வேண்டாம்  ·  Not now",
+                   command=lambda: pick(None)).pack(fill="x")
+        win.protocol("WM_DELETE_WINDOW", lambda: pick(None))
+        win.bind("<Escape>", lambda _event: pick(None))
+        win.update_idletasks()
+        x = self.root.winfo_rootx() + max(0, (self.root.winfo_width() - win.winfo_reqwidth()) // 2)
+        y = self.root.winfo_rooty() + 60
+        win.geometry(f"+{x}+{y}")
+        # Over everything: the drive was just plugged in, the person is
+        # looking at the computer, and may well not be looking at this window.
+        win.lift()
+        win.attributes("-topmost", True)
+        win.focus_force()
+        try:
+            win.grab_set()
+        except tk.TclError:
+            pass
+        self.root.wait_window(win)
+        return answer["choice"]
 
     # -- the rest ---------------------------------------------------------------------------
 

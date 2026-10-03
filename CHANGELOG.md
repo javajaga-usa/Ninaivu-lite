@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **A pendrive or an external drive plugged in is asked about.** The console, and the Control
+  Panel when it is open, ask in Tamil and English: *Import media from this drive* (the Import
+  page opens with the drive as its source), *Export media to this drive* (the library's photos
+  and videos are copied into a `Ninaivu Lite` folder on it, only what is new, never
+  overwriting), or *Not now*. Found with the standard library alone: on Windows, removable
+  drives and USB, SD and FireWire hard drives (the computer's own disks are never asked about);
+  on macOS `/Volumes`; on Linux `/media` and `/run/media`. (`drives.py`, `api_drives.py`,
+  `static/js/drives.js`)
+
 ## 1.4.2 — 2026-10-02
 
 A sweep for faults, by review and by driving every screen in a browser.

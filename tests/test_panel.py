@@ -78,6 +78,14 @@ def test_the_panel_builds_and_closes(tmp_path, monkeypatch):
         view.updates_on.set(True)
         view.toggle_updates()
         assert updates.enabled(tmp_path) is True
+        # A drive plugged in: the question builds over the panel, and closing
+        # its window is Not now.
+        import tkinter as tk
+
+        from ninaivu_lite import drives
+        root.after(300, lambda: [w.destroy() for w in root.winfo_children()
+                                 if isinstance(w, tk.Toplevel)])
+        assert view.ask_drive(drives.Drive("usb1", str(tmp_path), "PENDRIVE", 1, 1)) is None
         opened = []
         monkeypatch.setattr(panel.webbrowser, "open", lambda url: opened.append(url))
         # Declined: the page opens and the advice stays on the notice line.
