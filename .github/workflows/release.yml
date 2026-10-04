@@ -197,6 +197,9 @@ jobs:
       # it, and a note in English and Tamil (installers/windows/portable/).
       - name: The portable zip, and try it
         shell: pwsh
+        env:
+          # The test path has Tamil letters, which the runner's cp1252 console cannot print.
+          PYTHONIOENCODING: utf-8
         run: |
           $ErrorActionPreference = "Stop"
           trap {
@@ -245,7 +248,7 @@ jobs:
           $python = Join-Path $dir "Python\python.exe"
           Push-Location $dir
           try {
-            & $python -c "import tkinter, ninaivu_lite, ninaivu_lite.panel, ninaivu_lite.app; r = tkinter.Tk(); r.update(); r.destroy(); print('portable', ninaivu_lite.__file__)"
+            & $python -c "import tkinter, ninaivu_lite, ninaivu_lite.panel, ninaivu_lite.app; r = tkinter.Tk(); r.update(); r.destroy(); print('portable', ascii(ninaivu_lite.__file__))"
             if ($LASTEXITCODE) { throw "the extracted Python could not load Ninaivu Lite" }
             Start-Process -FilePath (Join-Path $dir "Python\pythonw.exe") -ArgumentList "-m", "ninaivu_lite", "--no-browser", "--data", "`"$data`""
             $up = $false
