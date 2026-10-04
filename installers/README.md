@@ -86,6 +86,27 @@ With a
 certificate of your own instead, `build.ps1 -Sign` uses the one whose thumbprint
 is in `NINAIVU_SIGN_THUMBPRINT`.
 
+### The portable zip
+
+Every Windows build also makes `Ninaivu-Lite-<version>-windows-x64-portable.zip`,
+for running without installing. The release workflow installs the installer
+silently, copies the installed folder once Ninaivu Lite has been stopped, leaves
+out `uninstall.exe`, and adds the two files in `windows/portable/`:
+*Ninaivu Lite Control Panel.vbs*, which opens the Control Panel with
+`--data <this folder>\data`, and `README-PORTABLE.txt` (English and Tamil). The
+private Python finds the packages through its `._pth` file (`..\pkgs`), so the
+folder runs from any path. The workflow then extracts the zip to a path with a
+space and Tamil letters, opens the Control Panel through the launcher, starts
+and stops Ninaivu Lite from it, and checks its data was written beside it.
+
+**Signing and the zip.** A zip needs no signing to be made or shared, but it does
+not avoid Windows' download checks: what comes out of a downloaded zip carries
+the same *from the internet* mark as the zip. The program that runs is the
+Python Software Foundation's signed `pythonw.exe`, so SmartScreen has no unsigned
+`.exe` to stop; Windows instead asks once before running the `.vbs`, unless the
+zip is unblocked (*Properties → Unblock*) before it is extracted. Signing the
+installer (above) does not change the zip.
+
 ## Linux and Raspberry Pi
 
 ```sh

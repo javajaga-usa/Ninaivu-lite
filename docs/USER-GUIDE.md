@@ -13,7 +13,13 @@ Sudar can save an edited *copy* beside an original; neither changes a photograph
 it finishes — press **Start**, then **Open the family app**. Nothing else is needed; skip to
 *The Control Panel* below.
 
-**Without an installer:**
+**Without installing anything** (Windows): download the `…-windows-x64-portable.zip` from the
+releases page, right-click it, choose *Properties*, tick *Unblock*, then *Extract All* to a
+folder that stays put (or a pendrive). Double-click **`Ninaivu Lite Control Panel.vbs`** in it.
+Everything, including the family's settings and index, stays in that folder; its
+`README-PORTABLE.txt` says how to move, upgrade or remove it.
+
+**Without an installer, from the source:**
 
 1. Install **Python 3.10 or newer** from python.org. On Windows, tick *Add python.exe to PATH*.
 2. Download Ninaivu Lite and unzip it somewhere permanent (for example `C:\Ninaivu-lite`).

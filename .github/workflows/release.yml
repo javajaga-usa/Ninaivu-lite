@@ -184,15 +184,87 @@ jobs:
           Write-Host "answering: $($health.app) $($health.version)"
           (Invoke-WebRequest http://127.0.0.1:8080/ -UseBasicParsing).StatusCode
           & $python -m ninaivu_lite.control --data $data --stop --status
+          # The installed folder, stopped, is what the portable zip carries (next step).
+          Copy-Item -Recurse $dir (Join-Path $env:RUNNER_TEMP "portable-source")
           # _?= makes the uninstaller run in place and wait, instead of copying itself away.
           Start-Process -FilePath (Join-Path $dir "uninstall.exe") -ArgumentList "/S", "_?=$dir" -Wait
           if (Test-Path (Join-Path $dir "pkgs")) { throw "uninstall left the program behind" }
           Write-Host "installed, ran, stopped and removed"
 
+      # The same program as a zip that runs from wherever it is extracted (a
+      # folder, a pendrive), with nothing installed: the installed folder
+      # without its uninstaller, a launcher that keeps the data folder beside
+      # it, and a note in English and Tamil (installers/windows/portable/).
+      - name: The portable zip, and try it
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          trap {
+            $text = ($_ | Out-String).Trim() -replace "%", "%25" -replace "`r", "" -replace "`n", "%0A"
+            Write-Host "::error title=Windows portable zip::$text"
+            break
+          }
+          $installer = Get-ChildItem installers\windows\build\nsis\Ninaivu-Lite-*-windows-x64.exe
+          $zip = Join-Path $installer.DirectoryName ($installer.BaseName + "-portable.zip")
+          $source = Join-Path $env:RUNNER_TEMP "portable-source"
+          Remove-Item (Join-Path $source "uninstall.exe")
+          Get-ChildItem $source -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
+          Copy-Item installers\windows\portable\* $source
+          # One folder inside the zip, so Extract All gives "Ninaivu Lite" and not loose files.
+          $stage = Join-Path $env:RUNNER_TEMP "portable-stage"
+          New-Item -ItemType Directory $stage | Out-Null
+          Move-Item $source (Join-Path $stage "Ninaivu Lite")
+          Compress-Archive -Path (Join-Path $stage "Ninaivu Lite") -DestinationPath $zip -CompressionLevel Optimal
+          Write-Host "$zip $([math]::Round((Get-Item $zip).Length / 1MB, 1)) MB"
+
+          # Extracted somewhere else, with a space and Tamil letters in the path.
+          $out = Join-Path $env:RUNNER_TEMP "கையடக்கம் test"
+          Expand-Archive $zip -DestinationPath $out
+          $dir = Join-Path $out "Ninaivu Lite"
+          foreach ($file in @("Python\pythonw.exe", "Ninaivu Lite Control Panel.vbs", "README-PORTABLE.txt")) {
+            if (-not (Test-Path (Join-Path $dir $file))) { throw "not in the zip: $file" }
+          }
+          if (Test-Path (Join-Path $dir "uninstall.exe")) { throw "the zip carries the uninstaller" }
+          $data = Join-Path $dir "data"
+
+          # The launcher opens the Control Panel with the data folder beside it.
+          Start-Process -FilePath "wscript.exe" -ArgumentList "`"$(Join-Path $dir 'Ninaivu Lite Control Panel.vbs')`""
+          $panel = $null
+          foreach ($i in 1..30) {
+            $panel = Get-CimInstance Win32_Process -Filter "Name = 'pythonw.exe'" | Where-Object { $_.CommandLine -like "*ninaivu_lite.panel*" }
+            if ($panel) { break } else { Start-Sleep 1 }
+          }
+          if (-not $panel) { throw "the launcher did not open the Control Panel" }
+          Write-Host "Control Panel: $($panel.CommandLine)"
+          if ($panel.CommandLine -notlike "*--data `"$data`"*") { throw "the Control Panel was not given the folder's own data folder" }
+          Start-Sleep 3
+          if (-not (Get-Process -Id $panel.ProcessId -ErrorAction SilentlyContinue)) { throw "the Control Panel closed as it opened" }
+          Stop-Process -Id $panel.ProcessId
+
+          # What its Start button runs, from the extracted copy.
+          $python = Join-Path $dir "Python\python.exe"
+          Push-Location $dir
+          try {
+            & $python -c "import tkinter, ninaivu_lite, ninaivu_lite.panel, ninaivu_lite.app; r = tkinter.Tk(); r.update(); r.destroy(); print('portable', ninaivu_lite.__file__)"
+            if ($LASTEXITCODE) { throw "the extracted Python could not load Ninaivu Lite" }
+            Start-Process -FilePath (Join-Path $dir "Python\pythonw.exe") -ArgumentList "-m", "ninaivu_lite", "--no-browser", "--data", "`"$data`""
+            $up = $false
+            foreach ($i in 1..40) {
+              try { $health = Invoke-RestMethod http://127.0.0.1:8080/api/health -TimeoutSec 2; $up = $true; break } catch { Start-Sleep 1 }
+            }
+            if (-not $up) { Get-Content (Join-Path $data "logs\ninaivu-lite.log") -ErrorAction SilentlyContinue; throw "the portable server did not answer" }
+            Write-Host "answering: $($health.app) $($health.version)"
+            & $python -m ninaivu_lite.control --data $data --stop --status
+          } finally { Pop-Location }
+          if (-not (Test-Path (Join-Path $data "ninaivu-lite.db"))) { throw "the data did not stay in the extracted folder" }
+          Write-Host "extracted, opened, ran and stopped, with its data beside it"
+
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: installers/windows/build/nsis/*.exe
+          path: |
+            installers/windows/build/nsis/*.exe
+            installers/windows/build/nsis/*-portable.zip
 
   macos:
     name: macOS app (${{ matrix.arch }})
@@ -295,7 +367,7 @@ jobs:
       - name: Checksums
         run: |
           rm -rf out/windows-unsigned out/windows-unsigned-uninstaller
-          mkdir files && find out -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.sh" \) -exec cp {} files/ \;
+          mkdir files && find out -type f \( -name "*.exe" -o -name "*-portable.zip" -o -name "*.dmg" -o -name "*.sh" \) -exec cp {} files/ \;
           (cd files && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
       - name: Release notes
         run: |
@@ -303,7 +375,7 @@ jobs:
           {
             echo "Ninaivu Lite $version — your family's photographs, at home."
             echo
-            echo "**Windows:** \`Ninaivu-Lite-$version-windows-x64.exe\`. **macOS:** the \`.dmg\` for Apple silicon (\`arm64\`) or Intel (\`x86_64\`). **Linux and Raspberry Pi:** \`Ninaivu-Lite-$version-linux-amd64.sh\` for a PC, \`-linux-arm64.sh\` for a Raspberry Pi 4 or 5 with a 64-bit OS — run it with \`sh\`, no root needed."
+            echo "**Windows:** \`Ninaivu-Lite-$version-windows-x64.exe\`, or \`Ninaivu-Lite-$version-windows-x64-portable.zip\` to run without installing (extract it, then open *Ninaivu Lite Control Panel.vbs*; its data stays in the folder). **macOS:** the \`.dmg\` for Apple silicon (\`arm64\`) or Intel (\`x86_64\`). **Linux and Raspberry Pi:** \`Ninaivu-Lite-$version-linux-amd64.sh\` for a PC, \`-linux-arm64.sh\` for a Raspberry Pi 4 or 5 with a 64-bit OS — run it with \`sh\`, no root needed."
             echo "Every installer carries its own Python and every package: nothing is downloaded at install time. Checksums are in \`SHA256SUMS.txt\`."
             echo
             if [ "$HAS_PFX" != "true" ]; then
