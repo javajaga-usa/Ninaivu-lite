@@ -21,6 +21,8 @@
 *.bat       text eol=crlf
 *.cmd       text eol=crlf
 *.vbs       text eol=crlf
+# Read in Notepad, straight out of the portable zip.
+installers/windows/portable/*.txt text eol=crlf
 
 # Binary, so git never touches them.
 *.png       binary

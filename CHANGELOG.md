@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.1 — 2026-10-04
+
+- **A portable Windows zip, nothing to install.** Each release also carries
+  `Ninaivu-Lite-<version>-windows-x64-portable.zip`: the same program as the installer, in one
+  folder that runs from wherever it is extracted (a folder on the computer, or a pendrive).
+  Double-click *Ninaivu Lite Control Panel.vbs*; settings, people, the index and previews stay
+  in a `data` folder beside it, and nothing goes into the Start menu, the registry or AppData.
+  A note in English and Tamil inside says how to unblock, move, upgrade and remove it. Like the
+  installer it is not code-signed; the release workflow extracts it to a path with a space and
+  Tamil letters, opens the Control Panel through the launcher, and starts and stops it there.
+  (`installers/windows/portable/`, `.github/workflows/release.yml`)
+
 ## 1.5.0 — 2026-10-03
 
 Also carries everything in 1.4.2, which was not released on its own.
