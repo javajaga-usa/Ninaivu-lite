@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.5.1 — 2026-10-04
 
 - **A portable Windows zip, nothing to install.** Each release also carries
   `Ninaivu-Lite-<version>-windows-x64-portable.zip`: the same program as the installer, in one
