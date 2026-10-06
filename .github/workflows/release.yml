@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
       - name: Check the version, tag, release and changelog
         if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
@@ -79,7 +79,7 @@ jobs:
       # main), and only once it is set up.
       USE_SIGNPATH: ${{ secrets.SIGNPATH_API_TOKEN != '' && (github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version-file: .python-version
@@ -345,7 +345,7 @@ jobs:
     env:
       HAS_P12: ${{ secrets.MAC_SIGN_P12_BASE64 != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Import the signing certificate
         if: env.HAS_P12 == 'true'
         env:
@@ -408,7 +408,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version-file: .python-version
@@ -459,7 +459,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build it, start it, ask it how it is
         run: |
           docker build -f installers/docker/Dockerfile -t ninaivu-lite:ci .
@@ -488,7 +488,7 @@ jobs:
       # Notarised only when the build had the identity to sign with as well.
       HAS_NOTARY: ${{ secrets.MAC_SIGN_P12_BASE64 != '' && secrets.MAC_SIGN_IDENTITY != '' && secrets.MAC_NOTARY_PASSWORD != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: src
       - uses: actions/download-artifact@v4
