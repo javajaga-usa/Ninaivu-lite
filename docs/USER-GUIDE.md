@@ -61,7 +61,8 @@ addresses to open, and has:
   and photographs are untouched by an upgrade.
 
 Closing the Control Panel leaves Ninaivu Lite running. On a Raspberry Pi or a server without
-a screen, the Linux installer sets up a service that starts it at boot.
+a screen, the Linux installer sets up a service that starts it at boot. Installed with `sudo`,
+there is no Control Panel: use `sudo systemctl start|stop|restart ninaivu-lite`.
 
 ## 2. The first day
 

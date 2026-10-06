@@ -33,8 +33,8 @@ commit, and publishes nothing unless it passes.
 
 ## Windows
 
-Needs the Python in `.python-version` from python.org (for its Tk), `pip install pynsist`, and NSIS
-(`choco install nsis`). The installer:
+Needs the Python in `.python-version` from python.org (for its Tk), `pip install pynsist==2.8`, and NSIS 3.10
+(`choco install nsis --version=3.10`); the release workflow pins both. The installer:
 
 - asks whether to install for the current user (the default) or for everyone
   (into Program Files). Installing for
@@ -127,7 +127,9 @@ sh Ninaivu-Lite-<version>-linux-amd64.sh --photos ~/Pictures --no-service
 Without root it installs under `~/.local/lib/ninaivu-lite` (as root:
 `/opt/ninaivu-lite`), makes the commands `ninaivu-lite` and `ninaivu-lite-panel`,
 a desktop entry for the Control Panel, and a systemd service that starts it at
-boot. As root, the service runs as its own unprivileged `ninaivu-lite` account,
+boot. As root there is no Control Panel or desktop entry (use
+`systemctl start|stop|restart ninaivu-lite`), and the `ninaivu-lite` command
+always runs as the service's account. As root, the service runs as its own unprivileged `ninaivu-lite` account,
 which owns `/var/lib/ninaivu-lite`; the installer names any photo folder that
 account cannot read. Grant it read access, to what is added later too (a default
 ACL), and passage through every folder above it, then restart the service:

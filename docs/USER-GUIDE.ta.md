@@ -63,7 +63,8 @@ Control Panel திறக்கும் — **Start** அழுத்தி, �
 
 Control Panel-ஐ மூடினாலும் நினைவு லைட் தொடர்ந்து இயங்கும். (Control Panel ஆங்கிலத்தில் மட்டும் உள்ளது.)
 திரை இல்லாத Raspberry Pi அல்லது சர்வரில், கணினி தொடங்கும்போதே நினைவு லைட்டைத் தொடங்கும் சேவையை
-(service) Linux நிறுவி அமைக்கும்.
+(service) Linux நிறுவி அமைக்கும். `sudo` உடன் நிறுவியிருந்தால் Control Panel இருக்காது:
+`sudo systemctl start|stop|restart ninaivu-lite` பயன்படுத்தவும்.
 
 ## 2. முதல் நாள்
 
