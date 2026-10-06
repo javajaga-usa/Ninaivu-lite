@@ -1,4 +1,4 @@
 -r requirements.txt
-pytest>=8,<10
+pytest>=9.1.1,<10
 # Exact: a release runs the lint, and a new ruff must not start failing it (Dependabot proposes updates).
 ruff==0.16.10
