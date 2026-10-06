@@ -205,6 +205,10 @@ def overview():
             # People, not sessions: every phone and browser keeps its own.
             "signed_in": signed_in["n"],
             "sessions": signed_in["s"],
+            # Family profiles anyone on the network can tap into, open
+            # browsing or not: the console warns about them.
+            "open_family": [p.display_name for p in active
+                            if p.role == auth.ROLE_FAMILY and p.entry == "open"],
         },
         "stats": _stats(who),
         "rules": _rule_list(_active_folder_id()),

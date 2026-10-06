@@ -261,6 +261,19 @@ MIGRATIONS: list[str] = [
         DELETE FROM shares WHERE scope = 'album' AND target_id = OLD.id;
     END;
     """,
+    # 8 — a folder's visibility history goes with the folder. Its id can be
+    # handed to the next folder added, and undoing an old change would then
+    # put the removed folder's rules (2019 = Public, say) on that one.
+    # History left from folders already removed, or made before the folder
+    # now holding that id was added, is dropped.
+    """
+    DELETE FROM visibility_batches WHERE folder_id IS NOT NULL AND (
+        folder_id NOT IN (SELECT id FROM folders)
+        OR created_at < (SELECT added_at FROM folders WHERE id = folder_id));
+    CREATE TRIGGER IF NOT EXISTS visibility_folder_gone AFTER DELETE ON folders BEGIN
+        DELETE FROM visibility_batches WHERE folder_id = OLD.id;
+    END;
+    """,
 ]
 
 

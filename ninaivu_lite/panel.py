@@ -485,7 +485,11 @@ class Panel:
             self.update_text.set("Could not reach GitHub to check." if asked else "")
             self.download_button.pack_forget()
             return
-        self.update_url = info["url"]
+        # Only ever a page on GitHub: the answer is read back from a file in
+        # the data folder, and what it names is opened (on Windows, run).
+        url = info.get("url")
+        self.update_url = url if isinstance(url, str) and url.startswith("https://github.com/") \
+            else updates.RELEASES_PAGE
         if info["available"]:
             self.update_text.set(f"Version {info['version']} is available (you have {__version__}). "
                                  "Before installing it, stop Ninaivu Lite and close this panel.")
