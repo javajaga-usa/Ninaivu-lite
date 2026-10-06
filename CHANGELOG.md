@@ -1,8 +1,17 @@
 # Changelog
 
-## Unreleased
+## 1.6.0 — 2026-10-06
 
-Fixes from the project audit of 2026-10-05 (A01-A10).
+Fixes for all ten findings of the project audit of 2026-10-05 (A01-A10). Three of them change
+what you may notice:
+
+- On a computer without ffmpeg (the installers do not include it), guests and share links are
+  told a video cannot be shared, rather than being sent a file that may say where it was
+  shot. Settings has a new switch to send such videos as they are.
+- Installed as root on Linux, Ninaivu Lite now runs as its own `ninaivu-lite` account. The
+  installer names any photo folder that account cannot read, with the command to allow it.
+- The daily backups in `backups/` are now zips holding the index, the settings and profile
+  pictures, the same as the download.
 
 - **A share link ends with what it points at.** Removing a photograph from the index (for
   example when its library folder is taken out) or deleting an album now deletes its share
