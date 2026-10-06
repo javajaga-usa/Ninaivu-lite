@@ -28,7 +28,8 @@ one, and the tests run on 3.10 and on this one.
 The version comes from `ninaivu_lite/version.py`. Build output goes to each
 folder's `build/` (ignored by git). `.github/workflows/release.yml` builds all
 of them on a version tag (`v1.2.0`) and attaches them to the GitHub release with
-a `SHA256SUMS.txt`.
+a `SHA256SUMS.txt`. It first runs the whole test suite (`tests.yml`) on that same
+commit, and publishes nothing unless it passes.
 
 ## Windows
 
@@ -117,7 +118,10 @@ sh Ninaivu-Lite-<version>-linux-amd64.sh --photos ~/Pictures --no-service
 Without root it installs under `~/.local/lib/ninaivu-lite` (as root:
 `/opt/ninaivu-lite`), makes the commands `ninaivu-lite` and `ninaivu-lite-panel`,
 a desktop entry for the Control Panel, and a systemd service that starts it at
-boot. Running a newer installer upgrades in place. `…/ninaivu-lite/uninstall`
+boot. As root, the service runs as its own unprivileged `ninaivu-lite` account,
+which owns `/var/lib/ninaivu-lite`; the installer names any photo folder that
+account cannot read (grant it with, for example, `setfacl -R -m u:ninaivu-lite:rX <folder>`).
+Running a newer installer upgrades in place. `…/ninaivu-lite/uninstall`
 removes the program (`--purge` also removes settings and the index).
 
 The bundled Python is a

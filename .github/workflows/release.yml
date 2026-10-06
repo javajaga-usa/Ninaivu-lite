@@ -34,6 +34,13 @@ permissions:
   contents: read
 
 jobs:
+  # The whole test suite, on every OS, for the very commit being released:
+  # nothing is published unless it passes.
+  tests:
+    name: Tests
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/tests.yml
+
   windows:
     name: Windows installer
     runs-on: windows-2022
@@ -348,7 +355,7 @@ jobs:
     permissions:
       contents: write
     name: Attach to the release
-    needs: [windows, macos, linux]
+    needs: [tests, windows, macos, linux]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Only a version tag or "Run workflow" publishes. A push that merely

@@ -844,6 +844,9 @@ function renderLibrary() {
     [settings, 'open_browsing', i18n.t('Let visitors browse public media without signing in'),
       data.app.open_browsing],
     [indexing, 'watch', i18n.t('Watch the folder and index new files automatically'), data.app.watch],
+    [settings, 'video_originals',
+      i18n.t('Send videos to guests and share links as they are when their location cannot be removed'),
+      data.app.video_originals],
   ];
   for (const [where, key, label, value] of toggles) {
     const row = el('label', 'toggle');
@@ -1660,9 +1663,10 @@ function onProgress(scan) {
     const strapline = $('#scan-text');
     if (strapline) strapline.textContent = text;
   }
-  const phase = `${scan.status}:${scan.added}:${scan.removed}`;
+  const phase = `${scan.status}:${scan.added}:${scan.removed}:${scan.unreadable || 0}`;
   if (phase !== lastPhase && (scan.status === 'done' || scan.status === 'error')) {
     lastPhase = phase;
+    if (scan.unreadable) toast(i18n.t('Some folders could not be read, so their photos were kept as they were. Check that this computer may read them, then rescan.'), true);
     refresh();
   }
 }

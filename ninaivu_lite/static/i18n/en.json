@@ -1085,6 +1085,8 @@
   "Screen explicit content and hide it behind a toggle": "Screen explicit content and hide it behind a toggle",
   "Hide screenshots, documents and photos of screens (admins only)": "Hide screenshots, documents and photos of screens (admins only)",
   "Watch the folder and index new files automatically": "Watch the folder and index new files automatically",
+  "Some folders could not be read, so their photos were kept as they were. Check that this computer may read them, then rescan.": "Some folders could not be read, so their photos were kept as they were. Check that this computer may read them, then rescan.",
+  "Send videos to guests and share links as they are when their location cannot be removed": "Send videos to guests and share links as they are when their location cannot be removed",
   "Describe videos by several moments across the clip": "Describe videos by several moments across the clip",
   "A holiday video is a beach, then a restaurant, then a car park, and one frame near the start describes none of them. It is also the slowest thing a scan does — five decodes and five passes through the model per video, which on a processor is hours for a few thousand clips. Turned off, videos are still found and still searchable; they are described by their poster frame alone.": "A holiday video is a beach, then a restaurant, then a car park, and one frame near the start describes none of them. It is also the slowest thing a scan does — five decodes and five passes through the model per video, which on a processor is hours for a few thousand clips. Turned off, videos are still found and still searchable; they are described by their poster frame alone.",
   "Name the places photographs were taken": "Name the places photographs were taken",

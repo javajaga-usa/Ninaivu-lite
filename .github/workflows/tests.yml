@@ -4,13 +4,16 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Also run by the release workflow, on the exact commit it publishes.
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: tests-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A release's own run never cancels, and is never cancelled by, another.
+  group: tests-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' && github.ref_type != 'tag' }}
 
 jobs:
   test:
