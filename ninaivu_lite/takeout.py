@@ -33,7 +33,7 @@ def _album_title(folder: str) -> str | None:
         with open(long_path(os.path.join(folder, "metadata.json")), encoding="utf-8",
                   errors="replace") as f:
             data = json.load(f)
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):  # Recursion: JSON nested past reason
         return None
     title = data.get("title") if isinstance(data, dict) else None
     if not isinstance(title, str) or not title.strip() or _NOT_ALBUMS.match(title.strip()):

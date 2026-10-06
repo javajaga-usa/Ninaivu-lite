@@ -13,6 +13,8 @@ import os
 import shutil
 import subprocess
 import threading
+from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -137,7 +139,9 @@ def read_photo(path: str) -> dict[str, Any]:
             if isinstance(iso, (list, tuple)):
                 iso = iso[0] if iso else None
             try:
-                if iso:
+                # A damaged tag can hold a number no camera uses (and the index
+                # cannot store): left out.
+                if iso and 0 < int(iso) < 10_000_000:
                     info["iso"] = int(iso)
             except (TypeError, ValueError):
                 pass
@@ -169,12 +173,87 @@ def read_photo(path: str) -> dict[str, Any]:
 
 
 def read_video(path: str) -> dict[str, Any]:
-    when = dates.container_date(path)
+    when = dates.container_date(path, zone_near(path))
     return {"taken_at": dates.to_timestamp(when), "taken_source": "container"} if when else {}
+
+
+# --- the time zone a video was taken in ---------------------------------------------------
+#
+# A photograph's EXIF time is the clock where it was taken; a video's header
+# (and a Google Takeout sidecar) keeps UTC. Turned into this computer's local
+# time, a video shot in Chennai at 8 in the morning lands on the evening
+# before for a computer in New York, a day away from the photos taken with
+# it. Phones write the offset beside the EXIF time (OffsetTimeOriginal): the
+# photo in the same folder nearest in time says which clocks the video's
+# moment is read on.
+
+#: A photo further away in time than this says nothing about a video's zone.
+ZONE_REACH = timedelta(days=2)
+
+
+def _photo_moment(path: str) -> tuple[datetime, timedelta] | None:
+    """(the moment in UTC, naive, and the offset) from a photo's EXIF, when
+    it has both the time it was taken and the offset of that clock."""
+    try:
+        with Image.open(dates.long_path(path)) as img:
+            sub = img.getexif().get_ifd(0x8769)
+            wall = dates.exif_wall_clock(sub.get(0x9003))
+            offset = dates.parse_exif_offset(sub.get(0x9011))
+    except Exception:  # noqa: BLE001 — not a readable picture
+        return None
+    if wall is None or offset is None:
+        return None
+    return wall - offset, offset
+
+
+@lru_cache(maxsize=4)
+def _folder_zones(folder: str, stamp: int) -> tuple[tuple[datetime, timedelta], ...]:
+    """Every (moment, offset) the photos in a folder carry, in time order.
+    Read once per folder (keyed on its modified time), and only for a folder
+    with a video or Takeout file whose time is kept in UTC."""
+    found = []
+    try:
+        with os.scandir(dates.long_path(folder)) as entries:
+            names = [e.name for e in entries if kind_of(e.name) == "picture"]
+    except OSError:
+        return ()
+    for name in names:
+        moment = _photo_moment(os.path.join(folder, name))
+        if moment:
+            found.append(moment)
+    return tuple(sorted(found))
+
+
+def zone_near(path: str):
+    """For :func:`dates.wall_clock`: given a UTC moment, the offset of the
+    photo beside *path* taken nearest to it (within two days), or None."""
+    folder = os.path.dirname(os.path.abspath(path))
+
+    def zone(utc: datetime) -> timedelta | None:
+        try:
+            stamp = os.stat(dates.long_path(folder)).st_mtime_ns
+        except OSError:
+            return None
+        moments = _folder_zones(folder, stamp)
+        if not moments:
+            return None
+        when = utc.astimezone(timezone.utc).replace(tzinfo=None)
+        moment, offset = min(moments, key=lambda m: abs(m[0] - when))
+        return offset if abs(moment - when) <= ZONE_REACH else None
+
+    return zone
 
 
 def describe(path: str, name: str, kind: str, st: os.stat_result) -> dict[str, Any]:
     """Everything the index keeps about one file. Never raises for a bad file."""
+    try:
+        return _describe(path, name, kind, st)
+    except Exception as exc:  # noqa: BLE001 — a damaged sidecar or tag still gets a tile
+        log.info("could not describe %s: %s", path, exc)
+        return {"taken_at": dates.file_time(st), "taken_source": "mtime"}
+
+
+def _describe(path: str, name: str, kind: str, st: os.stat_result) -> dict[str, Any]:
     info: dict[str, Any] = {}
     try:
         info = read_photo(path) if kind == "picture" else read_video(path)
@@ -184,7 +263,7 @@ def describe(path: str, name: str, kind: str, st: os.stat_result) -> dict[str, A
     if not info.get("taken_at"):
         # The same chain the importer files by: the video's header, a Google
         # Takeout sidecar, the file name, a dated folder, then the file's clock.
-        when, source = dates.fallback_date(path, st)
+        when, source = dates.fallback_date(path, st, zone_near(path))
         if when is None:
             when, source = dates.from_timestamp(dates.file_time(st)), "mtime"
         info["taken_at"] = dates.to_timestamp(when)

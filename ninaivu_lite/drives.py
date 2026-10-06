@@ -212,12 +212,34 @@ def _mount_drives(parents: list[str]) -> list[Drive]:
     return found
 
 
+#: Below this, a Linux account is a system one (useradd --system): the
+#: service's own account, which has no desktop and no /media folder of its own.
+SYSTEM_UID_MAX = 999
+
+
+def _system_account() -> bool:
+    return sys.platform.startswith("linux") and hasattr(os, "geteuid") \
+        and os.geteuid() <= SYSTEM_UID_MAX
+
+
+def _subfolders(parent: str) -> list[str]:
+    try:
+        return [os.path.join(parent, n) for n in sorted(os.listdir(parent))
+                if not n.startswith(".")]
+    except OSError:
+        return []
+
+
 def _gvfs_phones(parent: str | None = None) -> list[Drive]:
     """Linux: a phone on a cable, opened by the desktop (GNOME's gvfs) under
-    /run/user/<uid>/gvfs as mtp:host=… or gphoto2:host=…: plain folders."""
+    /run/user/<uid>/gvfs as mtp:host=… or gphoto2:host=…: plain folders. The
+    system service looks in every desktop user's, where it is let in."""
     if parent is None:
         if not hasattr(os, "getuid"):
             return []
+        if _system_account():
+            return [p for user in _subfolders("/run/user")
+                    for p in _gvfs_phones(os.path.join(user, "gvfs"))]
         parent = f"/run/user/{os.getuid()}/gvfs"
     try:
         names = sorted(os.listdir(parent))
@@ -236,6 +258,11 @@ def _gvfs_phones(parent: str | None = None) -> list[Drive]:
 def _posix_parents() -> list[str]:
     if sys.platform == "darwin":
         return ["/Volumes"]
+    if _system_account():
+        # The system service (a root install) is nobody's desktop: the drives
+        # are mounted for whoever is signed in, under /media/<them> or
+        # /run/media/<them>, so every such folder is looked in.
+        return [*_subfolders("/media"), *_subfolders("/run/media"), "/media"]
     user = os.environ.get("USER") or os.environ.get("LOGNAME") or ""
     parents = [os.path.join("/media", user), os.path.join("/run/media", user)] if user else []
     parents.append("/media")
@@ -365,23 +392,47 @@ class Exporter:
             self.thread.join(timeout)
 
     def _walk(self, folders: list[str], root: str, data_dir: str):
-        """(source, target, size) for every photo and video in the library."""
+        """(source, target, size) for every photo and video in the library.
+        A folder or file that cannot be read is logged and counted as an
+        error, not left out without a word."""
         from .importer import IGNORE_DIRS, kind_by_extension
         for folder, target in _targets(folders, root):
-            for here, dirs, files in os.walk(folder):
-                dirs[:] = [d for d in dirs if not d.startswith(".") and d not in IGNORE_DIRS
-                           and not is_within(os.path.join(here, d), root)
-                           and not is_within(os.path.join(here, d), data_dir)]
+            stack = [folder]
+            while stack:
+                here = stack.pop()
+                try:
+                    with os.scandir(long_path(here)) as it:
+                        entries = sorted(it, key=lambda e: e.name)
+                except OSError as exc:
+                    log.warning("export: could not read %s: %s", here, exc)
+                    self._error()
+                    continue
                 rel = os.path.relpath(here, folder)
-                for name in files:
-                    if name.startswith(".") or not kind_by_extension(name):
+                subdirs = []
+                for entry in entries:
+                    name, src = entry.name, os.path.join(here, entry.name)
+                    if name.startswith("."):
                         continue
-                    src = os.path.join(here, name)
                     try:
+                        if entry.is_dir():
+                            # Linked folders are listed but not followed, as os.walk does.
+                            if not entry.is_symlink() and name not in IGNORE_DIRS \
+                                    and not is_within(src, root) and not is_within(src, data_dir):
+                                subdirs.append(src)
+                            continue
+                        if not kind_by_extension(name):
+                            continue
                         size = os.stat(long_path(src)).st_size
-                    except OSError:
+                    except OSError as exc:
+                        log.warning("export: could not read %s: %s", src, exc)
+                        self._error()
                         continue
                     yield src, os.path.normpath(os.path.join(target, rel, name)), size
+                stack.extend(reversed(subdirs))
+
+    def _error(self) -> None:
+        with self.lock:
+            self.state["errors"] += 1
 
     def _run(self, folders: list[str], root: str, data_dir: str) -> None:
         try:
@@ -392,13 +443,20 @@ class Exporter:
                 plan.append(item)
             # What is already there (same name, same size) is not copied again,
             # so an export to the same drive next month only adds what is new.
-            todo = []
+            todo, claimed, skipped = [], set(), 0
             for src, dest, size in plan:
-                place = _place(dest, size)
+                try:
+                    place = _place(dest, size, claimed)
+                except OSError as exc:
+                    log.warning("export: could not check %s: %s", dest, exc)
+                    self._error()
+                    continue
                 if place:
                     todo.append((src, place, size))
+                else:
+                    skipped += 1
             need = sum(size for _, _, size in todo)
-            self._set(phase="copying", total=len(plan), skipped=len(plan) - len(todo),
+            self._set(phase="copying", total=len(plan), skipped=skipped,
                       done=len(plan) - len(todo), bytes_total=need)
             free = _usage(os.path.dirname(root) or root)[1]
             if need and free and need > free:
@@ -443,18 +501,30 @@ class Exporter:
             self._set(running=False, finished_at=time.time())
 
 
-def _place(dest: str, size: int) -> str | None:
+def _place(dest: str, size: int, claimed: set[str] | None = None) -> str | None:
     """Where a file of *size* goes: *dest*, or "name (2).jpg" when a different
-    file already has that name; None when it is there already."""
+    file already has that name; None when it is there already.
+
+    *claimed* holds the names this export has already settled on, compared
+    without case: on a FAT or exFAT drive (most pendrives) IMG_1.JPG and
+    img_1.jpg are one file, and the second would overwrite the first. Only
+    a name that is not there is free; any other error is raised."""
+    claimed = set() if claimed is None else claimed
     stem, ext = os.path.splitext(dest)
     for n in range(1, 1000):
         candidate = dest if n == 1 else f"{stem} ({n}){ext}"
+        key = os.path.normcase(candidate).lower()
+        if key in claimed:
+            continue
         try:
-            if os.stat(long_path(candidate)).st_size == size:
-                return None
-        except OSError:
+            there = os.stat(long_path(candidate)).st_size == size
+        except FileNotFoundError:
+            claimed.add(key)
             return candidate
-    return None
+        if there:
+            claimed.add(key)
+            return None
+    raise OSError(f"No free name for {dest}")
 
 
 def _copy(src: str, dest: str, cancel: threading.Event) -> None:

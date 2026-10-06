@@ -155,7 +155,7 @@ def capture_date(path: str, kind: str, st: os.stat_result) -> tuple[datetime | N
         taken = _exif_date(path)
         if taken is not None:
             return taken, "exif"
-    return dates.fallback_date(path, st)
+    return dates.fallback_date(path, st, media.zone_near(path))
 
 
 def still_done(row: sqlite3.Row, st: os.stat_result) -> bool:
@@ -440,7 +440,7 @@ class Importer:
                 "kinds": list(kinds), "phase": "counting", "message": "",
                 "processed": 0, "stepped_over": 0, "total_files": 0, "total_bytes": 0,
                 "bytes_copied": 0, "started_at": time.time(), "ended_at": None,
-                "fresh_started": None, "unreadable": 0, "job_id": None,
+                "fresh_started": None, "unreadable": 0, "job_id": None, "plan_aside": {},
             }
             self._thread = threading.Thread(target=self._run, name="importer", daemon=True)
             self._thread.start()
@@ -625,7 +625,13 @@ class Importer:
     # -- one run --------------------------------------------------------------------
 
     def _run(self) -> None:
-        conn = db.connect(self.data_dir)
+        try:
+            conn = db.connect(self.data_dir)
+        except Exception as exc:  # noqa: BLE001 — said on the console, not left "counting"
+            log.exception("import could not open the index")
+            self._set(phase="failed", message=f"{type(exc).__name__}: {exc}",
+                      ended_at=time.time())
+            return
         job_id = None
         try:
             job_id = self._begin(conn)
@@ -690,6 +696,8 @@ class Importer:
             "SELECT status, COUNT(*) FROM import_files WHERE job_id = ? GROUP BY status",
             (j["job_id"],))}
         if j["mode"] == "dry-run":
+            for status, n in j.get("plan_aside", {}).items():
+                counts[status] = counts.get(status, 0) + n
             text = (f"Dry run finished: {counts.get('planned', 0):,} files would be archived, "
                     f"{counts.get('plan-duplicate', 0):,} are duplicates. Nothing was written.")
         else:
@@ -778,21 +786,31 @@ class Importer:
             with self._lock:
                 self.job["stepped_over"] += 1
             return
-        with conn:
-            if row is None:
+        if row is None:
+            with conn:
                 conn.execute(
                     "INSERT INTO import_files (source, name, size, mtime, status, job_id, "
                     "updated_at) VALUES (?, ?, ?, ?, 'pending', ?, ?)",
                     (src, name, st.st_size, st.st_mtime, j["job_id"], time.time()))
-            else:
-                # Looked at again: what is recorded is what the file is now.
-                conn.execute("UPDATE import_files SET size = ?, mtime = ? WHERE source = ?",
-                             (st.st_size, st.st_mtime, src))
+        # A dry run never writes over what a real run recorded (an archived
+        # copy, a duplicate, an error to retry): its answer for such a file is
+        # only counted.
+        aside = dry and row is not None and row["status"] not in PLAN + ("pending",)
+
+        def mark(status: str, **fields: Any) -> None:
+            if aside:
+                with self._lock:
+                    tally = self.job["plan_aside"]
+                    tally[status] = tally.get(status, 0) + 1
+                return
+            # Looked at again: what is recorded is what the file is now, written
+            # with the answer, so a run stopped mid-copy is not taken as done.
+            self._mark(conn, src, status, size=st.st_size, mtime=st.st_mtime, **fields)
+
         tmp = None
         try:
             if st.st_size == 0:
-                self._mark(conn, src, "plan-skip" if dry else "skipped",
-                           error="The file is empty.")
+                mark("plan-skip" if dry else "skipped", error="The file is empty.")
                 return
             taken, source = capture_date(src, kind, st)
             folder = target_folder(j["destination"], taken)
@@ -804,18 +822,18 @@ class Importer:
                 src_hash = hash_file(src, self.gate)
                 dup = self._duplicate_of(conn, src_hash, src, st.st_size)
                 if dup:
-                    self._mark(conn, src, "plan-duplicate" if dry else "duplicate",
-                               hash=src_hash, taken=when, date_source=source, duplicate_of=dup)
+                    mark("plan-duplicate" if dry else "duplicate",
+                         hash=src_hash, taken=when, date_source=source, duplicate_of=dup)
                     return
             if dry:
                 candidate, identical = self._unique_path(conn, folder, name, src_hash,
                                                          st.st_size, planning=True, source=src)
                 if identical:
-                    self._mark(conn, src, "plan-duplicate", hash=src_hash, taken=when,
-                               date_source=source, duplicate_of=candidate)
+                    mark("plan-duplicate", hash=src_hash, taken=when, date_source=source,
+                         duplicate_of=candidate)
                 else:
-                    self._mark(conn, src, "planned", hash=src_hash, taken=when,
-                               date_source=source, destination=candidate)
+                    mark("planned", hash=src_hash, taken=when, date_source=source,
+                         destination=candidate)
                 return
             tmp = os.path.join(self._partial_dir(), f"{uuid.uuid4().hex}.tmp")
             digest, count = self._copy_and_hash(src, tmp)
@@ -826,8 +844,8 @@ class Importer:
             if not src_hash:
                 dup = self._duplicate_of(conn, digest, src, count)
                 if dup:
-                    self._mark(conn, src, "duplicate", hash=digest, taken=when,
-                               date_source=source, duplicate_of=dup)
+                    mark("duplicate", hash=digest, taken=when, date_source=source,
+                         duplicate_of=dup)
                     return
             os.makedirs(long_path(folder), exist_ok=True)
             if self._damaged_copy(row, j["destination"]):
@@ -854,14 +872,14 @@ class Importer:
                         pass
                     raise OSError("The copy read back from the archive did not match the "
                                   "original, so it was removed.")
-            self._mark(conn, src, "verified", hash=digest, dest_hash=digest, taken=when,
-                       date_source=source, destination=final)
+            mark("verified", hash=digest, dest_hash=digest, taken=when, date_source=source,
+                 destination=final)
             self._copy_sidecars(src, final)
         except Cancelled:
             raise
         except Exception as exc:  # noqa: BLE001 — recorded against the file, run goes on
             log.info("import: %s: %s", src, exc)
-            self._mark(conn, src, "error", error=f"{exc}"[:300])
+            mark("error", error=f"{exc}"[:300])
         finally:
             if tmp:
                 try:
