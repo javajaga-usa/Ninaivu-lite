@@ -244,6 +244,23 @@ MIGRATIONS: list[str] = [
     """
     ALTER TABLE users ADD COLUMN avatar_at REAL;
     """,
+    # 7 — a share link dies with what it points at. Ids of deleted rows can be
+    # handed out again (a library folder removed and another added), and a
+    # link left behind would then show a photograph or album nobody shared.
+    # Triggers fire for cascaded deletes too, so a removed folder's links go
+    # with its photographs. Links already pointing at nothing are dropped.
+    """
+    DELETE FROM shares WHERE scope = 'asset'
+        AND target_id NOT IN (SELECT id FROM assets);
+    DELETE FROM shares WHERE scope = 'album'
+        AND target_id NOT IN (SELECT id FROM albums);
+    CREATE TRIGGER shares_asset_gone AFTER DELETE ON assets BEGIN
+        DELETE FROM shares WHERE scope = 'asset' AND target_id = OLD.id;
+    END;
+    CREATE TRIGGER shares_album_gone AFTER DELETE ON albums BEGIN
+        DELETE FROM shares WHERE scope = 'album' AND target_id = OLD.id;
+    END;
+    """,
 ]
 
 

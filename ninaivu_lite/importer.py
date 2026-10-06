@@ -158,6 +158,24 @@ def capture_date(path: str, kind: str, st: os.stat_result) -> tuple[datetime | N
     return dates.fallback_date(path, st)
 
 
+def still_done(row: sqlite3.Row, st: os.stat_result) -> bool:
+    """Whether an earlier run's answer for a source still holds: the source is
+    the file it was then (same size and modified time), and the archived copy
+    it was filed as, or found already in the archive as, is still there at
+    that size. A changed source or a lost copy is imported again; a copy
+    whose bytes changed at the same size is for the audit (Verify) to find."""
+    if row["size"] != st.st_size or row["mtime"] is None \
+            or abs(row["mtime"] - st.st_mtime) >= 1:
+        return False
+    if row["status"] == "skipped":
+        return True
+    kept = row["destination"] if row["status"] == "verified" else row["duplicate_of"]
+    try:
+        return bool(kept) and os.stat(long_path(kept)).st_size == st.st_size
+    except OSError:
+        return False
+
+
 def target_folder(destination: str, taken: datetime | None) -> str:
     if taken is None:
         return os.path.join(destination, UNDATED)
@@ -752,19 +770,24 @@ class Importer:
         j = self.job
         dry = j["mode"] == "dry-run"
         name = os.path.basename(src)
-        row = conn.execute("SELECT status, destination FROM import_files WHERE source = ?",
-                           (src,)).fetchone()
+        row = conn.execute("SELECT status, destination, duplicate_of, size, mtime "
+                           "FROM import_files WHERE source = ?", (src,)).fetchone()
         if row is not None and row["status"] in TERMINAL and (
-                not row["destination"] or is_within(row["destination"], j["destination"])):
+                not row["destination"] or is_within(row["destination"], j["destination"])) \
+                and still_done(row, st):
             with self._lock:
                 self.job["stepped_over"] += 1
             return
-        if row is None:
-            with conn:
+        with conn:
+            if row is None:
                 conn.execute(
                     "INSERT INTO import_files (source, name, size, mtime, status, job_id, "
                     "updated_at) VALUES (?, ?, ?, ?, 'pending', ?, ?)",
                     (src, name, st.st_size, st.st_mtime, j["job_id"], time.time()))
+            else:
+                # Looked at again: what is recorded is what the file is now.
+                conn.execute("UPDATE import_files SET size = ?, mtime = ? WHERE source = ?",
+                             (st.st_size, st.st_mtime, src))
         tmp = None
         try:
             if st.st_size == 0:
@@ -779,7 +802,7 @@ class Importer:
             # the hash is taken while copying, which reads the file once.
             if dry or self._size_known(conn, st.st_size):
                 src_hash = hash_file(src, self.gate)
-                dup = self._duplicate_of(conn, src_hash, src)
+                dup = self._duplicate_of(conn, src_hash, src, st.st_size)
                 if dup:
                     self._mark(conn, src, "plan-duplicate" if dry else "duplicate",
                                hash=src_hash, taken=when, date_source=source, duplicate_of=dup)
@@ -801,7 +824,7 @@ class Importer:
             if count != st.st_size and count != os.stat(long_path(src)).st_size:
                 raise OSError("The file changed size while it was being read.")
             if not src_hash:
-                dup = self._duplicate_of(conn, digest, src)
+                dup = self._duplicate_of(conn, digest, src, count)
                 if dup:
                     self._mark(conn, src, "duplicate", hash=digest, taken=when,
                                date_source=source, duplicate_of=dup)
@@ -860,12 +883,19 @@ class Importer:
         return conn.execute("SELECT 1 FROM import_files WHERE size = ? AND status IN "
                             "('verified', 'planned') LIMIT 1", (size,)).fetchone() is not None
 
-    def _duplicate_of(self, conn: sqlite3.Connection, digest: str, src: str) -> str | None:
-        """The archived copy of these bytes, inside this destination, or None."""
+    def _duplicate_of(self, conn: sqlite3.Connection, digest: str, src: str,
+                      size: int) -> str | None:
+        """The archived copy of these bytes, inside this destination, or None.
+
+        A copy counts only if it is on disk now with these very bytes: one
+        deleted or changed since it was recorded is no reason to leave the
+        new file out. A planned copy (a dry run) is not on disk yet."""
         for row in conn.execute(
-                "SELECT destination FROM import_files WHERE hash = ? AND source != ? "
+                "SELECT destination, status FROM import_files WHERE hash = ? AND source != ? "
                 "AND status IN ('verified', 'planned') AND destination IS NOT NULL", (digest, src)):
-            if is_within(row[0], self.job["destination"]):
+            if not is_within(row[0], self.job["destination"]):
+                continue
+            if row[1] == "planned" or self._same_bytes(conn, row[0], digest, size):
                 return row[0]
         return None
 
@@ -897,10 +927,12 @@ class Importer:
             return False
         if digest is None:
             return False
-        row = conn.execute("SELECT dest_hash FROM import_files WHERE destination = ? "
-                           "AND status = 'verified'", (candidate,)).fetchone()
-        known = row[0] if row else None
-        return (known or hash_file(candidate, self.gate)) == digest
+        # Read from disk, never taken from the index: an archived file can be
+        # changed or replaced after its hash was recorded.
+        try:
+            return hash_file(candidate, self.gate) == digest
+        except OSError:
+            return False
 
     def _copy_and_hash(self, src: str, tmp: str) -> tuple[str, int]:
         h = hashlib.sha256()
