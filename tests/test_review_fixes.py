@@ -131,9 +131,11 @@ def test_a_guest_gets_a_video_without_its_location(app, admin, guest, library, m
     served = guest.get(f"/api/file/{target}")
     assert served.status_code == 200 and b"SECRETMARK" not in served.data
     assert served.headers["Accept-Ranges"] == "bytes"
+    # Release send_file's handle before removing its cache on Windows.
+    served.close()
     # Without ffmpeg the video is refused rather than sent with its location.
     monkeypatch.setattr(media, "FFMPEG", None)
-    shutil.rmtree(os.path.join(app.config["LITE"].data_dir, "views"), ignore_errors=True)
+    shutil.rmtree(os.path.join(app.config["LITE"].data_dir, "views"))
     refused = guest.get(f"/api/file/{target}")
     assert refused.status_code == 415 and b"SECRETMARK" not in refused.data
     # An administrator may choose otherwise; the original then says what it is.
