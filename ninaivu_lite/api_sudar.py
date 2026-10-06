@@ -17,8 +17,8 @@ import os
 import secrets
 from typing import Any
 
-from flask import Blueprint, jsonify, request
-from PIL import Image
+from flask import Blueprint, Response, jsonify, request
+from PIL import Image, ImageOps
 
 from . import dates
 from .common import asset_path, asset_public, conn, fail, require_admin, scanner, visible_asset
@@ -139,3 +139,35 @@ def save_edited_copy(asset_id: int):
     saved = c.execute("SELECT a.*, f.path AS root FROM assets a JOIN folders f ON f.id = a.folder_id "
                       "WHERE a.id = ?", (new_id,)).fetchone()
     return jsonify(asset_public(saved)), 201
+
+
+@bp.get("/api/asset/<int:asset_id>/edit-source")
+def edit_source(asset_id: int):
+    """A HEIC or TIFF at full size, as a JPEG the browser can open, for Sudar.
+
+    The viewer's copy of such a photograph is at most 2560 px, and a copy saved
+    from it was smaller than its original. Upright from the camera's tag, like
+    the viewing copy; the index's own turn is Sudar's to apply. No metadata:
+    the saved copy gets the original's from ``carried_exif``."""
+    require_admin()
+    row = visible_asset(asset_id)
+    if row["kind"] != "picture":
+        fail(400, "Choose a photograph from the library.")
+    source = asset_path(row)
+    if not os.path.isfile(long_path(source)):
+        fail(404, "This file is not available right now.")
+    try:
+        with Image.open(long_path(source)) as opened:
+            img = ImageOps.exif_transpose(opened) or opened
+            if img.width * img.height > MAX_PIXELS:
+                scale = (MAX_PIXELS / (img.width * img.height)) ** 0.5
+                img = img.resize((max(1, int(img.width * scale)), max(1, int(img.height * scale))),
+                                 Image.Resampling.LANCZOS)
+            out = io.BytesIO()
+            img.convert("RGB").save(out, "JPEG", quality=95)
+    except (OSError, ValueError, Image.DecompressionBombError) as exc:
+        log.debug("no full-size source for %s: %s", source, exc)
+        fail(415, "This photograph could not be converted for the browser.")
+    response = Response(out.getvalue(), mimetype="image/jpeg")
+    response.headers["Cache-Control"] = "private, no-store"
+    return response

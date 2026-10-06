@@ -126,8 +126,13 @@ async function networkFirstNavigation(request, cacheName) {
   } catch {
     const hit = await cache.match(request) || await cache.match('/');
     if (hit) return hit;
+    // Both languages: the page's own choice lives in a script this worker
+    // has not got, and an English-only page told a Tamil reader nothing.
     return new Response(
-      '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Ninaivu — Offline</title><style>body{background:#12161c;color:#e6e8eb;font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;padding:24px;box-sizing:border-box;text-align:center}.card{max-width:320px}h1{font-size:20px;margin-bottom:8px}p{color:#8b949e;font-size:14px;line-height:1.5}</style></head><body><div class="card"><h1>Ninaivu is Offline</h1><p>Check your Wi-Fi or network connection to reconnect to your library.</p></div></body></html>',
+      '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Ninaivu — Offline · இணைப்பு இல்லை</title><style>body{background:#12161c;color:#e6e8eb;font-family:system-ui,-apple-system,"Noto Sans Tamil","Latha",sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;box-sizing:border-box;text-align:center}.card{max-width:340px}h1{font-size:20px;margin-bottom:8px}p{color:#8b949e;font-size:14px;line-height:1.6}hr{border:0;border-top:1px solid #30363d;margin:20px 0}</style></head><body><div class="card">'
+      + '<h1>Ninaivu is offline</h1><p>Check your Wi-Fi or network connection to reconnect to your library.</p>'
+      + '<hr><div lang="ta"><h1>நினைவுடன் இணைப்பு இல்லை</h1><p>உங்கள் நூலகத்துடன் மீண்டும் இணைய, Wi-Fi அல்லது நெட்வொர்க் இணைப்பைச் சரிபார்க்கவும்.</p></div>'
+      + '</div></body></html>',
       { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
     );
   }
