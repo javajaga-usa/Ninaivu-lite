@@ -26,5 +26,13 @@ internet** (no port forwarding, no public tunnels). HTTPS is planned for a later
 
 ## Reporting a problem
 
-Please open a private security advisory on this repository (GitHub → *Security* →
-*Report a vulnerability*), or an issue without details, and we will reply.
+Please [report a vulnerability privately](https://github.com/javajaga-usa/Ninaivu-lite/security/advisories/new)
+(GitHub → *Security* → *Report a vulnerability*). Do not post exploit details, passwords,
+private photographs or logs containing secrets in public issues. If private reporting is
+unavailable, open an issue asking for a private contact method without vulnerability details.
+
+## Supported versions
+
+Security fixes target the latest released version. Upgrade to the latest
+[release](https://github.com/javajaga-usa/Ninaivu-lite/releases/latest) before checking
+whether a reported problem still occurs.

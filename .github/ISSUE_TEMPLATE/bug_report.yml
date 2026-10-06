@@ -1,0 +1,47 @@
+name: Bug report
+description: Report something that does not work as expected.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: Please remove private photos, paths, passwords and tokens from reports. Report vulnerabilities through the private security link.
+  - type: input
+    id: version
+    attributes:
+      label: Ninaivu Lite version
+      placeholder: e.g. 1.5.1
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and browser
+      placeholder: e.g. Windows 11, Firefox; iPhone Safari
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation method
+      options:
+        - Windows installer
+        - Windows portable zip
+        - macOS disk image
+        - Linux / Raspberry Pi installer
+        - Docker
+        - Source / Python
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Describe the steps, expected behavior and actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or screenshots
+      description: Optional; use sample media and remove personal information.

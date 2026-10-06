@@ -31,7 +31,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   windows:
@@ -116,7 +116,8 @@ jobs:
           python - <<'PY'
           import pathlib, sys
           sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-          text = pathlib.Path("build.log").read_text(encoding="utf-8", errors="replace")
+          log = pathlib.Path("build.log")
+          text = log.read_text(encoding="utf-8", errors="replace") if log.exists() else "Build did not start; check the preceding setup or signing step."
           tail = "\n".join(text.splitlines()[-45:])[-3500:]
           print("::error title=Windows build::" + tail.replace("%", "%25").replace("\r", "").replace("\n", "%0A"))
           PY
@@ -344,6 +345,8 @@ jobs:
           path: installers/linux/build/*.sh
 
   release:
+    permissions:
+      contents: write
     name: Attach to the release
     needs: [windows, macos, linux]
     runs-on: ubuntu-latest

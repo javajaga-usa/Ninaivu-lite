@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/javajaga-usa/Ninaivu-lite/security/advisories/new
+    about: Report security issues privately. Do not include vulnerability details in public issues.
+  - name: User guide
+    url: https://github.com/javajaga-usa/Ninaivu-lite/blob/main/docs/USER-GUIDE.md
+    about: Installation and everyday use, with a link to the Tamil guide.

@@ -5,6 +5,13 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: ${{ matrix.os }} · Python ${{ matrix.python-version }}
@@ -39,7 +46,8 @@ jobs:
           python - <<'PY'
           import pathlib, sys
           sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-          text = pathlib.Path("pytest.log").read_text(encoding="utf-8", errors="replace")
+          log = pathlib.Path("pytest.log")
+          text = log.read_text(encoding="utf-8", errors="replace") if log.exists() else "Tests did not start; check the preceding setup or lint step."
           tail = "\n".join(text.splitlines()[-45:])[-3500:]
           print("::error title=pytest::" + tail.replace("%", "%25").replace("\r", "").replace("\n", "%0A"))
           PY

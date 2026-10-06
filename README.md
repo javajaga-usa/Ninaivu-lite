@@ -14,7 +14,7 @@ page — over a much lighter engine: no models, no cloud, three small dependenci
 Ninaivu's tools come along, lightened: the **Import** that sweeps old drives into one
 archive, and **Sudar**, the photo studio that runs in the browser.
 
-> **Status: 1.3.4.** See the [changelog](CHANGELOG.md) and the [user guide](docs/USER-GUIDE.md)
+> **Status: 1.5.1.** See the [changelog](CHANGELOG.md) and the [user guide](docs/USER-GUIDE.md)
 > ([தமிழில்](docs/USER-GUIDE.ta.md)).
 
 ## Why Lite
@@ -82,6 +82,7 @@ and downloads nothing.
 | | |
 | --- | --- |
 | Windows 10 / 11 | `Ninaivu-Lite-<version>-windows-x64.exe` — the Control Panel opens when it finishes |
+| Windows portable | `Ninaivu-Lite-<version>-windows-x64-portable.zip` — extract and open `Ninaivu Lite Control Panel.vbs`; data stays beside the program |
 | Linux PC | `sh Ninaivu-Lite-<version>-linux-amd64.sh` |
 | Raspberry Pi 4 / 5 (64-bit OS) | `sh Ninaivu-Lite-<version>-linux-arm64.sh` |
 | macOS | the `.dmg` for Apple silicon (`arm64`) or Intel (`x86_64`) |
@@ -145,6 +146,8 @@ websites cannot act on your behalf. See [SECURITY.md](SECURITY.md).
 
 ## Developing
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, pull requests and reporting bugs.
+
 ```bash
 python -m pip install -r requirements-dev.txt
 ruff check .
@@ -153,7 +156,7 @@ python -m pytest
 
 Every pull request runs on Windows, macOS and Linux with Python 3.10 and 3.13. The screens are
 Ninaivu's (`ninaivu_lite/templates`, `ninaivu_lite/static`); strings are in
-`static/i18n/en.json` and `ta.json`, keyed by the English sentence.
+`ninaivu_lite/static/i18n/en.json` and `ta.json`, keyed by the English sentence.
 
 ## Code signing policy
 

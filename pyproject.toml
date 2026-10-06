@@ -11,6 +11,12 @@ license = "MIT"
 authors = [{name = "Jagadeesh Rajendran"}]
 dynamic = ["dependencies", "version"]
 
+[project.urls]
+Homepage = "https://github.com/javajaga-usa/Ninaivu-lite"
+Repository = "https://github.com/javajaga-usa/Ninaivu-lite"
+Issues = "https://github.com/javajaga-usa/Ninaivu-lite/issues"
+Changelog = "https://github.com/javajaga-usa/Ninaivu-lite/blob/main/CHANGELOG.md"
+
 [project.scripts]
 ninaivu-lite = "ninaivu_lite.__main__:main"
 
