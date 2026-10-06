@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+Fixes from the project audit of 2026-10-05 (A01-A04).
+
+- **A share link ends with what it points at.** Removing a photograph from the index (for
+  example when its library folder is taken out) or deleting an album now deletes its share
+  links. Before, the index could hand the same id to a different photograph or album, and an
+  old link would then show something nobody shared. Links already pointing at nothing are
+  dropped on upgrade. (`db.py`, index version 7)
+- **Damaged or missing settings no longer empty the library.** When `settings.json` is
+  missing, unreadable, not valid JSON, or has no folder list, the library folders are taken
+  back from the index and the settings are written out again, instead of starting with no
+  folders and letting the next scan delete every favourite, album and visibility choice. The
+  damaged file is still kept as `settings.json.damaged`. (`config.py`)
+- **Import, run again, checks what was done before.** A file is stepped over only if it is
+  still the same file (size and modified time) and its archived copy is still there. A
+  changed source is imported again beside the earlier copy; a lost copy is copied again.
+  The phone import deletes a fetched copy only on the same check. (`importer.py`, `phones.py`)
+- **A duplicate needs a real archived copy.** A new file is left out as a duplicate only
+  when the archive holds a copy that is on disk now with the same bytes, read from the disk
+  rather than taken from the stored hash. (`importer.py`)
+
 ## 1.5.1 — 2026-10-04
 
 - **A portable Windows zip, nothing to install.** Each release also carries

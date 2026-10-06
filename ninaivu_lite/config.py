@@ -8,7 +8,9 @@ ever read.
 from __future__ import annotations
 
 import json
+import logging
 import os
+import sqlite3
 import sys
 import tempfile
 from dataclasses import asdict, dataclass, field
@@ -17,6 +19,9 @@ from pathlib import Path
 DEFAULT_PORT = 8080
 SETTINGS_FILE = "settings.json"
 DEFAULT_HOUSE_NAME = "Ninaivu"
+INDEX_FILE = "ninaivu-lite.db"      # db.DB_FILE; db is not imported here to keep this module light
+
+log = logging.getLogger(__name__)
 
 
 def default_data_dir() -> Path:
@@ -53,6 +58,9 @@ class Config:
     import_kinds: list[str] = field(default_factory=lambda: ["image", "video"])
     host: str = "0.0.0.0"
     port: int = DEFAULT_PORT
+    #: Set when the settings file was missing or damaged and the library
+    #: folders were taken back from the index instead (never saved).
+    recovered: bool = False
 
     SAVED = ("folders", "active", "house_name", "open_browsing", "language", "watch",
              "first_day_done", "import_sources", "import_destination", "import_kinds")
@@ -77,14 +85,15 @@ class Config:
         try:
             raw = json.loads(cfg.settings_path.read_text(encoding="utf-8"))
         except FileNotFoundError:
-            return cfg
+            return cfg._recover("missing")
         except (OSError, ValueError):
             # A damaged file must not stop the server: start on defaults and
             # keep the damaged copy for whoever wants to look at it.
             _set_aside(cfg.settings_path)
-            return cfg
+            return cfg._recover("damaged")
         if not isinstance(raw, dict):
-            return cfg
+            _set_aside(cfg.settings_path)
+            return cfg._recover("damaged")
         defaults = cls(data_dir=cfg.data_dir)
         for name in cls.SAVED:
             if name in raw and isinstance(raw[name], type(getattr(defaults, name))):
@@ -96,7 +105,31 @@ class Config:
         if cfg.language not in ("en", "ta"):
             cfg.language = "en"
         cfg.house_name = clean_house_name(cfg.house_name)
+        if not isinstance(raw.get("folders"), list):
+            # No folder list at all is damage, not a choice to have none.
+            return cfg._recover("without a folder list")
         return cfg
+
+    def _recover(self, why: str) -> Config:
+        """Settings that are missing or damaged say nothing about the library
+        folders, and the scan takes an empty list to mean every folder was
+        removed, which would delete their favourites, albums and visibility
+        from the index. So the folders come back from the index itself, and
+        the recovered settings are written out for the next start."""
+        folders = index_folders(self.data_dir)
+        if not folders:
+            return self                    # a fresh data folder: nothing to lose
+        log.warning("settings %s; %d library folder(s) recovered from the index", why,
+                    len(folders))
+        self.folders = folders
+        self.active = self.active if self.active in folders else folders[0]
+        self.first_day_done = True
+        self.recovered = True
+        try:
+            self.save()
+        except OSError:
+            log.warning("could not write the recovered settings", exc_info=True)
+        return self
 
     def save(self) -> None:
         """Write atomically: a power cut mid-save leaves the old file, never half a file."""
@@ -116,6 +149,23 @@ class Config:
             except OSError:
                 pass
             raise
+
+
+def index_folders(data_dir: str | os.PathLike) -> list[str]:
+    """The library folders the index holds, read without changing the file
+    (an index that is not there, or cannot be read, holds none)."""
+    path = Path(data_dir) / INDEX_FILE
+    if not path.is_file():
+        return []
+    try:
+        conn = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True, timeout=10)
+        try:
+            rows = conn.execute("SELECT path FROM folders ORDER BY id").fetchall()
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return []
+    return [str(r[0]) for r in rows if isinstance(r[0], str) and r[0].strip()]
 
 
 def _set_aside(path: Path) -> None:
