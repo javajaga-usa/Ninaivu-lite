@@ -131,7 +131,7 @@ export class ArchivePanel {
       title: i18n.t('Choose a folder to sweep'),
       cta: i18n.t('Add as a source'),
       anyFolder: true,
-      start: this.sources.at(-1) || '',
+      start: this.sources[this.sources.length - 1] || '',
       pick: (path) => this.addSource(path),
     });
     $('#ar-browse-dest').onclick = () => this.pickFolder({

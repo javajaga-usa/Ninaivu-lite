@@ -12,7 +12,7 @@
 
 import {AIPhotoService} from './service.mjs';
 import {defaults} from './adjustments.mjs';
-import {decode} from './files.mjs';
+import {decode, saveType} from './files.mjs';
 import {History} from './history.mjs';
 import {saveLibraryCopy} from './library.mjs';
 import {isClothingColorRequest} from './recolor.mjs';
@@ -482,7 +482,7 @@ export function openSudar({item=null, returnFocus=document.activeElement, canSav
     if(busy || !sourceId || !canSave || !previewReady) return;
     saving = true; lock(true); status(i18n.t('Saving new library copy…'));
     try {
-      const blob = await service.applyAdjustments(bitmap, history.current, {maxSide: Infinity, type: 'image/png'});
+      const blob = await service.applyAdjustments(bitmap, history.current, {maxSide: Infinity, type: saveType(item)});
       const copy = await saveLibraryCopy(sourceId, blob);
       savedState = JSON.stringify(history.current); saving = false;
       dialog.close();
@@ -532,7 +532,16 @@ export function openSudar({item=null, returnFocus=document.activeElement, canSav
       try {
         const url = new URL(item.view || item.src, location.href);
         if(url.origin !== location.origin) throw new Error(i18n.t('This photo must come from your Ninaivu library.'));
-        const response = await fetch(url, {signal: controller.signal, credentials: 'same-origin'});
+        // A HEIC or TIFF is viewed through a 2560 px copy, and a copy saved
+        // from that was smaller than its original. Whoever can save works on
+        // the server's full-size conversion; the viewing copy stays the
+        // fallback.
+        let response = null;
+        if(canSave && item.id && !item.playable) {
+          response = await fetch(`/api/asset/${item.id}/edit-source`, {signal: controller.signal, credentials: 'same-origin'}).catch(() => null);
+          if(response && !response.ok) response = null;
+        }
+        response ||= await fetch(url, {signal: controller.signal, credentials: 'same-origin'});
         if(!response.ok) throw new Error(i18n.t('Photo could not be loaded.'));
         const blob = await response.blob(); if(closed) return;
         lock(false); await load(new File([blob], item.name || i18n.t('Current photo'), {type: blob.type}), item.rotation || 0, item.id);

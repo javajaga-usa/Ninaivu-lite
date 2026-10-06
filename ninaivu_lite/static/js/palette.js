@@ -196,6 +196,8 @@ export function initPalette({ commands = familyCommands, host = document.body,
   target.addEventListener('keydown', (event) => {
     if (event.key.toLowerCase() !== 'k' || event.altKey || event.shiftKey) return;
     if (!(isMac ? event.metaKey : event.ctrlKey)) return;
+    // Not from behind the sign-in screen: the gallery there is nobody's.
+    if (document.getElementById('gate')?.hidden === false) return;
     event.preventDefault();
     if (root.hidden) open(); else close();
   });

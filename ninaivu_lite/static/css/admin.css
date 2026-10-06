@@ -38,10 +38,10 @@ body.admin {
 .console-tag {
   font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
   color: var(--accent-2);
-  background: color-mix(in srgb, var(--accent-2) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent-2) 32%, transparent);
   padding: 2px 7px; border-radius: 999px;
 }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .console-tag { background: color-mix(in srgb, var(--accent-2) 14%, transparent); } }
 .admin-bar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: none; }
 .admin-bar-actions .btn svg { width: 14px; height: 14px; }
 .admin-bar .brand { flex: none; }
@@ -154,10 +154,10 @@ body.admin {
 .preview-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .empty-note {
   font-size: 13px; color: var(--gold);
-  background: color-mix(in srgb, var(--gold) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--gold) 28%, transparent);
   border-radius: var(--r-sm); padding: 10px 12px;
 }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .empty-note { background: color-mix(in srgb, var(--gold) 10%, transparent); } }
 
 /* People ----------------------------------------------------------------- */
 
@@ -228,9 +228,11 @@ button.folder-toggle:hover { background: var(--surface-3, var(--surface-2)); col
   font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em;
   padding: 1px 6px; border-radius: 999px;
 }
-.tag.public { background: color-mix(in srgb, #22a45d 16%, transparent); color: #22a45d; }
+.tag.public { color: #22a45d; }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .tag.public { background: color-mix(in srgb, #22a45d 16%, transparent); } }
 .tag.family { background: var(--accent-weak); color: var(--accent); }
-.tag.hidden { background: color-mix(in srgb, #b0563c 18%, transparent); color: #c1664a; }
+.tag.hidden { color: #c1664a; }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .tag.hidden { background: color-mix(in srgb, #b0563c 18%, transparent); } }
 
 .folder-mix { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--surface-2); }
 .folder-mix .mix { display: block; height: 100%; }
@@ -1005,12 +1007,8 @@ body.admin .admin-bar .brand span:not(.console-tag) { display: inline; }
     /* A row reached with the keyboard stops clear of the covers, not under
        the bottom one. */
     scroll-padding-block: 28px;
-    background:
-      linear-gradient(var(--bg-elev) 40%, transparent) top / 100% 28px no-repeat local,
-      linear-gradient(transparent, var(--bg-elev) 60%) bottom / 100% 28px no-repeat local,
-      linear-gradient(color-mix(in srgb, var(--text) 12%, transparent), transparent) top / 100% 10px no-repeat scroll,
-      linear-gradient(transparent, color-mix(in srgb, var(--text) 12%, transparent)) bottom / 100% 10px no-repeat scroll;
   }
+  @supports (color: color-mix(in srgb, red 50%, blue)) { .admin-nav { background: linear-gradient(var(--bg-elev) 40%, transparent) top / 100% 28px no-repeat local, linear-gradient(transparent, var(--bg-elev) 60%) bottom / 100% 28px no-repeat local, linear-gradient(color-mix(in srgb, var(--text) 12%, transparent), transparent) top / 100% 10px no-repeat scroll, linear-gradient(transparent, color-mix(in srgb, var(--text) 12%, transparent)) bottom / 100% 10px no-repeat scroll; } }
   .admin-groups { display: none; }
   .admin-tabs { flex-direction: column; gap: 1px; overflow: visible; padding: 0; }
   .tab-group-label {
@@ -1050,12 +1048,8 @@ body.admin .admin-bar .brand span:not(.console-tag) { display: inline; }
      "S" at the edge with nothing to say the row went on. The same covers
      and shadows as the sidebar, turned on their side. */
   .admin-groups, .admin-tabs {
-    background:
-      linear-gradient(to right, var(--bg-elev) 40%, transparent) left / 28px 100% no-repeat local,
-      linear-gradient(to left, var(--bg-elev) 40%, transparent) right / 28px 100% no-repeat local,
-      linear-gradient(to right, color-mix(in srgb, var(--text) 14%, transparent), transparent) left / 12px 100% no-repeat scroll,
-      linear-gradient(to left, color-mix(in srgb, var(--text) 14%, transparent), transparent) right / 12px 100% no-repeat scroll;
   }
+  @supports (color: color-mix(in srgb, red 50%, blue)) { .admin-groups, .admin-tabs { background: linear-gradient(to right, var(--bg-elev) 40%, transparent) left / 28px 100% no-repeat local, linear-gradient(to left, var(--bg-elev) 40%, transparent) right / 28px 100% no-repeat local, linear-gradient(to right, color-mix(in srgb, var(--text) 14%, transparent), transparent) left / 12px 100% no-repeat scroll, linear-gradient(to left, color-mix(in srgb, var(--text) 14%, transparent), transparent) right / 12px 100% no-repeat scroll; } }
 }
 
 /* Language ---------------------------------------------------------------- */
@@ -1108,9 +1102,9 @@ body.admin .admin-bar .brand span:not(.console-tag) { display: inline; }
 .admin .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .admin .card {
   min-width: 0; padding: 18px 20px; border-radius: var(--r-lg);
-  background: linear-gradient(150deg, var(--bg-elev) 65%, color-mix(in srgb, var(--accent) 4%, var(--bg-elev)));
   box-shadow: 0 3px 12px color-mix(in srgb, var(--text) 4%, transparent);
 }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .admin .card { background: linear-gradient(150deg, var(--bg-elev) 65%, color-mix(in srgb, var(--accent) 4%, var(--bg-elev))); } }
 .admin .card:hover { border-color: var(--border); }
 .admin .card-label { font-size: 12.5px; font-weight: 560; text-transform: none; letter-spacing: 0; color: var(--text-2); }
 .admin .card-value { font-size: 32px; line-height: 1.25; margin: 12px 0 6px; overflow-wrap: anywhere; }
@@ -1211,10 +1205,10 @@ body.admin .admin-bar .brand span:not(.console-tag) { display: inline; }
   background: var(--surface-2); color: var(--text-3); border: 1px solid var(--border-soft);
 }
 .sv-state.good { color: #1f9d57; border-color: #22a45d55; background: #22a45d14; }
-.sv-state.busy { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 40%, transparent);
-  background: color-mix(in srgb, var(--gold) 10%, transparent); }
-.sv-state.bad { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent);
-  background: color-mix(in srgb, var(--danger) 8%, transparent); }
+.sv-state.busy { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 40%, transparent); }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .sv-state.busy { background: color-mix(in srgb, var(--gold) 10%, transparent); } }
+.sv-state.bad { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .sv-state.bad { background: color-mix(in srgb, var(--danger) 8%, transparent); } }
 .sv-kv dd { word-break: normal; overflow-wrap: anywhere; }
 .sv-busy {
   margin: 0; padding: 10px 14px 10px 30px; font-size: 12.5px; line-height: 1.55;
@@ -1275,7 +1269,7 @@ body.admin .admin-bar .brand span:not(.console-tag) { display: inline; }
   .sv-log-find .input { max-width: none; }
 }
 .sv-meta { margin: 0; font-size: 12px; color: var(--text-3); overflow-wrap: anywhere; }
-::highlight(sv-find) { background-color: color-mix(in srgb, var(--gold) 35%, transparent); }
+@supports (color: color-mix(in srgb, red 50%, blue)) { ::highlight(sv-find) { background-color: color-mix(in srgb, var(--gold) 35%, transparent); } }
 ::highlight(sv-find-current) { background-color: var(--gold); color: #111; }
 
 .sv-switch { position: relative; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; flex: none; user-select: none; }
@@ -1343,14 +1337,14 @@ body.admin .admin-bar .brand span:not(.console-tag) { display: inline; }
 }
 .mg-alert {
   padding: 10px 12px; border-radius: var(--r-sm, 8px);
-  background: color-mix(in srgb, var(--warn, #b8862f) 10%, var(--bg-elev));
   border: 1px solid color-mix(in srgb, var(--warn, #b8862f) 35%, transparent);
   font-size: 13px;
 }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .mg-alert { background: color-mix(in srgb, var(--warn, #b8862f) 10%, var(--bg-elev)); } }
 .mg-alert.bad {
-  background: color-mix(in srgb, #d14343 10%, var(--bg-elev));
   border-color: color-mix(in srgb, #d14343 35%, transparent);
 }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .mg-alert.bad { background: color-mix(in srgb, #d14343 10%, var(--bg-elev)); } }
 
 /* -- Performance ---------------------------------------------------------- */
 .pf-advice { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
@@ -1408,7 +1402,7 @@ body.admin .admin-bar .brand span:not(.console-tag) { display: inline; }
 /* An upload's two answers, side by side: file it, or delete it. */
 .pending-upload-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .btn.ghost.danger { color: var(--danger, #c1464a); border-color: color-mix(in srgb, var(--danger, #c1464a) 45%, transparent); }
-.btn.ghost.danger:hover { background: color-mix(in srgb, var(--danger, #c1464a) 12%, transparent); }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .btn.ghost.danger:hover { background: color-mix(in srgb, var(--danger, #c1464a) 12%, transparent); } }
 
 /* Extensions: one row per installed extension, its switch and what it does */
 #extensions-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
@@ -1477,8 +1471,8 @@ body.admin .admin-bar .brand span:not(.console-tag) { display: inline; }
 
 /* Modern admin surfaces. All colors follow the active light/dark theme. */
 body.admin {
-  background: radial-gradient(ellipse at 100% 0, color-mix(in srgb, var(--accent-2) 5%, transparent), transparent 55%), var(--bg);
 }
+@supports (color: color-mix(in srgb, red 50%, blue)) { body.admin { background: radial-gradient(ellipse at 100% 0, color-mix(in srgb, var(--accent-2) 5%, transparent), transparent 55%), var(--bg); } }
 .admin-page-heading { margin-bottom: 26px; }
 .admin-page-heading h1 { font-size: clamp(26px, 2.6vw, 34px); letter-spacing: -.04em; }
 .admin-eyebrow { letter-spacing: .14em; font-size: 10px; margin-bottom: 8px; }
@@ -1488,7 +1482,8 @@ body.admin {
 .admin .card-value { font-size: 32px; letter-spacing: -.045em; }
 @media (min-width: 1100px) {
   .admin-tabs button { border-radius: 10px; }
-  .admin-tabs button.active { box-shadow: none; background: linear-gradient(100deg, var(--accent-weak), color-mix(in srgb, var(--accent-2) 8%, transparent)); }
+  .admin-tabs button.active { box-shadow: none; }
+  @supports (color: color-mix(in srgb, red 50%, blue)) { .admin-tabs button.active { background: linear-gradient(100deg, var(--accent-weak), color-mix(in srgb, var(--accent-2) 8%, transparent)); } }
   .admin-tabs button.active .tab-icon { color: var(--accent-2); }
   .tab-group-label { font-size: 9px; letter-spacing: .12em; }
 }
@@ -1500,8 +1495,8 @@ body.admin {
   display: flex; flex-direction: row-reverse; align-items: center; justify-content: space-between;
   gap: 24px; padding: 30px 32px; min-width: 0;
   border: 1px solid color-mix(in srgb, var(--guide-tone) 17%, var(--border-soft)); border-radius: 24px;
-  background: radial-gradient(ellipse at 100% 50%, color-mix(in srgb, var(--guide-tone) 13%, transparent), transparent 65%), var(--bg-elev);
 }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .admin-guide { background: radial-gradient(ellipse at 100% 50%, color-mix(in srgb, var(--guide-tone) 13%, transparent), transparent 65%), var(--bg-elev); } }
 [data-panel="people"] .admin-guide, [data-panel="faces"] .admin-guide,
 [data-panel="visibility"] .admin-guide, [data-panel^="ai-"] .admin-guide { --guide-tone: var(--accent-2); }
 [data-panel="cloud"] .admin-guide, [data-panel="health"] .admin-guide,
@@ -1551,9 +1546,10 @@ body.admin {
    Colour, shadow, opacity and transform only.
    ========================================================================== */
 .admin-bar {
-  background: color-mix(in srgb, var(--bg-elev) 82%, transparent);
+  background: var(--bg-elev);
   backdrop-filter: saturate(1.5) blur(16px); -webkit-backdrop-filter: saturate(1.5) blur(16px);
 }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .admin-bar { background: color-mix(in srgb, var(--bg-elev) 82%, transparent); } }
 
 /* A page settles in when you open it. */
 .panel.active { animation: panel-in .3s var(--ease); }
@@ -1573,8 +1569,8 @@ body.admin {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
 .admin-tabs [role="tab"].active, .admin-groups [role="tab"].active {
-  background: linear-gradient(105deg, var(--accent-weak), color-mix(in srgb, var(--accent-2) 8%, transparent));
 }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .admin-tabs [role="tab"].active, .admin-groups [role="tab"].active { background: linear-gradient(105deg, var(--accent-weak), color-mix(in srgb, var(--accent-2) 8%, transparent)); } }
 
 @media (prefers-reduced-motion: reduce) { .panel.active { animation: none; } .card { transition: none; } }
 
@@ -1633,8 +1629,8 @@ body.admin {
 .ar-capacity.working {
   display: flex; align-items: center; gap: 10px;
   border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-  background: color-mix(in srgb, var(--accent) 5%, var(--surface-2));
 }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .ar-capacity.working { background: color-mix(in srgb, var(--accent) 5%, var(--surface-2)); } }
 .ar-spinner {
   flex: none; width: 14px; height: 14px; border-radius: 50%;
   border: 2px solid color-mix(in srgb, var(--accent) 26%, transparent);
@@ -1671,14 +1667,14 @@ body.admin {
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 14px;
   padding: 15px 17px; border-radius: var(--r-lg);
   border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
-  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elev));
 }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .ar-handoff { background: color-mix(in srgb, var(--accent) 8%, var(--bg-elev)); } }
 .ar-handoff-text { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 3px; }
 .ar-handoff-text strong { font-size: 14px; font-weight: 620; }
 .ar-handoff.settled {
   border-color: color-mix(in srgb, #22a45d 34%, transparent);
-  background: color-mix(in srgb, #22a45d 8%, var(--bg-elev));
 }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .ar-handoff.settled { background: color-mix(in srgb, #22a45d 8%, var(--bg-elev)); } }
 
 .ar-years { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
 .ar-years-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 13px; font-weight: 600; }
@@ -1698,10 +1694,12 @@ body.admin {
 .ar-table td { padding: 8px 12px; border-bottom: 1px solid var(--border-soft); vertical-align: top; color: var(--text-2); overflow-wrap: anywhere; }
 .ar-table tr:last-child td { border-bottom: 0; }
 .ar-state { font-size: 11px; font-weight: 650; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); white-space: nowrap; }
-.ar-state.verified { color: #22a45d; background: color-mix(in srgb, #22a45d 12%, transparent); }
+.ar-state.verified { color: #22a45d; }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .ar-state.verified { background: color-mix(in srgb, #22a45d 12%, transparent); } }
 .ar-state.duplicate, .ar-state.plan-duplicate { color: var(--text-2); }
 .ar-state.planned { color: var(--accent); background: var(--accent-weak); }
-.ar-state.error { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.ar-state.error { color: var(--danger); }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .ar-state.error { background: color-mix(in srgb, var(--danger) 12%, transparent); } }
 .ar-empty { text-align: center; color: var(--text-3); padding: 24px 12px !important; }
 
 /* A drive was plugged in: two large choices, each with its line of explanation. */

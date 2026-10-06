@@ -45,19 +45,21 @@
   body {
     margin: 0; min-height: 100vh; color: var(--ink);
     font: 16px/1.55 "Ninaivu Tamil", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    background:
-      radial-gradient(ellipse at 100% 0, color-mix(in srgb, var(--accent) 12%, transparent), transparent 55%),
-      radial-gradient(ellipse at 0 100%, color-mix(in srgb, var(--accent-2) 10%, transparent), transparent 55%),
-      var(--ground);
+    /* Plain here; the tinted versions are behind @supports. A declaration with
+       var() is never dropped by a browser without color-mix() — it turns
+       transparent instead — so it must not reach such a browser at all. */
+    background: var(--ground);
     background-attachment: fixed;
   }
+@supports (color: color-mix(in srgb, red 50%, blue)) { body { background: radial-gradient(ellipse at 100% 0, color-mix(in srgb, var(--accent) 12%, transparent), transparent 55%), radial-gradient(ellipse at 0 100%, color-mix(in srgb, var(--accent-2) 10%, transparent), transparent 55%), var(--ground); background-attachment: fixed; } }
   header {
     position: sticky; top: 0; z-index: 5;
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     padding: 14px 22px; border-bottom: 1px solid var(--line);
-    background: color-mix(in srgb, var(--panel) 80%, transparent);
+    background: var(--panel);
     backdrop-filter: saturate(1.5) blur(16px); -webkit-backdrop-filter: saturate(1.5) blur(16px);
   }
+@supports (color: color-mix(in srgb, red 50%, blue)) { header { background: color-mix(in srgb, var(--panel) 80%, transparent); } }
   .brand-mark { width: 30px; height: 30px; flex: none; filter: drop-shadow(0 3px 5px var(--accent-weak)); }
   h1 { margin: 0; font-size: 1.1rem; font-weight: 650; letter-spacing: -.03em; }
   .muted { color: var(--muted); font-size: 0.88rem; }
@@ -70,15 +72,16 @@
   }
   .grid a {
     display: block; aspect-ratio: 1; overflow: hidden; border-radius: 14px;
-    background: color-mix(in srgb, var(--ink) 8%, var(--panel));
+    background: var(--line);
     box-shadow: 0 1px 3px rgba(16, 21, 28, .12), 0 0 0 1px var(--line);
     transition: transform .25s var(--ease), box-shadow .25s var(--ease);
   }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .grid a { background: color-mix(in srgb, var(--ink) 8%, var(--panel)); } }
   .grid a:hover { transform: translateY(-2px); box-shadow: var(--shadow), 0 0 0 1px var(--line); }
   .grid a {
-    background-image: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--panel) 55%, transparent) 40%, transparent 60%);
     background-size: 200% 100%; animation: shimmer 1.4s linear infinite;
   }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .grid a { background-image: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--panel) 55%, transparent) 40%, transparent 60%); background-size: 200% 100%; } }
   @keyframes shimmer { to { background-position: -200% 0; } }
   .grid img {
     width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0;
@@ -88,6 +91,11 @@
   .grid a:has(img.ready) { animation: none; background-image: none; }
   .grid a:hover img { transform: scale(1.04); }
   .grid a:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+  /* Square tiles without aspect-ratio (Safari before 15), or they are 0px tall. */
+  @supports not (aspect-ratio: 1) {
+    .grid a { position: relative; padding-top: 100%; }
+    .grid img { position: absolute; top: 0; left: 0; }
+  }
 
   .single { display: grid; place-items: center; }
   .single img, .single video {
@@ -110,10 +118,11 @@
   button {
     padding: 11px 16px; border-radius: 12px; border: 0; cursor: pointer;
     color: var(--accent-ink); font-weight: 600; font-size: 0.95rem;
-    background: linear-gradient(180deg, color-mix(in srgb, #fff 16%, transparent), transparent 60%), var(--accent);
+    background: var(--accent);
     box-shadow: 0 3px 10px var(--accent-weak);
     transition: transform .12s var(--ease), box-shadow .15s, opacity .15s;
   }
+@supports (color: color-mix(in srgb, red 50%, blue)) { button { background: linear-gradient(180deg, color-mix(in srgb, #fff 16%, transparent), transparent 60%), var(--accent); } }
   button:hover:not(:disabled) { box-shadow: 0 5px 16px var(--accent-weak); }
   button:active:not(:disabled) { transform: translateY(1px); }
   button:disabled { opacity: .6; cursor: default; }
@@ -142,6 +151,7 @@
 </header>
 <main id="main"><p class="empty" data-i18n="Loading…">Loading…</p></main>
 
+{% include "_too_old.html" %}
 <script type="module" src="{{ asset('/static/js/share.js') }}"></script>
 </body>
 </html>

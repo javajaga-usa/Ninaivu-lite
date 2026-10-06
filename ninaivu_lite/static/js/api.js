@@ -98,6 +98,26 @@ async function request(url, options = {}) {
   return data;
 }
 
+/**
+ * Why the server would not send a picture or a video, in the reader's words —
+ * or '' when it would, or nobody can say.
+ *
+ * An <img> or a <video> that fails says nothing about why, so the server's
+ * answer ("This video cannot be shared without its location data.", a 415)
+ * never reached the person looking at it; they read a generic error. One byte
+ * is asked for again to hear the reason.
+ */
+export async function mediaRefusal(url) {
+  try {
+    const response = await fetch(url, { headers: { Range: 'bytes=0-0', Accept: 'application/json' } });
+    if (response.ok) return '';
+    const data = await response.json().catch(() => null);
+    return data?.error ? i18n.t(data.error) : '';
+  } catch {
+    return '';
+  }
+}
+
 function post(url, body) {
   return request(url, {
     method: 'POST',
