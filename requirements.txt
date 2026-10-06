@@ -1,5 +1,5 @@
 # Ninaivu Lite needs only these. Each range stops before the next major version,
 # so a fresh install cannot pick up a release nobody has tested.
-flask>=3.0,<4
+flask>=3.1.3,<4
 pillow>=10.0,<13
 waitress>=3.0,<4     # a real thread pool; without it Flask's own server is used
