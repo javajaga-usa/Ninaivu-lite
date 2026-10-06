@@ -438,7 +438,7 @@ jobs:
           [ "$(systemctl show -p User --value ninaivu-lite)" = ninaivu-lite ]
           pid=$(systemctl show -p MainPID --value ninaivu-lite)
           [ "$(ps -o uid= -p "$pid" | tr -d ' ')" = "$(id -u ninaivu-lite)" ]
-          [ "$(sudo stat -c '%a %U' /var/lib/ninaivu-lite)" = "750 ninaivu-lite" ]
+          [ "$(sudo stat -c '%a %U' /var/lib/ninaivu-lite)" = "700 ninaivu-lite" ]
           grep -q '^UMask=0027$' /etc/systemd/system/ninaivu-lite.service
           [ ! -e /usr/local/bin/ninaivu-lite-panel ] && [ ! -e /usr/local/share/applications/ninaivu-lite.desktop ]
           /usr/local/bin/ninaivu-lite --version

@@ -163,7 +163,7 @@ notice:
 
 - **The data folder is private on Linux and macOS.** It is created readable only by its
   owner (an existing one is tightened), and the index is readable only by its owner. The
-  Linux installer makes it 0700 for your own install and 0750 for the service account, and
+  Linux installer makes it 0700 too, owned by the service account on a system-wide install, and
   the service writes with `UMask=0027`. (`config.py`, `db.py`, `installers/linux/install.sh`)
 - **A changed file whose copy was stopped is copied next time.** Its new size and time are
   saved only with the copy's result. (`importer.py`)

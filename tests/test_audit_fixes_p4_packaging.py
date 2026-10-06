@@ -144,7 +144,7 @@ def test_a24_root_install_runs_as_its_account_with_no_desktop_panel(tmp_path, as
     out = as_root.run("--photos", str(photos))
     calls = as_root.log.read_text().splitlines()
     # A23: the data folder is the account's, and only its group may look in.
-    assert mode(as_root.data) == 0o750
+    assert mode(as_root.data) == 0o700
     assert f"chown -R ninaivu-lite:ninaivu-lite {as_root.data}" in calls
     unit = as_root.unit.read_text()
     assert "\nUser=ninaivu-lite\n" in unit and "\nUMask=0027\n" in unit
@@ -175,7 +175,7 @@ def test_a24_root_install_without_a_service_still_gives_the_data_to_the_account(
     as_root.run("--no-service")
     calls = as_root.log.read_text().splitlines()
     assert f"chown -R ninaivu-lite:ninaivu-lite {as_root.data}" in calls
-    assert mode(as_root.data) == 0o750
+    assert mode(as_root.data) == 0o700
     assert not as_root.unit.exists()
     assert "runuser -u ninaivu-lite" in (as_root.prefix / "ninaivu-lite").read_text()
 

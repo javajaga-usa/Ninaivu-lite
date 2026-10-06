@@ -97,7 +97,7 @@ if [ "$(id -u)" = 0 ]; then
         own_account=1
         chown -R "$account:$account" "$data"
     fi
-    chmod 0750 "$data"
+    chmod 0700 "$data"
 fi
 
 # The commands.
