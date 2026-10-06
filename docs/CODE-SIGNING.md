@@ -3,6 +3,9 @@
 Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
 [SignPath Foundation](https://signpath.org).
 
+> **Status:** the application to the SignPath Foundation is pending. Until it is approved,
+> no release is signed, and this is the policy signed releases will follow.
+
 This applies to the Windows installer of Ninaivu Lite,
 `Ninaivu-Lite-<version>-windows-x64.exe`, published on the
 [releases page](https://github.com/javajaga-usa/Ninaivu-lite/releases), and to the

@@ -40,8 +40,17 @@ case "$arch" in
     *) echo "unsupported architecture: $arch" >&2; exit 1 ;;
 esac
 tarball="cpython-${pbs_python}+${pbs_release}-${triple}-install_only_stripped.tar.gz"
+# Checked against installers/PYTHON_SHA256SUMS: a file replaced upstream is not shipped.
+expected=$(awk -v f="$tarball" '$2 == f { print $1 }' "$here/../PYTHON_SHA256SUMS")
+[ -n "$expected" ] || { echo "no SHA-256 for $tarball in installers/PYTHON_SHA256SUMS" >&2; exit 1; }
 curl -fsSL -o "$build/$tarball" \
     "https://github.com/astral-sh/python-build-standalone/releases/download/${pbs_release}/${tarball}"
+actual=$(shasum -a 256 "$build/$tarball" | cut -d' ' -f1)
+if [ "$actual" != "$expected" ]; then
+    rm -f "$build/$tarball"
+    echo "$tarball: SHA-256 $actual, expected $expected (installers/PYTHON_SHA256SUMS)" >&2
+    exit 1
+fi
 tar -xzf "$build/$tarball" -C "$app/Contents/Resources"      # unpacks to ./python
 rm "$build/$tarball"
 py="$app/Contents/Resources/python/bin/python3"

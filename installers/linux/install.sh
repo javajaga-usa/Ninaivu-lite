@@ -12,6 +12,9 @@
 # Run a newer installer to upgrade in place: settings, people and the index are
 # kept, because they live in the data folder, not with the program. The
 # photographs are only ever read.
+# As root it is a system-wide install: Ninaivu Lite then always runs as its own
+# account, by the service or by the `ninaivu-lite` command, and there is no
+# Control Panel (the service is started and stopped with systemctl).
 set -e
 payload=$1; shift
 version=$(cat "$payload/VERSION")
@@ -28,9 +31,11 @@ while [ $# -gt 0 ]; do
 done
 say() { [ "$quiet" = 1 ] || echo "$@"; }
 
+# NINAIVU_TEST_ROOT: for the tests only, the system folders under another one.
+sys=${NINAIVU_TEST_ROOT:-}
 if [ "$(id -u)" = 0 ]; then
-    default_prefix=/opt/ninaivu-lite; bindir=/usr/local/bin; apps=/usr/local/share/applications
-    data=/var/lib/ninaivu-lite
+    default_prefix=$sys/opt/ninaivu-lite; bindir=$sys/usr/local/bin; apps=$sys/usr/local/share/applications
+    data=$sys/var/lib/ninaivu-lite
 else
     default_prefix="$HOME/.local/lib/ninaivu-lite"; bindir="$HOME/.local/bin"
     apps="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
@@ -39,13 +44,22 @@ fi
 prefix=${prefix:-$default_prefix}
 say "Ninaivu Lite $version → $prefix"
 
-# An upgrade: ask the one that is running to stop, so the new one can start.
+# An upgrade: stop the one that is running before its files are replaced. Its
+# service first (asked through the server, the service would only start it
+# again), then one started any other way.
+if command -v systemctl >/dev/null 2>&1; then
+    if [ "$(id -u)" = 0 ]; then systemctl stop ninaivu-lite >/dev/null 2>&1 || true
+    else systemctl --user stop ninaivu-lite >/dev/null 2>&1 || true; fi
+fi
 if [ -x "$prefix/python/bin/python3" ]; then
     "$prefix/python/bin/python3" -m ninaivu_lite.control --data "$data" --stop >/dev/null 2>&1 || true
 fi
 
 # The machine's own Python is not used, and it need not have one.
 mkdir -p "$prefix" "$bindir" "$data"
+# The data folder holds the index, everyone's PIN hashes, share links and the
+# previews of hidden photos: no one else's to read.
+chmod 0700 "$data"
 rm -rf "$prefix/python.new"
 cp -R "$payload/python" "$prefix/python.new"
 "$prefix/python.new/bin/python3" -m pip install --quiet --no-index --no-deps \
@@ -57,73 +71,11 @@ cp "$payload/LICENSE" "$payload/README.md" "$prefix/"
 printf '%s\n' "$version" > "$prefix/VERSION"
 py="$prefix/python/bin/python3"
 
-# The commands.
-cat > "$prefix/ninaivu-lite" <<WRAP
-#!/bin/sh
-exec "$py" -m ninaivu_lite --data "$data" "\$@"
-WRAP
-cat > "$prefix/ninaivu-lite-panel" <<WRAP
-#!/bin/sh
-exec "$py" -m ninaivu_lite.panel --data "$data" "\$@"
-WRAP
-cat > "$prefix/uninstall" <<WRAP
-#!/bin/sh
-# Remove Ninaivu Lite's program, commands, desktop entry and service. The
-# photographs are never touched; settings, people and the index under
-# $data are kept unless --purge.
-"$py" -m ninaivu_lite.control --data "$data" --stop --autostart off >/dev/null 2>&1 || true
-systemctl --user disable --now ninaivu-lite 2>/dev/null || true
-[ "\$(id -u)" = 0 ] && systemctl disable --now ninaivu-lite 2>/dev/null || true
-rm -f "$bindir/ninaivu-lite" "$bindir/ninaivu-lite-panel" "$apps/ninaivu-lite.desktop" \\
-      "\$HOME/Desktop/ninaivu-lite.desktop" \\
-      "\${XDG_CONFIG_HOME:-\$HOME/.config}/systemd/user/ninaivu-lite.service" \\
-      /etc/systemd/system/ninaivu-lite.service 2>/dev/null
-[ "\$1" = "--purge" ] && rm -rf "$data"
-[ "\$1" = "--purge" ] && [ "\$(id -u)" = 0 ] && userdel ninaivu-lite 2>/dev/null || true
-# Only what this installer put there: --prefix may have named a folder that
-# holds other things (/opt, a home folder), and those are never removed.
-rm -rf "$prefix/python" "$prefix/python.new"
-rm -f "$prefix/ninaivu-lite" "$prefix/ninaivu-lite-panel" "$prefix/VERSION" \
-      "$prefix/LICENSE" "$prefix/README.md" "$prefix/uninstall"
-rmdir "$prefix" 2>/dev/null || true
-echo "Ninaivu Lite removed."
-WRAP
-chmod +x "$prefix/ninaivu-lite" "$prefix/ninaivu-lite-panel" "$prefix/uninstall"
-ln -sf "$prefix/ninaivu-lite" "$bindir/ninaivu-lite"
-ln -sf "$prefix/ninaivu-lite-panel" "$bindir/ninaivu-lite-panel"
-
-# The Control Panel in the applications menu and on the Desktop, for the
-# machines that have one.
-icon=$("$py" -c "import ninaivu_lite, os; print(os.path.join(os.path.dirname(ninaivu_lite.__file__), 'static', 'icons', 'icon-192.png'))")
-mkdir -p "$apps"
-cat > "$apps/ninaivu-lite.desktop" <<ENTRY
-[Desktop Entry]
-Type=Application
-Name=Ninaivu Lite Control Panel
-Comment=Start and stop Ninaivu Lite, and open the family's photographs
-Exec=$prefix/ninaivu-lite-panel
-Icon=$icon
-Terminal=false
-Categories=Graphics;Photography;
-ENTRY
-if [ "$(id -u)" != 0 ] && [ -d "$HOME/Desktop" ]; then
-    cp "$apps/ninaivu-lite.desktop" "$HOME/Desktop/ninaivu-lite.desktop"
-    chmod +x "$HOME/Desktop/ninaivu-lite.desktop"
-    command -v gio >/dev/null 2>&1 && gio set "$HOME/Desktop/ninaivu-lite.desktop" metadata::trusted true 2>/dev/null || true
-fi
-
-# A photographs folder is optional here: without one, the console's first-day
-# guide asks for it in the browser.
-folder_arg=""
-if [ -n "$photos" ]; then
-    photos=$(cd "$photos" 2>/dev/null && pwd || echo "$photos")
-    [ -d "$photos" ] || { echo "$photos is not a folder." >&2; exit 2; }
-    folder_arg=" \"$photos\""
-fi
-
 # A system service never runs as root: it answers the network, and its
 # administrators can import and export files. It gets an account of its own
-# that owns the data folder and only reads the photographs it is let read.
+# that owns the data folder and only reads the photographs it is let read; so
+# does the `ninaivu-lite` command of a system-wide install, with or without
+# the service.
 account=ninaivu-lite
 make_account() {
     id -u "$account" >/dev/null 2>&1 && return 0
@@ -138,6 +90,102 @@ make_account() {
         return 1
     fi
 }
+
+own_account=0
+if [ "$(id -u)" = 0 ]; then
+    if make_account; then
+        own_account=1
+        chown -R "$account:$account" "$data"
+    fi
+    chmod 0700 "$data"
+fi
+
+# The commands.
+if [ "$own_account" = 1 ]; then
+    cat > "$prefix/ninaivu-lite" <<WRAP
+#!/bin/sh
+# Ninaivu Lite as its own account, never as root or as whoever typed this, so
+# its data folder stays its own. (The service: systemctl start|stop ninaivu-lite.)
+if [ "\$(id -un)" = $account ]; then
+    exec "$py" -m ninaivu_lite --data "$data" "\$@"
+elif [ "\$(id -u)" = 0 ] && command -v runuser >/dev/null 2>&1; then
+    exec runuser -u $account -- "$py" -m ninaivu_lite --data "$data" "\$@"
+fi
+exec sudo -u $account "$py" -m ninaivu_lite --data "$data" "\$@"
+WRAP
+else
+    cat > "$prefix/ninaivu-lite" <<WRAP
+#!/bin/sh
+exec "$py" -m ninaivu_lite --data "$data" "\$@"
+WRAP
+fi
+if [ "$(id -u)" != 0 ]; then
+    cat > "$prefix/ninaivu-lite-panel" <<WRAP
+#!/bin/sh
+exec "$py" -m ninaivu_lite.panel --data "$data" "\$@"
+WRAP
+fi
+cat > "$prefix/uninstall" <<WRAP
+#!/bin/sh
+# Remove Ninaivu Lite's program, commands, desktop entry and service. The
+# photographs are never touched; settings, people and the index under
+# $data are kept unless --purge.
+"$py" -m ninaivu_lite.control --data "$data" --stop --autostart off >/dev/null 2>&1 || true
+systemctl --user disable --now ninaivu-lite 2>/dev/null || true
+[ "\$(id -u)" = 0 ] && systemctl disable --now ninaivu-lite 2>/dev/null || true
+rm -f "$bindir/ninaivu-lite" "$bindir/ninaivu-lite-panel" "$apps/ninaivu-lite.desktop" \\
+      "\$HOME/Desktop/ninaivu-lite.desktop" \\
+      "\${XDG_CONFIG_HOME:-\$HOME/.config}/systemd/user/ninaivu-lite.service" \\
+      "$sys/etc/systemd/system/ninaivu-lite.service" 2>/dev/null
+[ "\$1" = "--purge" ] && rm -rf "$data"
+[ "\$1" = "--purge" ] && [ "\$(id -u)" = 0 ] && userdel ninaivu-lite 2>/dev/null || true
+# Only what this installer put there: --prefix may have named a folder that
+# holds other things (/opt, a home folder), and those are never removed.
+rm -rf "$prefix/python" "$prefix/python.new"
+rm -f "$prefix/ninaivu-lite" "$prefix/ninaivu-lite-panel" "$prefix/VERSION" \
+      "$prefix/LICENSE" "$prefix/README.md" "$prefix/uninstall"
+rmdir "$prefix" 2>/dev/null || true
+echo "Ninaivu Lite removed."
+WRAP
+chmod +x "$prefix/ninaivu-lite" "$prefix/uninstall"
+ln -sf "$prefix/ninaivu-lite" "$bindir/ninaivu-lite"
+
+# The Control Panel in the applications menu and on the Desktop, for the
+# machines that have one; a person's own install only. A system-wide one's data
+# folder is the service account's, which another person's panel can neither
+# read nor stop, so it has none (and an earlier version's is taken away).
+if [ "$(id -u)" = 0 ]; then
+    rm -f "$prefix/ninaivu-lite-panel" "$bindir/ninaivu-lite-panel" "$apps/ninaivu-lite.desktop"
+else
+    chmod +x "$prefix/ninaivu-lite-panel"
+    ln -sf "$prefix/ninaivu-lite-panel" "$bindir/ninaivu-lite-panel"
+    icon=$("$py" -c "import ninaivu_lite, os; print(os.path.join(os.path.dirname(ninaivu_lite.__file__), 'static', 'icons', 'icon-192.png'))")
+    mkdir -p "$apps"
+    cat > "$apps/ninaivu-lite.desktop" <<ENTRY
+[Desktop Entry]
+Type=Application
+Name=Ninaivu Lite Control Panel
+Comment=Start and stop Ninaivu Lite, and open the family's photographs
+Exec=$prefix/ninaivu-lite-panel
+Icon=$icon
+Terminal=false
+Categories=Graphics;Photography;
+ENTRY
+    if [ -d "$HOME/Desktop" ]; then
+        cp "$apps/ninaivu-lite.desktop" "$HOME/Desktop/ninaivu-lite.desktop"
+        chmod +x "$HOME/Desktop/ninaivu-lite.desktop"
+        command -v gio >/dev/null 2>&1 && gio set "$HOME/Desktop/ninaivu-lite.desktop" metadata::trusted true 2>/dev/null || true
+    fi
+fi
+
+# A photographs folder is optional here: without one, the console's first-day
+# guide asks for it in the browser.
+folder_arg=""
+if [ -n "$photos" ]; then
+    photos=$(cd "$photos" 2>/dev/null && pwd || echo "$photos")
+    [ -d "$photos" ] || { echo "$photos is not a folder." >&2; exit 2; }
+    folder_arg=" \"$photos\""
+fi
 
 # Folders the service account cannot read (the library's, and --photos), so
 # the installer can say so.
@@ -158,9 +206,8 @@ started=0
 if [ "$service" = 1 ] && command -v systemctl >/dev/null 2>&1; then
     run_as=""
     if [ "$(id -u)" = 0 ]; then
-        unit=/etc/systemd/system/ninaivu-lite.service; scope=""; wanted=multi-user.target
-        if make_account; then
-            chown -R "$account:$account" "$data"
+        unit=$sys/etc/systemd/system/ninaivu-lite.service; scope=""; wanted=multi-user.target
+        if [ "$own_account" = 1 ]; then
             run_as="User=$account
 Group=$account
 NoNewPrivileges=yes
@@ -190,6 +237,8 @@ Wants=network-online.target
 [Service]
 ExecStart="$py" -m ninaivu_lite --no-browser --data "$data"$folder_arg
 Environment=PYTHONUNBUFFERED=1
+# What it writes (the index, previews, backups, logs) is not for other accounts.
+UMask=0027
 Restart=on-failure
 RestartSec=5
 $run_as
@@ -203,11 +252,22 @@ UNIT
             say "The service runs as the '$account' account, which cannot read:"
             printf '%s\n' "$blocked" | while IFS= read -r folder; do
                 say "    $folder"
-                say "  Let it read that folder, for example:  setfacl -R -m u:$account:rX \"$folder\""
+                say "  Let it read that folder, and what is added to it later, for example:"
+                # The folders above it too, where it may not pass through.
+                parent=$(dirname "$folder")
+                while [ "$parent" != / ] && [ "$parent" != . ]; do
+                    runuser -u "$account" -- test -x "$parent" 2>/dev/null \
+                        || say "    setfacl -m u:$account:x \"$parent\""
+                    parent=$(dirname "$parent")
+                done
+                say "    setfacl -R -m u:$account:rX \"$folder\""
+                say "    find \"$folder\" -type d -exec setfacl -m d:u:$account:rX {} +"
             done
         fi
     fi
-    if systemctl $scope daemon-reload 2>/dev/null && systemctl $scope enable --now ninaivu-lite 2>/dev/null; then
+    # restart, not enable --now: an upgrade's service may still be active.
+    if systemctl $scope daemon-reload 2>/dev/null && systemctl $scope enable ninaivu-lite 2>/dev/null \
+            && systemctl $scope restart ninaivu-lite 2>/dev/null; then
         started=1
         say "Started as a service; it starts again at boot."
         if [ -n "$scope" ] && command -v loginctl >/dev/null 2>&1; then
@@ -218,7 +278,10 @@ UNIT
         say "Could not set up the service (no systemd session?)."
     fi
 fi
-[ "$started" = 1 ] || say "Start it with: ninaivu-lite$folder_arg     (or from the Control Panel)"
+if [ "$started" != 1 ]; then
+    if [ "$(id -u)" = 0 ]; then say "Start it with: ninaivu-lite$folder_arg"
+    else say "Start it with: ninaivu-lite$folder_arg     (or from the Control Panel)"; fi
+fi
 
 address=$(hostname -I 2>/dev/null | awk '{print $1}')
 say ""
@@ -226,8 +289,17 @@ say "Ninaivu Lite $version is installed."
 say "  Open it:        http://${address:-localhost}:8080   (the first visit makes the administrator)"
 [ "$started" = 1 ] && [ "$(id -u)" = 0 ] && say "  Setup code:     journalctl -u ninaivu-lite | grep code    (asked for when setting up from another device)"
 [ "$started" = 1 ] && [ "$(id -u)" != 0 ] && say "  Setup code:     journalctl --user -u ninaivu-lite | grep code    (asked for when setting up from another device)"
-say "  Control Panel:  ninaivu-lite-panel, in the applications menu and on the Desktop"
-say "  Command:        ninaivu-lite [photos folder]     ($bindir should be on PATH)"
+if [ "$started" != 1 ]; then
+    if [ "$(id -u)" = 0 ]; then say "  Setup code:     in $data/logs/ninaivu-lite.log    (asked for when setting up from another device)"
+    else say "  Setup code:     in the Control Panel, and in $data/logs/ninaivu-lite.log    (asked for when setting up from another device)"; fi
+fi
+if [ "$(id -u)" = 0 ]; then
+    [ "$started" = 1 ] && say "  Start, stop:    systemctl start|stop|restart ninaivu-lite"
+    [ "$own_account" = 1 ] && say "  Command:        ninaivu-lite --reset-password NAME, and the rest, run as the $account account"
+else
+    say "  Control Panel:  ninaivu-lite-panel, in the applications menu and on the Desktop"
+    say "  Command:        ninaivu-lite [photos folder]     ($bindir should be on PATH)"
+fi
 say "  Data and log:   $data"
 say "  Remove it:      $prefix/uninstall"
 exit 0

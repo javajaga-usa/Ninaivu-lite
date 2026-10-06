@@ -15,7 +15,11 @@ Close Ninaivu Lite, then in its folder:
 python -m ninaivu_lite --export lite-export.json
 ```
 
-(Use `--data DIR` too if you started Lite with a different data folder.)
+(Use `--data DIR` too if you started Lite with a different data folder.) With an installer,
+the command is `ninaivu-lite --export lite-export.json`; for the portable zip, a Linux install
+made with `sudo` or Docker, use the command the [user guide](USER-GUIDE.md#7-looking-after-it)
+gives for a forgotten password, with `--export lite-export.json` in place of
+`--reset-password <username>`.
 The file holds no photos and no previews; it is usually a few hundred kilobytes.
 It **does** hold password and PIN hashes, so keep it private and delete it after the move.
 

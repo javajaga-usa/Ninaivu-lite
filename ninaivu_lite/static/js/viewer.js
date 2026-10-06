@@ -4,7 +4,7 @@
  * instant.
  */
 
-import { api, thumbUrl } from './api.js';
+import { api, mediaRefusal, thumbUrl } from './api.js';
 import { blurhashUrl } from './blurhash.js';
 import * as i18n from './i18n.js';
 
@@ -402,6 +402,17 @@ export class Viewer extends EventTarget {
       video.playsInline = true;
       video.preload = 'metadata';
       video.onended = () => this.slideshow && this.advanceSlideshow();
+      // A guest is refused a video that would carry where it was shot; say
+      // so in the server's words rather than leaving a dead player.
+      video.onerror = async () => {
+        const reason = await mediaRefusal(item.src);
+        if (this.media !== video) return;
+        const note = document.createElement('div');
+        note.className = 'badge';
+        note.style.cssText = 'position:absolute;bottom:80px;left:50%;transform:translateX(-50%)';
+        note.textContent = reason || i18n.t('This media could not be displayed.');
+        this.stage.appendChild(note);
+      };
       if (!item.has_thumb) {
         this.dispatchEvent(new CustomEvent('poster-source', { detail: { id: item.id, video } }));
       }

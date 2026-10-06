@@ -330,6 +330,7 @@ def set_password(conn: sqlite3.Connection, user_id: int, password: str, *,
 
 
 def set_pin(conn: sqlite3.Connection, user_id: int, pin: str | None) -> None:
+    """A new PIN, or none; that person's devices sign out, as for a password."""
     if pin:
         problem = pin_problem(pin)
         if problem:
@@ -337,6 +338,7 @@ def set_pin(conn: sqlite3.Connection, user_id: int, pin: str | None) -> None:
     with conn:
         conn.execute("UPDATE users SET pin = ? WHERE id = ?",
                      (hash_password(pin) if pin else None, user_id))
+        conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
 
 
 def update_profile(conn: sqlite3.Connection, user_id: int, **fields: Any) -> None:

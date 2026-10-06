@@ -16,3 +16,16 @@ export async function decode(file) {
   }
   return bitmap;
 }
+
+/**
+ * The format a saved copy is written in: the original's own family. Every
+ * copy used to be a PNG, so a 12-megapixel JPEG came back as tens of
+ * megabytes. Photographs (JPEG, HEIC) stay JPEG, WebP stays WebP, and the
+ * lossless kinds (PNG, TIFF, GIF, BMP) stay lossless as PNG.
+ */
+export function saveType(item) {
+  const ext = String(item?.name || '').split('.').pop().toLowerCase();
+  if (['png', 'gif', 'bmp', 'tif', 'tiff'].includes(ext)) return 'image/png';
+  if (ext === 'webp') return 'image/webp';
+  return 'image/jpeg';
+}

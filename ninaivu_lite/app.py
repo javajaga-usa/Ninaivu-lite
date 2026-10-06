@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 
 from flask import Flask, g, request
 
-from . import common, compress, drives, phones
+from . import auth, common, compress, drives, phones
 from .common import ApiError
 from .config import Config
 from .importer import Importer
@@ -44,6 +44,8 @@ OPEN_PATHS = {"/", "/admin", "/admin/", "/sw.js", "/healthz", "/readyz", "/api/h
               "/manifest.webmanifest", "/admin/manifest.webmanifest", "/favicon.ico",
               "/api/local/stop"}
 UNSAFE = {"POST", "PUT", "PATCH", "DELETE"}
+#: What someone on a temporary password may still change (sign-in is open).
+MUST_CHANGE_PATHS = {"/api/me", "/api/me/password"}
 
 #: Endings a home network's own names use for this computer (its name plus one of these).
 LOCAL_SUFFIXES = ("", ".local", ".lan", ".home", ".home.arpa", ".internal", ".localdomain")
@@ -81,6 +83,18 @@ def host_allowed(host: str, extra: list[str] | tuple[str, ...] = ()) -> bool:
         return True
     named = [*extra, *os.environ.get("NINAIVU_ALLOWED_HOSTS", "").split(",")]
     return name in {h.strip().lower().rstrip(".") for h in named if isinstance(h, str)}
+
+
+#: Body types a page on another site may send without asking first (CORS's
+#: "simple" requests); anything else, or the header below, needs the
+#: browser's permission, which Ninaivu Lite never gives.
+SIMPLE_TYPES = {"", "application/x-www-form-urlencoded", "multipart/form-data", "text/plain"}
+SCRIPT_HEADER = "X-Ninaivu"
+
+
+def script_sent() -> bool:
+    """Whether this request could only have come from a script on this site."""
+    return bool(request.headers.get(SCRIPT_HEADER)) or request.mimetype not in SIMPLE_TYPES
 
 
 def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
@@ -139,7 +153,13 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
             if site is not None:
                 if site not in ("same-origin", "none"):
                     raise ApiError(403, "Cross-origin request refused.")
-            elif origin and origin != "null" and urlsplit(origin).netloc != request.host:
+            elif origin and origin != "null":
+                if urlsplit(origin).netloc != request.host:
+                    raise ApiError(403, "Cross-origin request refused.")
+            elif request.cookies.get(auth.SESSION_COOKIE) and not script_sent():
+                # No origin to go by (plain HTTP sends no Sec-Fetch-Site, a
+                # sandboxed or no-referrer page says "null"): a signed-in
+                # write must be one a form or another site could not send.
                 raise ApiError(403, "Cross-origin request refused.")
         # A closed library answers nobody who has not signed in.
         path = request.path
@@ -147,6 +167,11 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
             return None
         if not cfg.open_browsing and common.user().anonymous:
             raise ApiError(401, "This library is private. Please sign in.")
+        # A password an administrator set is only for getting in: nothing is
+        # changed with it until its owner has chosen their own.
+        if request.method in UNSAFE and path.startswith("/api/") \
+                and path not in MUST_CHANGE_PATHS and common.user().must_change:
+            raise ApiError(403, "Choose your own password first.", must_change=True)
         return None
 
     @app.after_request

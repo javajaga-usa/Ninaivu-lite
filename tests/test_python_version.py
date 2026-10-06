@@ -49,13 +49,16 @@ def test_workflows_follow_the_pin():
     assert "python-version-file: .python-version" in release
     assert not re.search(r'python-version: "', release)
     matrix = re.search(r"python-version: \[(.+)\]", read(".github/workflows/tests.yml")).group(1)
-    assert f'"{MINOR}"' in matrix
+    # Exactly the one the installers carry, not whichever 3.13 is newest.
+    assert f'"{PINNED}"' in matrix
 
 
 def test_only_a_tag_or_a_person_publishes_a_release():
     release = read(".github/workflows/release.yml")
     job = release[release.index("\n  release:"):]
-    assert "if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'" in job
+    # A tag, or "Run workflow" on main (A31), never from another branch.
+    assert ("(github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' "
+            "&& github.ref == 'refs/heads/main'))") in job
 
 
 def test_windows_installer_template_is_plain_ascii():

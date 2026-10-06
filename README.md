@@ -41,7 +41,7 @@ archive, and **Sudar**, the photo studio that runs in the browser.
 | Favourites per person; albums from any folder, shareable | Import old drives, cards and backups into one hash-checked archive filed by date; Google Takeout kept whole | Photographs and videos are only ever read; edits and turns are kept beside them or in the index |
 | Share links with a password and an expiry; the visitor's copy carries no location | Sideways photos put right during the scan (camera tag, then faces with optional OpenCV) | gzip, long caches and a virtual grid: a 100,000-photo library scrolls on a phone |
 | Sudar photo studio in the browser: light, colour, detail, crops, looks, plain-words requests, clothing colour | Control Panel: start, stop, restart, addresses for phones, start with the computer, update check | SQLite index with numbered migrations; thumbnails and viewing copies cached in the data folder |
-| A photo as your sign-in picture; Tamil or English per person | Backups of settings, people and albums; export for Ninaivu | Tests on Windows, macOS and Linux, Python 3.10 and 3.13, every push |
+| A photo as your sign-in picture; Tamil or English per person | Daily recovery zips (index, settings, profile pictures; the last seven kept) and `--restore`; export for Ninaivu | Tests on Windows, macOS and Linux, Python 3.10 and 3.13, on every push to `main` and every pull request |
 
 ## What it does
 
@@ -83,16 +83,42 @@ and downloads nothing.
 | --- | --- |
 | Windows 10 / 11 | `Ninaivu-Lite-<version>-windows-x64.exe` — the Control Panel opens when it finishes |
 | Windows portable | `Ninaivu-Lite-<version>-windows-x64-portable.zip` — extract and open `Ninaivu Lite Control Panel.vbs`; data stays beside the program |
-| Linux PC | `sh Ninaivu-Lite-<version>-linux-amd64.sh` |
+| Linux PC | `sh Ninaivu-Lite-<version>-linux-amd64.sh` (with `sudo`, for a server: see below) |
 | Raspberry Pi 4 / 5 (64-bit OS) | `sh Ninaivu-Lite-<version>-linux-arm64.sh` |
 | macOS | the `.dmg` for Apple silicon (`arm64`) or Intel (`x86_64`) |
 | Docker | `docker compose -f installers/docker/docker-compose.yml up -d` |
 
 How they are built: [installers/README.md](installers/README.md).
 
-Code signing for the Windows installer is provided by [SignPath.io](https://about.signpath.io),
-with a certificate from the [SignPath Foundation](https://signpath.org); the policy is in
-[docs/CODE-SIGNING.md](docs/CODE-SIGNING.md).
+**The releases are not code-signed yet.** Free signing through the
+[SignPath Foundation](https://signpath.org) has been applied for and is pending; until then
+Windows SmartScreen says *Windows protected your PC* (**More info → Run anyway**), a PC with
+**Smart App Control** on refuses the installer, and macOS asks before opening the app
+(**System Settings → Privacy & Security → Open Anyway**). The Windows installer installs for
+you alone by default; if you choose to install it for everyone on the computer, or start it
+from an administrator's account, Windows asks for administrator permission (UAC). The policy
+signing will follow is in [docs/CODE-SIGNING.md](docs/CODE-SIGNING.md).
+
+**Linux, installed with `sudo`** (a server or a Raspberry Pi): the program goes in
+`/opt/ninaivu-lite`, and a system service starts it at boot as its own `ninaivu-lite`
+account, never as root. Its data folder is `/var/lib/ninaivu-lite`. That account must be
+able to read your photo folders, and to pass through every folder above them; for example:
+
+```sh
+sudo setfacl -R -m u:ninaivu-lite:rX /home/me/Pictures      # what is there now
+sudo setfacl -R -d -m u:ninaivu-lite:rX /home/me/Pictures   # and what is added later
+sudo setfacl -m u:ninaivu-lite:x /home/me                   # each folder above it
+sudo systemctl restart ninaivu-lite
+```
+
+The installer names any folder the account cannot read. Under the service, the "a drive
+was plugged in" prompt may not see drives or phones the desktop opens for you (they are
+opened for your account, not the service's): add their folders under *Import* by hand.
+Without `sudo`, everything stays in your own account (`~/.local/share/ninaivu-lite`).
+
+**Phones cannot open it on Linux?** A firewall may be in the way. Let port 8080 in:
+`sudo ufw allow 8080/tcp` (Ubuntu, Raspberry Pi OS), or
+`sudo firewall-cmd --permanent --add-port=8080/tcp && sudo firewall-cmd --reload` (Fedora).
 
 ## Start from a download of this repository
 
@@ -106,7 +132,11 @@ on Windows tick *Add python.exe to PATH*.
 The first start prepares everything in a `.venv` folder (a minute or two; it needs the
 internet once). It then opens your browser at `http://localhost:8080` and prints the address
 to open on phones. The first visit asks you to make the administrator; after that, the
-console walks you through adding folders and family.
+console walks you through adding folders and family. Making the administrator from another
+device (a phone) asks for a **setup code**: it is printed in the window Ninaivu Lite was
+started from and written to `logs/ninaivu-lite.log` in the data folder, and the Control Panel
+shows it. For the Linux service: `journalctl -u ninaivu-lite | grep code` (`journalctl --user
+-u ninaivu-lite` without `sudo`); for Docker: `docker logs ninaivu-lite`.
 
 When the first-time setup finishes, the **Control Panel** opens too. Open it any time with
 **`Start - Ninaivu Lite Control Panel.vbs`** (Windows, no console window) or
@@ -129,14 +159,43 @@ python3 -m ninaivu_lite ~/Pictures         # macOS and Linux
 | `--no-browser` | don't open a browser |
 | `--export FILE` | write the move-to-Ninaivu file, then stop |
 | `--reset-password NAME` | set a new password for someone (a forgotten admin password), then stop |
+| `--restore ZIP` | put back a backup zip (stop Ninaivu Lite first), then stop |
+
+**A forgotten password, or a backup to put back**, by how it was installed (stop Ninaivu
+Lite first):
+
+| Installed with | Run |
+| --- | --- |
+| Windows installer, or Linux without `sudo` | `ninaivu-lite --reset-password NAME` (a new Command Prompt on Windows) |
+| Linux with `sudo` | `sudo systemctl stop ninaivu-lite`, then `sudo -u ninaivu-lite /usr/local/bin/ninaivu-lite --reset-password NAME` |
+| Windows portable zip | in its folder: `Python\python.exe -m ninaivu_lite --data "<that folder>\data" --reset-password NAME` |
+| this repository | `python -m ninaivu_lite --reset-password NAME`, inside the activated `.venv` |
+| Docker | `docker compose -f installers/docker/docker-compose.yml run --rm ninaivu-lite python -m ninaivu_lite --data /data --reset-password NAME` |
+
+`--restore <zip>` goes in the same place as `--reset-password NAME` (with Docker, the zip
+must be in a folder the container can see). Add `--data DIR` if you started Ninaivu Lite with
+a data folder of your own. What was in the data folder before a restore is kept in a
+`before-restore-…` folder inside it, never deleted.
 
 **Start with the computer:** tick *Start Ninaivu Lite when I sign in* in the Control Panel
-(or run `tools\start-with-windows.cmd`); on a Raspberry Pi or server, use the systemd unit in
-`tools/ninaivu-lite.service`.
+(or run `tools\start-with-windows.cmd`); on a Raspberry Pi or a server, use the
+[Linux installer](#install), which sets up a systemd service that starts it at boot.
 
-**Optional extras:** `pip install pillow-heif` shows iPhone HEIC photos; `ffmpeg` on the PATH (the family's browsers make video previews without it)
-gives videos a preview picture. Without them those files still appear, with a plain tile and a
-download button.
+**Optional extras:** `pip install pillow-heif` shows iPhone HEIC photos. `ffmpeg` on the PATH
+gives videos the browsers cannot play a preview picture (the family's browsers make the others
+without it), and **is needed to share videos with guests and share links**: it removes a
+video's location before it is sent. Without it such a video is refused to them, unless an
+administrator turns on *Send videos to guests and share links as they are when their location
+cannot be removed* in *Settings*. Without these extras the files still appear, with a plain
+tile and a download button.
+
+**Names it answers to:** Ninaivu Lite answers only to this computer's own names: any of its
+addresses (`http://192.168.1.20:8080`), its network name (`mypc`, `mypc.local`) and
+`localhost`. Any other name (a reverse proxy, a name of your own) goes in `allowed_hosts` in
+`settings.json` in the data folder, edited while Ninaivu Lite is stopped
+(`"allowed_hosts": ["photos.home"]`), or in the
+`NINAIVU_ALLOWED_HOSTS` environment variable, separated by commas; with Docker, set
+`ALLOWED_HOSTS`, since a container does not know the computer's name.
 
 ## Security
 
@@ -160,10 +219,12 @@ Ninaivu's (`ninaivu_lite/templates`, `ninaivu_lite/static`); strings are in
 
 ## Code signing policy
 
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
-[SignPath Foundation](https://signpath.org). The Windows installer is built from this
-repository by the public release workflow on GitHub and every signing request is approved by
-hand. Committers, reviewers and approvers: [Jagadeesh Rajendran](https://github.com/javajaga-usa).
+**Not signed yet:** the application to the [SignPath Foundation](https://signpath.org) for
+free code signing is pending, and until it is approved the releases are unsigned. Once it is,
+code signing will be provided free by [SignPath.io](https://about.signpath.io), with a
+certificate by the SignPath Foundation. The Windows installer is built from this
+repository by the public release workflow on GitHub, and every signing request will be
+approved by hand. Committers, reviewers and approvers: [Jagadeesh Rajendran](https://github.com/javajaga-usa).
 Privacy: this program will not transfer any information to other networked systems unless
 specifically requested by the user or the person installing or operating it.
 Full policy: [docs/CODE-SIGNING.md](docs/CODE-SIGNING.md).
@@ -184,7 +245,7 @@ MIT. © 2026 Jagadeesh Rajendran. See [LICENSE](LICENSE).
 எதுவும் உங்கள் வீட்டை விட்டு வெளியே போவதில்லை. நினைவின் அதே திரைகள் — குறைவான பொத்தான்கள்,
 இலகுவான இயந்திரம்.
 
-**என்ன செய்யும்:** காலவரிசை, கோப்புறைகள், விருப்பங்கள், ஆல்பங்கள், எளிய தேடல், முழுத்திரைப் பார்வை;
+**என்ன செய்யும்:** காலவரிசை, கோப்புறைகள், பிடித்தவை, ஆல்பங்கள், எளிய தேடல், முழுத்திரைப் பார்வை;
 சுயவிவரத் தேர்வுடன் உள்நுழைவு (PIN அல்லது கடவுச்சொல் விருப்பம்); நிர்வாகி, குடும்பம், விருந்தினர்;
 ஒவ்வொரு படமும் பொது, குடும்பம் அல்லது மறைக்கப்பட்டவை; `/admin` இல் நிர்வாகப் பக்கம்;
 கடவுச்சொல், காலாவதியுடன் பகிர்வு இணைப்புகள்; தமிழும் ஆங்கிலமும்.

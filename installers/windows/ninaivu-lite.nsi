@@ -1,8 +1,8 @@
-; pynsist's own template with four additions: a "start at sign-in" box, the
-; Control Panel on the Desktop, the Control Panel opened when the installer
-; finishes, and a tidy stop before an upgrade or an uninstall (the uninstall's
-; in a section of its own that runs before the packages go), with the old
-; program removed before an upgrade. Everything else is pynsist's; see
+; pynsist's own template with four additions: a "start at sign-in" box (left
+; as it was on an upgrade), the Control Panel on the Desktop, the Control
+; Panel opened when the installer finishes, and a tidy stop before an upgrade
+; or an uninstall (the uninstall's in a section of its own that runs before
+; the packages go), with the old program removed before an upgrade. Everything else is pynsist's; see
 ; https://github.com/takluyver/pynsist/blob/master/nsist/pyapp.nsi
 [% extends "pyapp.nsi" %]
 
@@ -46,7 +46,11 @@
   VIAddVersionKey "FileDescription" "Ninaivu Lite installer"
   VIAddVersionKey "CompanyName" "Jagadeesh Rajendran"
   VIAddVersionKey "LegalCopyright" "(c) 2026 Jagadeesh Rajendran. MIT licence."
-  ; A components page, so "Start Ninaivu Lite at sign-in" can be unticked.
+  ; "1" once the install folder is found to hold a Ninaivu Lite already: an upgrade.
+  Var nl_ours
+  ; A components page, so "Start Ninaivu Lite at sign-in" can be unticked; on
+  ; an upgrade it starts as the person left it (RememberStartAtSignIn).
+  !define MUI_PAGE_CUSTOMFUNCTION_PRE RememberStartAtSignIn
   !insertmacro MUI_PAGE_COMPONENTS
   ; The last page offers to open the Control Panel (ticked): from there
   ; Ninaivu Lite is started, and the console walks through the first day.
@@ -64,10 +68,14 @@
   ; new ones. Only the installed program goes (the private Python, the packages,
   ; the commands, the files beside them): the family's data
   ; (%LOCALAPPDATA%\Ninaivu-lite: people, settings, index, previews) lives
-  ; elsewhere and is not touched, and the photographs never are. Nothing
-  ; happens on a first install (there is nothing there yet), and only these
-  ; named folders are removed, never the whole install folder, in case it was
-  ; chosen to be a shared one.
+  ; elsewhere and is not touched, and the photographs never are. Only when the
+  ; folder holds a Ninaivu Lite already: a first install into a folder that
+  ; has other things in it (a Python, a bin folder of its own) removes nothing,
+  ; and only these named folders are removed, never the whole install folder,
+  ; in case it was chosen to be a shared one.
+  StrCpy $nl_ours ""
+  IfFileExists "$INSTDIR\pkgs\ninaivu_lite\__init__.py" 0 nl_first_install
+  StrCpy $nl_ours "1"
   !insertmacro WaitUntilNotInUse
   DetailPrint "Removing the previous Ninaivu Lite program files..."
   RMDir /r "$INSTDIR\Python"
@@ -77,6 +85,7 @@
   Delete "$INSTDIR\LICENSE"
   Delete "$INSTDIR\CHANGELOG.md"
   Delete "$INSTDIR\_system_path.py"
+  nl_first_install:
   [[ super() ]]
 [% endblock %]
 
@@ -139,7 +148,28 @@
   FunctionEnd
 
   Section "Start Ninaivu Lite at sign-in" sec_autostart
-    ; The same switch as the box in the Control Panel.
+    ; The same switch as the box in the Control Panel. An upgrade keeps the
+    ; choice made since: the box starts unticked when it was turned off
+    ; (RememberStartAtSignIn), and with /S, where no page is shown, it is
+    ; left off here.
+    IfSilent 0 nl_autostart_on
+    StrCmp $nl_ours "1" 0 nl_autostart_on
+    ReadEnvStr $R9 APPDATA
+    IfFileExists "$R9\Microsoft\Windows\Start Menu\Programs\Startup\Ninaivu Lite.vbs" nl_autostart_on
+    Goto nl_autostart_done
+    nl_autostart_on:
     ExecWait '"$INSTDIR\Python\pythonw.exe" -m ninaivu_lite.control --autostart on'
+    nl_autostart_done:
   SectionEnd
+
+  ; Before the components page: over an earlier install whose sign-in
+  ; shortcut was turned off, the box starts unticked. (The shortcut is the
+  ; signed-in person's, so it is found through APPDATA, as control.py does.)
+  Function RememberStartAtSignIn
+    IfFileExists "$INSTDIR\pkgs\ninaivu_lite\__init__.py" 0 nl_remember_done
+    ReadEnvStr $R9 APPDATA
+    IfFileExists "$R9\Microsoft\Windows\Start Menu\Programs\Startup\Ninaivu Lite.vbs" nl_remember_done
+    SectionSetFlags ${sec_autostart} 0
+    nl_remember_done:
+  FunctionEnd
 [% endblock %]

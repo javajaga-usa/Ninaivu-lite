@@ -3,6 +3,7 @@
    session and no business loading the gallery's machinery — and every URL it
    uses carries the token, because that token is the only authority here. */
 import * as i18n from './i18n.js';
+import { mediaRefusal } from './api.js';
 
 const TOKEN = document.body.dataset.shareToken;
 const main = document.getElementById('main');
@@ -35,7 +36,7 @@ function askForPassword(message) {
         body: JSON.stringify({ password: input.value }),
       });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) { error.textContent = body.error || i18n.t('That did not work.'); return; }
+      if (!res.ok) { error.textContent = body.error ? i18n.t(body.error) : i18n.t('That did not work.'); return; }
       await load();
     } catch {
       error.textContent = i18n.t('Could not reach Ninaivu. Try opening the link again.');
@@ -70,11 +71,14 @@ function renderOne(item) {
   const isVideo = (item.kind === 'video');
   const node = document.createElement(isVideo ? 'video' : 'img');
   node.src = item.view || item.src;
-  node.onerror = () => {
+  node.onerror = async () => {
     if (!isVideo && item.thumb && node.getAttribute('src') !== item.thumb) {
       node.src = item.thumb;
     } else {
-      stage.appendChild(el('p', 'error', i18n.t('This media could not be displayed.')));
+      // The server says why (a video it will not send with its location data
+      // in it is a 415 with a sentence); a generic error hid that.
+      const reason = await mediaRefusal(item.view || item.src);
+      stage.appendChild(el('p', 'error', reason || i18n.t('This media could not be displayed.')));
     }
   };
   if (isVideo) { node.controls = true; node.playsInline = true; }
@@ -90,7 +94,7 @@ async function load() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       main.replaceChildren(el('p', 'empty',
-        data.error || i18n.t('This link is no longer available.')));
+        data.error ? i18n.t(data.error) : i18n.t('This link is no longer available.')));
       return;
     }
     if (data.scope === 'album') renderAlbum(data); else renderOne(data.item);
@@ -100,11 +104,13 @@ async function load() {
 }
 // Whatever the person opening this link reads. They have no account here and
 // no stored preference, so this is their browser's answer — which is the right
-// one: a link sent to somebody who reads Tamil opens in Tamil.
-await i18n.start();
-const from = document.getElementById('from');
-if (from) {
-  from.textContent = i18n.t('Shared from {name}',
-    { name: document.body.dataset.appName || 'Ninaivu' });
-}
-load();
+// one: a link sent to somebody who reads Tamil opens in Tamil. A promise rather
+// than a top-level await, which an iPad on iOS 14 cannot parse at all.
+i18n.start().catch(() => {}).then(() => {
+  const from = document.getElementById('from');
+  if (from) {
+    from.textContent = i18n.t('Shared from {name}',
+      { name: document.body.dataset.appName || 'Ninaivu' });
+  }
+  load();
+});

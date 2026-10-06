@@ -12,7 +12,8 @@
  * The console asks the server which drives are plugged in every few seconds
  * while it is open and on screen. The Control Panel asks the same question on
  * the computer itself and sends its answer here as `?drive=<path>&do=import`
- * (or `export`), which this module carries out on arrival.
+ * (or `export`): an import opens the Import page on arrival; an export, or a
+ * phone fetched by the server, is asked here once more before anything copies.
  *
  * The dialog is built here rather than in admin.html, which the browser may
  * still have cached from before this file existed.
@@ -120,8 +121,10 @@ export class DrivePrompt {
       return;
     }
     this.shown.add(drive.id);
-    if (action === 'import') this.importFrom(drive);
-    else if (action === 'export' && drive.kind !== 'phone') this.run('export', drive);
+    // Only opening the Import page follows a link straight away. Anything
+    // that copies (the library onto the drive, a phone into the archive) is
+    // asked here first: a link is something anybody can send.
+    if (action === 'import' && !drive.shell) this.importFrom(drive);
     else this.ask(drive);
   }
 

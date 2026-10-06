@@ -13,7 +13,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from . import APP_NAME, COPYRIGHT, __version__, backups, create_app, net
-from .config import DEFAULT_PORT, Config
+from .config import DEFAULT_PORT, Config, make_private
 from .scanner import Scanner
 
 
@@ -106,18 +106,22 @@ def reset_password(cfg: Config, username: str) -> int:
     return 0
 
 
+def state_port(data_dir: str | Path, default: int) -> int:
+    """The port the server on this data folder said it listens on (its
+    server.json), or *default*."""
+    import json
+    try:
+        state = json.loads((Path(data_dir) / "server.json").read_text(encoding="utf-8"))
+        return int(state.get("port", default))
+    except (OSError, ValueError, TypeError, AttributeError):
+        return default
+
+
 def restore_backup(data_dir: str | None, bundle: str) -> int:
     """Put a backup zip back, but never under a running server."""
-    import json
-
     from .config import default_data_dir
     folder = Path(data_dir) if data_dir else default_data_dir()
-    try:
-        state = json.loads((folder / "server.json").read_text(encoding="utf-8"))
-        port = int(state.get("port", DEFAULT_PORT))
-    except (OSError, ValueError, TypeError):
-        port = DEFAULT_PORT
-    if net.already_running(port):
+    if net.already_running(state_port(folder, DEFAULT_PORT)):
         print(f"  {APP_NAME} is running. Stop it (Control Panel, Stop) and run this again.",
               file=sys.stderr)
         return 2
@@ -173,6 +177,7 @@ def main(argv: list[str] | None = None) -> int:
         # Before anything opens the index: a restore must not be mixed with it.
         return restore_backup(args.data, args.restore)
     cfg = Config.load(args.data)
+    make_private(cfg.data_dir)
     setup_logging(cfg.data_dir)
     if cfg.folders_unknown:
         print(f"  The settings in {cfg.data_dir} are missing or damaged, and the index there\n"
@@ -180,26 +185,40 @@ def main(argv: list[str] | None = None) -> int:
               "  Restore a backup (--restore), or look at the log in the logs folder.",
               file=sys.stderr)
         return 2
+    from . import db
+    try:
+        db.connect(cfg.data_dir).close()
+    except db.NewerIndex as exc:
+        print(f"  {exc}", file=sys.stderr)
+        return 2
     if args.reset_password:
         return reset_password(cfg, args.reset_password)
     if args.export:
-        from . import db, export
+        from . import export
         Path(args.export).write_bytes(export.dumps(db.connect(cfg.data_dir), cfg))
         print(f"  Written: {args.export}")
         return 0
+    running = next((p for p in dict.fromkeys((args.port, state_port(cfg.data_dir, args.port)))
+                    if net.already_running(p)), None)
+    if running:
+        # Started at sign-in, or a second double-click: open the one that is
+        # running instead of starting another on a different port.
+        local = f"http://localhost:{running}"
+        print(f"\n  {APP_NAME} is already running: {local}\n")
+        new = [f for f in args.folders if str(Path(f).resolve()) not in cfg.folders]
+        if new:
+            # Saved here, they would be written over by the running server's
+            # next save of its own settings: it is the one to add them.
+            print("  The folders named were not added. Add them on the Admin page, under\n"
+                  "  Library folders, or stop it and run this again.\n", file=sys.stderr)
+        if not args.no_browser:
+            webbrowser.open(local)
+        return 2 if new else 0
     if args.folders:
         added = add_folders(cfg, args.folders)
         if added is None:
             return 2
     cfg.host = args.host
-    if net.already_running(args.port):
-        # Started at sign-in, or a second double-click: open the one that is
-        # running instead of starting another on a different port.
-        local = f"http://localhost:{args.port}"
-        print(f"\n  {APP_NAME} is already running: {local}\n")
-        if not args.no_browser:
-            webbrowser.open(local)
-        return 0
     cfg.port = net.pick_port(args.host, args.port)
 
     addresses = net.lan_addresses() if args.host in ("0.0.0.0", "") else []
@@ -216,14 +235,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  On your phone:     http://{address}:{cfg.port}")
     if cfg.port != args.port:
         print(f"  (port {args.port} was busy, so {cfg.port} is used)")
-    from . import auth, db
+    from . import auth
+    setup_code = None
     if auth.needs_setup(db.connect(cfg.data_dir)):
+        setup_code = auth.setup_code()
         print("\n  First time: open the address above to make the administrator.")
-        print(f"  From another device you will be asked for this code: {auth.setup_code()}")
+        print(f"  From another device you will be asked for this code: {setup_code}")
+        # Started by the Control Panel or a service, nothing above is seen:
+        # the log has it, and the panel shows it (server.json).
+        logging.getLogger(__name__).info(
+            "first-time setup: from another device, the code asked for is %s", setup_code)
     print("  Press Ctrl+C to stop.\n")
 
     from . import control
-    app.config["STOP_TOKEN"] = control.write_state(cfg.data_dir, cfg.port)
+    app.config["STOP_TOKEN"] = control.write_state(cfg.data_dir, cfg.port, setup_code)
 
     def finish() -> None:
         keeper.stop()

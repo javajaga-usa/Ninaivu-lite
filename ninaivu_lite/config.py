@@ -13,6 +13,7 @@ import os
 import sqlite3
 import sys
 import tempfile
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -157,7 +158,7 @@ class Config:
             log.warning("settings not saved: the library folders are not known")
             return
         path = self.settings_path
-        path.parent.mkdir(parents=True, exist_ok=True)
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         data = {k: v for k, v in asdict(self).items() if k in self.SAVED}
         fd, tmp = tempfile.mkstemp(prefix=".settings-", dir=path.parent)
         try:
@@ -200,7 +201,34 @@ def index_folders(data_dir: str | os.PathLike) -> list[str]:
 
 
 def _set_aside(path: Path) -> None:
+    """Keep a damaged settings file as ``settings.json.damaged``; one kept
+    from an earlier time moves aside under its own date, never overwritten."""
+    aside = path.with_name(path.name + ".damaged")
     try:
-        os.replace(path, path.with_name(path.name + ".damaged"))
+        if aside.exists():
+            stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(aside.stat().st_mtime))
+            older, n = aside.with_name(f"{aside.name}-{stamp}"), 2
+            while older.exists():
+                older, n = aside.with_name(f"{aside.name}-{stamp}-{n}"), n + 1
+            os.replace(aside, older)
+        os.replace(path, aside)
     except OSError:
         pass
+
+
+def make_private(data_dir: str | os.PathLike) -> None:
+    """The data folder holds the index (share links, PIN hashes), thumbnails
+    of Hidden photos and the backups: on Linux and macOS, only its owner may
+    look inside. Made so when new; an existing one is tightened only when it
+    is clearly this program's (it holds the index or the settings)."""
+    folder = Path(data_dir)
+    if os.name == "nt":
+        return                          # a per-user folder under LOCALAPPDATA already
+    try:
+        if not folder.exists():
+            folder.mkdir(mode=0o700, parents=True)
+        elif ((folder / INDEX_FILE).exists() or (folder / SETTINGS_FILE).exists()) \
+                and folder.stat().st_mode & 0o077:
+            os.chmod(folder, 0o700)
+    except OSError as exc:
+        log.warning("could not make %s private: %s", folder, exc)

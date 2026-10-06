@@ -24,16 +24,25 @@ export class AIPhotoService {
   async applyAdjustments(bitmap, adjustments, {maxSide=1400,type='image/png'}={}) {
     if (typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined') {
       const copy=await createImageBitmap(bitmap);
+      // Only a worker that could not run at all hands the work to this thread.
+      // One that ran and failed (or timed out) has said all there is to say:
+      // doing the same render again here froze the page for as long again
+      // and then failed the same way.
+      let unavailable=true;
       try {
         return await new Promise((resolve,reject)=>{
           const worker=new Worker(new URL('./worker.mjs',import.meta.url),{type:'module'});
-          const timer=setTimeout(()=>{worker.terminate();reject(new Error(i18n.t('Processing timed out. Try a smaller image.')));},120000);
+          const timer=setTimeout(()=>{unavailable=false;worker.terminate();reject(new Error(i18n.t('Processing timed out. Try a smaller image.')));},120000);
           const finish=()=>{clearTimeout(timer);worker.terminate();};
-          worker.onmessage=({data})=>{finish();data.error?reject(new Error(data.error)):resolve(data.blob);};
+          worker.onmessage=({data})=>{finish();unavailable=false;data.error?reject(new Error(data.error)):resolve(data.blob);};
           worker.onerror=()=>{finish();reject(new Error('Worker unavailable'));};
           worker.postMessage({bitmap:copy,adjustments,maxSide,type},[copy]);
         });
-      } catch { copy.close(); /* Cooperative CPU fallback, without network calls. */ }
+      } catch(error) {
+        copy.close();
+        if(!unavailable) throw error;
+        /* Cooperative CPU fallback, without network calls. */
+      }
     }
     const canvas=await render(bitmap,adjustments,maxSide);
     if(canvas.convertToBlob) return canvas.convertToBlob({type,quality:.94});
