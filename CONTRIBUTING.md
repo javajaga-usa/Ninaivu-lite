@@ -34,7 +34,8 @@ using sample media and check both Tamil and English on desktop and phone layouts
 Strings live in `ninaivu_lite/static/i18n/en.json` and `ta.json`.
 Preserve the original media and the home-network privacy model.
 
-GitHub CI checks Windows, macOS and Linux on Python 3.10 and the installer Python.
+GitHub CI checks Windows, macOS and Linux on Python 3.10 and the installer Python, on every
+push to `main` and every pull request.
 Installer changes also run the installer workflow. Maintainers publish releases through a
 version tag or manual release workflow; see [installers/README.md](installers/README.md)
 and [the code signing policy](docs/CODE-SIGNING.md).

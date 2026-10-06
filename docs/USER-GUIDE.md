@@ -11,13 +11,22 @@ Sudar can save an edited *copy* beside an original; neither changes a photograph
 
 **With an installer** (from the releases page): run it. On Windows the Control Panel opens when
 it finishes — press **Start**, then **Open the family app**. Nothing else is needed; skip to
-*The Control Panel* below.
+*The Control Panel* below. The installers are not code-signed yet, so Windows may say
+*Windows protected your PC* (**More info → Run anyway**); installing for everyone on the
+computer asks for administrator permission.
+
+**On Linux**, run `sh Ninaivu-Lite-<version>-linux-amd64.sh` (`-arm64.sh` on a Raspberry Pi).
+Run as yourself, it keeps everything in your account and starts when the computer does. Run
+with `sudo` (a server, or a computer the whole house uses), it runs as its own
+`ninaivu-lite` account; see *Linux, installed with sudo* in section 7.
 
 **Without installing anything** (Windows): download the `…-windows-x64-portable.zip` from the
 releases page, right-click it, choose *Properties*, tick *Unblock*, then *Extract All* to a
 folder that stays put (or a pendrive). Double-click **`Ninaivu Lite Control Panel.vbs`** in it.
-Everything, including the family's settings and index, stays in that folder; its
-`README-PORTABLE.txt` says how to move, upgrade or remove it.
+Everything stays in that folder: the program, and the family's settings, people and index
+in the `data` folder that appears beside it the first time. To upgrade, extract the new
+version to a new folder and copy the old `data` folder into it. Its `README-PORTABLE.txt`
+says how to move or remove it.
 
 **Without an installer, from the source:**
 
@@ -52,13 +61,17 @@ addresses to open, and has:
   and photographs are untouched by an upgrade.
 
 Closing the Control Panel leaves Ninaivu Lite running. On a Raspberry Pi or a server without
-a screen, use `tools/ninaivu-lite.service` instead.
+a screen, the Linux installer sets up a service that starts it at boot.
 
 ## 2. The first day
 
 1. The first visit asks you to **make the administrator**: your name, a username and a
    password of at least 8 characters. If you set this up from a phone, it also asks for the
-   short **setup code** printed in the Ninaivu Lite window.
+   short **setup code**. The Control Panel shows it; it is also printed in the window
+   Ninaivu Lite was started from (a copy of the source) and written to
+   `logs/ninaivu-lite.log` in the data folder (*Open the log*). On a Linux service, run
+   `journalctl -u ninaivu-lite | grep code` (with `--user` if installed without `sudo`); with
+   Docker, `docker logs ninaivu-lite`.
 2. The admin console then helps you:
    - **Choose the photo folder** — browse to it and press *Use this folder*. You can add
      more folders later under *Library settings*.
@@ -128,7 +141,7 @@ picture is shown to whoever reaches the sign-in screen, so choose one you are ha
 - **Albums** — make an album from a selection; albums can be shared.
 - **Language** — English or தமிழ், from the language button at the top. Each person's choice
   is remembered.
-- **Sudar** (⋯ → *Edit with Sudar*) — the photo studio, in the browser: light, colour, detail
+- **Sudar** (⋯ → *Edit with Sudar (AI)*) — the photo studio, in the browser: light, colour, detail
   and framing sliders, looks, suggestions measured from the picture, *make it warmer* in plain
   words (*AI assist*), and clothing colour by brush. Nothing is sent anywhere and the original
   is never changed: download the result, or, as the administrator, *Save copy to Ninaivu
@@ -163,7 +176,7 @@ computer Ninaivu Lite runs on, and the console (and the Control Panel, if it is 
 what to do with it:
 
 - **Import media from this drive** opens *Import* with the drive as the source. Check the
-  destination and press *Start*. Nothing on the drive is changed.
+  destination and press *Start consolidation*. Nothing on the drive is changed.
 - **Export media to this drive** copies the library's photos and videos onto the drive, into
   a `Ninaivu Lite` folder, keeping the library's own folders. Only what is new is copied the
   next time; nothing already on the drive is overwritten or deleted.
@@ -176,11 +189,13 @@ transfer* (Android) or *Trust this computer* (iPhone), or Windows cannot see its
 Windows, Ninaivu Lite copies the camera folders (DCIM, Pictures, Movies) across the cable,
 imports them into the archive, then removes its temporary copies; the next time, only new
 photos come across. Nothing on the phone is changed. On Linux, open the phone in the file
-manager first; on a Mac, phones are not detected.
+manager first; on a Mac, phones are not detected. When Ninaivu Lite was installed on Linux
+with `sudo`, it runs as its own account and may not see drives or phones your desktop opens:
+add their folders under *Import* yourself.
 
 ## 6. Sharing with someone outside the family
 
-From the viewer or an album, choose **Share**. You can add a password and an expiry date.
+Choose **Share link** in the viewer, or **Share album** on an album. You can add a password and an expiry date.
 Send the link to someone on your home network. They see only that photo or album, as a copy
 without location or camera details. A video is sent with its location removed too, which
 needs ffmpeg on the computer; without it, a guest or someone with a link is told the video
@@ -192,34 +207,76 @@ profile; you can turn a link off at any time.
 
 ## 7. Looking after it
 
-- **Backups** — every day Ninaivu Lite keeps a recovery zip (the index with people, albums,
-  favourites and visibility, the settings, and profile pictures) in `backups/` in its data
-  folder, and keeps the last seven. *Settings → Download a backup* gives you one to keep
-  elsewhere. To put one back, stop Ninaivu Lite and run `ninaivu-lite --restore <zip>`; what
-  was there is kept in a `before-restore-…` folder. Your photos are your own files: back them
-  up as you always do.
+- **Backups** — every day Ninaivu Lite makes a full recovery zip (the index with people,
+  albums, favourites, share links and visibility, the settings, and profile pictures) in
+  `backups/` in its data folder, and keeps the last seven. *Settings → Download a backup*
+  gives you one to keep elsewhere. To put one back, stop Ninaivu Lite and run the command
+  below with `--restore <zip>`; what was there is kept in a `before-restore-…` folder inside
+  the data folder, never deleted. Your photos are not in the zip: they are your own files,
+  so back them up as you always do.
 - **Data folder** — `%LOCALAPPDATA%\Ninaivu-lite` on Windows, `~/Library/Application
-  Support/Ninaivu-lite` on macOS, `~/.local/share/ninaivu-lite` on Linux. It holds settings,
-  the index, previews and logs, never your photos.
-- **Forgot the admin password?** Close Ninaivu Lite, then on that computer run
-  `python -m ninaivu_lite --reset-password <username>` (inside the folder, after
-  `.venv\Scripts\activate` on Windows or `source .venv/bin/activate` elsewhere).
+  Support/Ninaivu-lite` on macOS, `~/.local/share/ninaivu-lite` on Linux; the `data` folder
+  beside the program for the portable zip; `/var/lib/ninaivu-lite` for Linux installed with
+  `sudo`; the `ninaivu_lite_data` volume for Docker. It holds settings, the index, previews,
+  backups and logs, never your photos.
+- **Forgot the admin password?** Stop Ninaivu Lite, then on that computer run the command
+  for how it was installed (`--restore <zip>` goes in the same place):
+  - **Windows installer, or Linux without `sudo`:** `ninaivu-lite --reset-password <username>`
+    (on Windows, in a new Command Prompt).
+  - **Linux with `sudo`:** `sudo systemctl stop ninaivu-lite`, then
+    `sudo -u ninaivu-lite /usr/local/bin/ninaivu-lite --reset-password <username>`, then
+    `sudo systemctl start ninaivu-lite`.
+  - **Portable zip:** in its folder, `Python\python.exe -m ninaivu_lite --data "<that
+    folder>\data" --reset-password <username>`.
+  - **A copy of the source:** `python -m ninaivu_lite --reset-password <username>` (inside the
+    folder, after `.venv\Scripts\activate` on Windows or `source .venv/bin/activate`
+    elsewhere).
+  - **Docker:** `docker compose -f installers/docker/docker-compose.yml run --rm ninaivu-lite
+    python -m ninaivu_lite --data /data --reset-password <username>`.
 - **A drive unplugged?** Its photos show as unavailable and come back when it returns.
   Nothing is lost.
-- **Updating** — replace the program files with the new version and start it again. Your
-  data folder stays as it is.
+- **Updating** — with an installer, run the new installer (the Control Panel's
+  **Download** button opens its page); on Linux, run the newer `.sh` the same way as the first.
+  For the portable zip, extract the new version to a new folder and copy the old `data`
+  folder into it. For a copy of the source, replace the program files and start it again.
+  Your data folder stays as it is.
+- **Linux, installed with `sudo`** — Ninaivu Lite runs as a service under its own
+  `ninaivu-lite` account, never as root, with its data in `/var/lib/ninaivu-lite`. That
+  account must be able to read your photo folders and pass through every folder above them.
+  The installer names any it cannot read; let it in with, for example:
+  `sudo setfacl -R -m u:ninaivu-lite:rX /home/me/Pictures` (what is there now),
+  `sudo setfacl -R -d -m u:ninaivu-lite:rX /home/me/Pictures` (what is added later),
+  `sudo setfacl -m u:ninaivu-lite:x /home/me` (each folder above it), then
+  `sudo systemctl restart ninaivu-lite`.
 
 ## 8. Moving up to Ninaivu (optional)
 
 If you later want faces, search by description or cloud backup, the full Ninaivu can take
-over your library. Run `python -m ninaivu_lite --export lite-export.json` and give that file to
-Ninaivu. See [UPGRADE.md](UPGRADE.md).
+over your library. Run `python -m ninaivu_lite --export lite-export.json` (with an installer,
+`ninaivu-lite --export lite-export.json`; otherwise the command in section 7 for a forgotten
+password, with `--export lite-export.json` in its place) and give that file to Ninaivu. See
+[UPGRADE.md](UPGRADE.md).
 
 ## 9. Common questions
 
-**The phone can't open the address.** Use the address printed in the window (not
+**The phone can't open the address.** Use the address the Control Panel or the window shows (not
 `localhost`), make sure the phone is on the same Wi-Fi, and allow Python through the Windows
-firewall when asked.
+firewall when asked. On Linux, let port 8080 through the firewall:
+`sudo ufw allow 8080/tcp` (Ubuntu, Raspberry Pi OS) or
+`sudo firewall-cmd --permanent --add-port=8080/tcp && sudo firewall-cmd --reload` (Fedora).
+
+**"This address is not one Ninaivu Lite answers to."** Ninaivu Lite answers only to this
+computer's own names: its addresses (such as `http://192.168.1.20:8080`), its network name
+(`mypc` or `mypc.local`) and `localhost`. To use another name (a name of your own, or a
+reverse proxy), stop Ninaivu Lite and add it to `"allowed_hosts"` in `settings.json` in the
+data folder, for example `"allowed_hosts": ["photos.home"]`, or to the `NINAIVU_ALLOWED_HOSTS`
+environment variable (names separated by commas; with Docker, `ALLOWED_HOSTS`), then start
+it again.
+
+**A guest or a share link says a video cannot be shared.** Install `ffmpeg` on the computer:
+Ninaivu Lite needs it to remove a video's location before sending it. Or, as the
+administrator, turn on *Send videos to guests and share links as they are when their
+location cannot be removed* in *Settings* (the video then keeps its location).
 
 **Some videos show a plain tile.** A video gets its preview picture the first time a family
 member or administrator scrolls past it or plays it: their browser draws one frame and

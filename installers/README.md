@@ -36,7 +36,14 @@ commit, and publishes nothing unless it passes.
 Needs the Python in `.python-version` from python.org (for its Tk), `pip install pynsist`, and NSIS
 (`choco install nsis`). The installer:
 
-- installs for the current user, with no administrator rights;
+- asks whether to install for the current user (the default) or for everyone
+  (into Program Files). Installing for
+  everyone needs administrator rights, and on an administrator's account Windows
+  may ask for permission (UAC) when the installer starts (pynsist's
+  `MULTIUSER_EXECUTIONLEVEL Highest`). Either way each person's data stays in
+  their own `%LOCALAPPDATA%\Ninaivu-lite`;
+- puts the `ninaivu-lite` command on the PATH (for `--reset-password` and
+  `--restore`, in a new Command Prompt);
 - adds **Ninaivu Lite** (the Control Panel) to the Start menu and the Desktop;
 - has a *Start Ninaivu Lite at sign-in* box (ticked) — the same switch as the one
   in the Control Panel;
@@ -62,9 +69,11 @@ release workflow runs the same steps on every build (unsigned when there is
 nothing to sign with), then installs the result silently on the runner, opens
 the Control Panel's window, starts and stops Ninaivu Lite and uninstalls it.
 
-**Signing.** Unsigned, Windows SmartScreen says *Windows protected your PC*
+**Signing.** The releases are **not signed yet**: the application to the SignPath
+Foundation is pending, and the repository has none of the secrets below, so every
+build is unsigned for now. Unsigned, Windows SmartScreen says *Windows protected your PC*
 (**More info → Run anyway**), and a PC with **Smart App Control** on refuses the
-installer outright. The release workflow signs it for free through
+installer outright. Once the application is approved, the release workflow signs it for free through
 [SignPath Foundation](https://signpath.org) once the repository has the secret
 `SIGNPATH_API_TOKEN` and the variables `SIGNPATH_ORGANIZATION_ID`,
 `SIGNPATH_PROJECT_SLUG` and `SIGNPATH_SIGNING_POLICY_SLUG`; the policy it is
@@ -120,7 +129,29 @@ Without root it installs under `~/.local/lib/ninaivu-lite` (as root:
 a desktop entry for the Control Panel, and a systemd service that starts it at
 boot. As root, the service runs as its own unprivileged `ninaivu-lite` account,
 which owns `/var/lib/ninaivu-lite`; the installer names any photo folder that
-account cannot read (grant it with, for example, `setfacl -R -m u:ninaivu-lite:rX <folder>`).
+account cannot read. Grant it read access, to what is added later too (a default
+ACL), and passage through every folder above it, then restart the service:
+
+```sh
+sudo setfacl -R -m u:ninaivu-lite:rX /home/me/Pictures
+sudo setfacl -R -d -m u:ninaivu-lite:rX /home/me/Pictures
+sudo setfacl -m u:ninaivu-lite:x /home/me
+sudo systemctl restart ninaivu-lite
+```
+
+The setup code for the first visit from another device is in
+`journalctl -u ninaivu-lite` (`journalctl --user -u ninaivu-lite` without root),
+and the log in `<data folder>/logs/ninaivu-lite.log`. A forgotten password:
+`sudo systemctl stop ninaivu-lite`, then
+`sudo -u ninaivu-lite /usr/local/bin/ninaivu-lite --reset-password NAME` (the
+command already passes `--data /var/lib/ninaivu-lite`; run it as that account so
+the index stays its own). Under the service account, the drive and phone prompt
+may not see drives and phones the desktop opens for the person signed in.
+
+A firewall may keep phones out: `sudo ufw allow 8080/tcp` (Ubuntu, Raspberry Pi
+OS) or `sudo firewall-cmd --permanent --add-port=8080/tcp && sudo firewall-cmd
+--reload` (Fedora).
+
 Running a newer installer upgrades in place. `…/ninaivu-lite/uninstall`
 removes the program (`--purge` also removes settings and the index).
 
@@ -148,16 +179,23 @@ docker logs ninaivu-lite        # the address, and the setup code for the first 
 ```
 
 The photos are mounted read-only; settings and the index are in the
-`ninaivu_lite_data` volume. There is no Control Panel in a container.
+`ninaivu_lite_data` volume. There is no Control Panel in a container. Inside a
+container the computer's own name is not known, so Ninaivu Lite answers only to
+its addresses and `localhost`; a name for it (`mypc.local`) goes in `ALLOWED_HOSTS`
+(comma-separated) when starting compose.
 
 ## From a checkout, without an installer
 
-`start.cmd` (Windows) or `./start.sh` — see the main README. On a server,
-`tools/ninaivu-lite.service` is a systemd unit for a checkout.
+`start.cmd` (Windows) or `./start.sh` — see the main README. On a server, the
+Linux installer above is simpler; `tools/ninaivu-lite.service` is a systemd unit
+for a checkout, to be edited for its user and paths.
 
 ## What has been tested
 
-The Linux installer's whole path (build, install as an ordinary user, start,
-Control Panel, stop, uninstall) has been run. The Windows, macOS and Docker
-builds follow Ninaivu's own, proven recipes but **have not been built yet** —
-build each once and try it before publishing a release.
+The release workflow builds every installer on each tag. It also installs,
+starts, checks and removes the Windows installer (silently, Control Panel
+included), the portable zip (from a path with a space and Tamil letters) and the
+Linux amd64 installer (as an ordinary user, without the service). The macOS app
+and the arm64 installer are built but not run there, and an install with `sudo`
+(with its service) and the Docker image are not tried by the workflow at all: try
+those by hand before publishing a release.
