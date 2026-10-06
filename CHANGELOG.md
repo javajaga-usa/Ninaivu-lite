@@ -55,6 +55,59 @@ what you may notice:
   Windows, macOS and Linux for the exact commit it publishes, for a tag and for "Run
   workflow" alike, and publishes nothing unless it passes. (`.github/workflows/`)
 
+
+Fixes for the critical and the eight high findings of the project audit of 2026-10-06
+(A11-A19). Three of them change what you may notice:
+
+- Ninaivu Lite now answers only to this computer's own addresses and network name. If you
+  reach it through a name of your own (a reverse proxy, a name set in your router), add that
+  name to `allowed_hosts` in `settings.json` (or, with Docker, to `ALLOWED_HOSTS`).
+- A backup is put back with `ninaivu-lite --restore <zip>` (with Ninaivu Lite stopped).
+- If the settings are missing and the index cannot be read either, Ninaivu Lite now refuses
+  to start and says why, instead of starting with no library folders.
+
+- **A retried import never writes over an older photo.** After a failed attempt at a file
+  (a read error on a card, say), the next run could put the new file in place of the
+  archived copy of whatever had been at that path before, such as a 2019 photo replaced by a
+  2024 one from a reused card. Only a copy that the audit (Verify) found damaged is now
+  replaced; anything else goes beside the earlier copy. (`importer.py`)
+- **A web page cannot borrow this computer's address.** A page on the internet could point a
+  name it owns at the home computer (DNS rebinding) and then read Family photos through any
+  profile without a PIN, or, before setup, become the administrator. Requests that arrive
+  under any other name than this computer's addresses, its network name or `localhost` are
+  refused. (`app.py`, `config.py`)
+- **Restoring a backup puts back the backup.** The new `--restore` command checks the zip
+  (a whole index, from this version or an older one), moves what is there aside into a
+  `before-restore-…` folder instead of deleting it, and removes the index's `-wal` and
+  `-shm` files, which SQLite would otherwise replay over the restored index and so bring back
+  what was being undone. It will not run while Ninaivu Lite is running. The note inside each
+  backup says how, by command or by hand. (`backups.py`, `__main__.py`)
+- **An index that cannot be read no longer empties the library.** The 1.6.0 recovery of
+  missing settings read the index through a `file:` address, which a data folder on a network
+  share cannot have; failing that, it went on with no folders, and the first scan removed
+  them all. The index is now read by its path, and if it still cannot be read, nothing is
+  saved or scanned and the server does not start. (`config.py`, `__main__.py`)
+- **The Linux uninstaller removes only what it installed.** Installed with `--prefix /opt` or
+  a shared folder, `uninstall` used to delete that whole folder. It now removes its own
+  files and then the folder only if it is empty. (`installers/linux/install.sh`)
+- **The Windows uninstaller stops Ninaivu Lite and removes start-at-sign-in.** It asked the
+  program to do this after the program's packages were already removed, so a running server
+  was left running and the sign-in shortcut stayed behind, showing an error at every sign-in.
+  This now happens first, and the shortcut is also removed by name.
+  (`installers/windows/ninaivu-lite.nsi`)
+- **A release is always a new version.** Before anything is built or sent for signing, the
+  release workflow checks that the version is not already tagged or released, that a tag
+  matches `version.py`, and that this changelog has a section for it. "Run workflow" with an
+  unchanged version used to rebuild and replace the last release's files.
+  (`.github/workflows/release.yml`, `tools/check-release-version.sh`)
+- **An upgrade can no longer leave the app stuck on "Opening your library".** The offline
+  worker kept serving the old copies of the app's scripts after an upgrade, so a new `app.js`
+  could meet an old `api.js` and never start. The worker's version now follows the app's
+  files, and scripts come from the server whenever it answers. (`static/sw.js`, `pages.py`)
+- **The first-day guide fits in Tamil.** On the import step, the longer Tamil text spilled
+  over the footer and covered *Start the import*. The step now scrolls inside its card.
+  (`static/css/admin.css`)
+
 ## 1.5.1 — 2026-10-04
 
 - **A portable Windows zip, nothing to install.** Each release also carries

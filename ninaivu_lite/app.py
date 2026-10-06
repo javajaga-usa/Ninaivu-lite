@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import logging
+import os
+import socket
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -41,6 +44,43 @@ OPEN_PATHS = {"/", "/admin", "/admin/", "/sw.js", "/healthz", "/readyz", "/api/h
               "/manifest.webmanifest", "/admin/manifest.webmanifest", "/favicon.ico",
               "/api/local/stop"}
 UNSAFE = {"POST", "PUT", "PATCH", "DELETE"}
+
+#: Endings a home network's own names use for this computer (its name plus one of these).
+LOCAL_SUFFIXES = ("", ".local", ".lan", ".home", ".home.arpa", ".internal", ".localdomain")
+
+
+def host_allowed(host: str, extra: list[str] | tuple[str, ...] = ()) -> bool:
+    """Whether a request's Host names this computer.
+
+    A web page anywhere can point a name it owns at this computer's address
+    (DNS rebinding), and the browser then treats Ninaivu Lite as that page's
+    own site. Such a page always arrives under its own name, so only names
+    this computer has are answered: an address typed directly (any IP), this
+    computer's name on the home network, ``localhost``, and whatever the
+    household added to ``allowed_hosts`` in settings.json or to the
+    ``NINAIVU_ALLOWED_HOSTS`` environment variable, separated by commas (for
+    a reverse proxy, a name of their own, or a container, whose own name is
+    not the computer's)."""
+    name = host.strip().lower()
+    if name.startswith("["):                          # [::1]:8080
+        name = name[1:name.find("]")] if "]" in name else name[1:]
+    elif name.count(":") == 1:
+        name = name.split(":", 1)[0]
+    name = name.rstrip(".")
+    if not name:
+        return False
+    try:
+        ipaddress.ip_address(name)
+        return True
+    except ValueError:
+        pass
+    if name == "localhost" or name.endswith(".localhost"):
+        return True
+    own = {n.lower() for n in (socket.gethostname(), socket.gethostname().split(".")[0]) if n}
+    if any(name == f"{base}{suffix}" for base in own for suffix in LOCAL_SUFFIXES):
+        return True
+    named = [*extra, *os.environ.get("NINAIVU_ALLOWED_HOSTS", "").split(",")]
+    return name in {h.strip().lower().rstrip(".") for h in named if isinstance(h, str)}
 
 
 def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
@@ -88,6 +128,10 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
 
     @app.before_request
     def guard():
+        # Only for this computer's own names: never a stranger's name pointed here.
+        if not host_allowed(request.host, cfg.allowed_hosts):
+            raise ApiError(400, "This address is not one Ninaivu Lite answers to. Open it "
+                                "with this computer's address instead.")
         # Writes only from this site's own pages.
         if request.method in UNSAFE:
             site = request.headers.get("Sec-Fetch-Site")

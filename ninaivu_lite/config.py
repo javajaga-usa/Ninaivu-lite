@@ -55,6 +55,9 @@ class Config:
     # removed, for want of ffmpeg, is refused to guests and share links
     # unless the household chooses to send such videos as they are.
     video_originals: bool = False
+    #: Extra names this computer is reached by (a reverse proxy, a name of the
+    #: household's own); its addresses and network name always work.
+    allowed_hosts: list[str] = field(default_factory=list)
     first_day_done: bool = False
     # The importer's last job, so the console's Import page opens as it was left.
     import_sources: list[str] = field(default_factory=list)
@@ -65,9 +68,13 @@ class Config:
     #: Set when the settings file was missing or damaged and the library
     #: folders were taken back from the index instead (never saved).
     recovered: bool = False
+    #: Settings were missing or damaged and the index could not be read to
+    #: recover the folders, so the folder list is unknown, not empty: the
+    #: server must not start on it (a scan would remove every folder).
+    folders_unknown: bool = False
 
     SAVED = ("folders", "active", "house_name", "open_browsing", "language", "watch",
-             "video_originals",
+             "video_originals", "allowed_hosts",
              "first_day_done", "import_sources", "import_destination", "import_kinds")
 
     @property
@@ -106,6 +113,7 @@ class Config:
         cfg.folders = [str(f) for f in cfg.folders if isinstance(f, str) and f.strip()]
         cfg.import_sources = [str(f) for f in cfg.import_sources
                               if isinstance(f, str) and f.strip()]
+        cfg.allowed_hosts = [str(h) for h in cfg.allowed_hosts if isinstance(h, str) and h.strip()]
         cfg.import_kinds = [k for k in ("image", "video") if k in cfg.import_kinds]
         if cfg.language not in ("en", "ta"):
             cfg.language = "en"
@@ -121,7 +129,13 @@ class Config:
         removed, which would delete their favourites, albums and visibility
         from the index. So the folders come back from the index itself, and
         the recovered settings are written out for the next start."""
-        folders = index_folders(self.data_dir)
+        try:
+            folders = index_folders(self.data_dir)
+        except IndexUnreadable as exc:
+            log.error("settings %s and the index cannot be read (%s); the library folders "
+                      "are unknown, so nothing will be scanned", why, exc)
+            self.folders_unknown = True
+            return self
         if not folders:
             return self                    # a fresh data folder: nothing to lose
         log.warning("settings %s; %d library folder(s) recovered from the index", why,
@@ -138,6 +152,10 @@ class Config:
 
     def save(self) -> None:
         """Write atomically: a power cut mid-save leaves the old file, never half a file."""
+        if self.folders_unknown:
+            # Writing now would record "no library folders" as a choice.
+            log.warning("settings not saved: the library folders are not known")
+            return
         path = self.settings_path
         path.parent.mkdir(parents=True, exist_ok=True)
         data = {k: v for k, v in asdict(self).items() if k in self.SAVED}
@@ -156,20 +174,28 @@ class Config:
             raise
 
 
+class IndexUnreadable(Exception):
+    """The index is there but could not be read."""
+
+
 def index_folders(data_dir: str | os.PathLike) -> list[str]:
-    """The library folders the index holds, read without changing the file
-    (an index that is not there, or cannot be read, holds none)."""
+    """The library folders the index holds. Only read, never changed. An
+    index that is not there holds none; one that is there but cannot be read
+    raises :class:`IndexUnreadable`, because "no folders" would empty the
+    library."""
     path = Path(data_dir) / INDEX_FILE
     if not path.is_file():
         return []
     try:
-        conn = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True, timeout=10)
+        # A plain path, not a file: URI: a URI cannot name a network share
+        # (file://server/...), and a read-only query changes nothing.
+        conn = sqlite3.connect(str(path), timeout=30)
         try:
             rows = conn.execute("SELECT path FROM folders ORDER BY id").fetchall()
         finally:
             conn.close()
-    except sqlite3.Error:
-        return []
+    except sqlite3.Error as exc:
+        raise IndexUnreadable(str(exc)) from exc
     return [str(r[0]) for r in rows if isinstance(r[0], str) and r[0].strip()]
 
 

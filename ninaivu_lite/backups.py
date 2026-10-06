@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import io
 import logging
+import re
+import shutil
 import sqlite3
 import tempfile
 import threading
@@ -39,9 +41,15 @@ profile pictures. Your photos are not in here: they stay in your own folders.
 
 To restore:
 1. Stop Ninaivu Lite.
-2. Copy ninaivu-lite.db, settings.json and the avatars folder into the data
-   folder (it is shown on the Admin page), replacing what is there.
+2. Run:  ninaivu-lite --restore <this zip>
+   (from a copy of the source: python -m ninaivu_lite --restore <this zip>;
+   add --data <folder> if your data folder is not the usual one).
+   What was there before is moved to a "before-restore" folder, not deleted.
 3. Start Ninaivu Lite again.
+
+By hand instead: delete ninaivu-lite.db-wal and ninaivu-lite.db-shm from the
+data folder first (left there, they bring back what you are undoing), then
+copy ninaivu-lite.db, settings.json and the avatars folder into it.
 """
 
 
@@ -80,6 +88,78 @@ def write_bundle(data_dir: str | Path, out) -> None:
                     if picture.is_file():
                         z.write(picture, f"{AVATARS_DIR}/{picture.name}")
             z.writestr("README.txt", RESTORE_NOTE)
+
+
+class RestoreError(Exception):
+    """A backup that cannot be put back, with why."""
+
+
+#: What a recovery zip may hold; anything else in one is left out.
+_AVATAR_NAME = re.compile(r"^avatars/[A-Za-z0-9_.-]+\.jpg$")
+
+
+def restore(data_dir: str | Path, bundle: str | Path) -> Path:
+    """Put a recovery zip back into *data_dir* (Ninaivu Lite must be stopped).
+
+    The index in it is checked before anything is touched: it must be a
+    whole SQLite file from this version or an older one. The index, its
+    ``-wal`` and ``-shm`` companions (which SQLite would otherwise replay
+    over the restored file), the settings and the profile pictures that
+    were there are moved aside into ``before-restore-<time>/``, never
+    deleted. Returns that folder."""
+    from .db import MIGRATIONS
+    data = Path(data_dir)
+    data.mkdir(parents=True, exist_ok=True)
+    try:
+        archive = zipfile.ZipFile(bundle)
+    except (OSError, zipfile.BadZipFile) as exc:
+        raise RestoreError(f"{bundle} is not a Ninaivu Lite backup zip ({exc}).") from exc
+    with archive, tempfile.TemporaryDirectory(dir=data) as tmp:
+        names = set(archive.namelist())
+        if DB_FILE not in names:
+            raise RestoreError(f"{bundle} has no {DB_FILE} in it.")
+        staged = Path(tmp) / DB_FILE
+        with archive.open(DB_FILE) as src, open(staged, "wb") as out:
+            shutil.copyfileobj(src, out)
+        try:
+            check = sqlite3.connect(str(staged))
+            try:
+                ok = check.execute("PRAGMA integrity_check").fetchone()[0]
+                version = check.execute("PRAGMA user_version").fetchone()[0]
+            finally:
+                check.close()
+        except sqlite3.Error as exc:
+            raise RestoreError(f"The index in {bundle} cannot be read ({exc}).") from exc
+        if ok != "ok":
+            raise RestoreError(f"The index in {bundle} is damaged ({ok}).")
+        if version > len(MIGRATIONS):
+            raise RestoreError(f"{bundle} was made by a newer Ninaivu Lite; update this one "
+                               "first.")
+        settings = Path(tmp) / SETTINGS_FILE
+        if SETTINGS_FILE in names:
+            with archive.open(SETTINGS_FILE) as src, open(settings, "wb") as out:
+                shutil.copyfileobj(src, out)
+        avatars = Path(tmp) / AVATARS_DIR
+        avatars.mkdir()
+        for name in sorted(n for n in names if _AVATAR_NAME.match(n)):
+            with archive.open(name) as src, open(avatars / name.split("/", 1)[1], "wb") as out:
+                shutil.copyfileobj(src, out)
+
+        aside = data / f"before-restore-{datetime.now():%Y-%m-%d-%H%M%S}"
+        aside.mkdir()
+        moving = [DB_FILE, f"{DB_FILE}-wal", f"{DB_FILE}-shm", f"{DB_FILE}-journal"]
+        if settings.is_file():
+            moving.append(SETTINGS_FILE)
+        moving.append(AVATARS_DIR)
+        for name in moving:
+            if (data / name).exists():
+                (data / name).replace(aside / name)
+        staged.replace(data / DB_FILE)
+        if settings.is_file():
+            settings.replace(data / SETTINGS_FILE)
+        avatars.replace(data / AVATARS_DIR)
+    log.info("restored %s into %s; what was there is in %s", bundle, data, aside)
+    return aside
 
 
 def daily(data_dir: str | Path) -> Path | None:

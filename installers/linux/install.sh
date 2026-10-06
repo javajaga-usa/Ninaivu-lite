@@ -80,7 +80,12 @@ rm -f "$bindir/ninaivu-lite" "$bindir/ninaivu-lite-panel" "$apps/ninaivu-lite.de
       /etc/systemd/system/ninaivu-lite.service 2>/dev/null
 [ "\$1" = "--purge" ] && rm -rf "$data"
 [ "\$1" = "--purge" ] && [ "\$(id -u)" = 0 ] && userdel ninaivu-lite 2>/dev/null || true
-rm -rf "$prefix"
+# Only what this installer put there: --prefix may have named a folder that
+# holds other things (/opt, a home folder), and those are never removed.
+rm -rf "$prefix/python" "$prefix/python.new"
+rm -f "$prefix/ninaivu-lite" "$prefix/ninaivu-lite-panel" "$prefix/VERSION" \
+      "$prefix/LICENSE" "$prefix/README.md" "$prefix/uninstall"
+rmdir "$prefix" 2>/dev/null || true
 echo "Ninaivu Lite removed."
 WRAP
 chmod +x "$prefix/ninaivu-lite" "$prefix/ninaivu-lite-panel" "$prefix/uninstall"

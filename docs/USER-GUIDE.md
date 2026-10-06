@@ -192,10 +192,12 @@ profile; you can turn a link off at any time.
 
 ## 7. Looking after it
 
-- **Backups** — every day Ninaivu Lite keeps a copy of its index (people, albums,
-  favourites, visibility) in its data folder and keeps the last seven. *Settings → Download a
-  backup* gives you one to keep elsewhere. Your photos are your own files: back them up as you
-  always do.
+- **Backups** — every day Ninaivu Lite keeps a recovery zip (the index with people, albums,
+  favourites and visibility, the settings, and profile pictures) in `backups/` in its data
+  folder, and keeps the last seven. *Settings → Download a backup* gives you one to keep
+  elsewhere. To put one back, stop Ninaivu Lite and run `ninaivu-lite --restore <zip>`; what
+  was there is kept in a `before-restore-…` folder. Your photos are your own files: back them
+  up as you always do.
 - **Data folder** — `%LOCALAPPDATA%\Ninaivu-lite` on Windows, `~/Library/Application
   Support/Ninaivu-lite` on macOS, `~/.local/share/ninaivu-lite` on Linux. It holds settings,
   the index, previews and logs, never your photos.

@@ -6,7 +6,7 @@ import hmac
 import threading
 import time
 
-from flask import Blueprint, current_app, jsonify, render_template, request, send_from_directory
+from flask import Blueprint, current_app, jsonify, render_template, request
 
 from . import auth
 from .common import body, cfg, conn, fail
@@ -42,10 +42,34 @@ def share_page(token: str):
     return response
 
 
+_shell_version: dict[str, str] = {}
+
+
+def shell_version(static: str) -> str:
+    """A name for this exact set of the app's files: the version plus a hash
+    of every script, stylesheet and translation, so a worker sent after an
+    upgrade (or any change) is a new one and drops the old caches."""
+    if static not in _shell_version:
+        import hashlib
+        from pathlib import Path
+        digest = hashlib.sha256(__version__.encode())
+        root = Path(static)
+        for path in sorted(root.rglob("*")):
+            if path.is_file() and path.suffix in (".js", ".mjs", ".css", ".json", ".html"):
+                digest.update(path.relative_to(root).as_posix().encode())
+                digest.update(path.read_bytes())
+        _shell_version[static] = f"{__version__}-{digest.hexdigest()[:12]}"
+    return _shell_version[static]
+
+
 @bp.get("/sw.js")
 def service_worker():
-    response = send_from_directory(current_app.static_folder, "sw.js",
-                                   mimetype="text/javascript", max_age=0)
+    from pathlib import Path
+    static = current_app.static_folder or ""
+    text = (Path(static) / "sw.js").read_text(encoding="utf-8")
+    text = text.replace("const CACHE_VERSION = 'lite-1';",
+                        f"const CACHE_VERSION = 'lite-{shell_version(static)}';", 1)
+    response = current_app.response_class(text, mimetype="text/javascript")
     response.headers["Cache-Control"] = "no-cache"
     return response
 
