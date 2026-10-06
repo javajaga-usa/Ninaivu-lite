@@ -446,6 +446,10 @@ class Panel:
         win.protocol("WM_DELETE_WINDOW", lambda: pick(None))
         win.bind("<Escape>", lambda _event: pick(None))
         win.update_idletasks()
+        if not win.winfo_exists():
+            # Closed while it was being laid out (macOS Tk can handle events
+            # here): that is Not now, and there is nothing left to place.
+            return answer["choice"]
         x = self.root.winfo_rootx() + max(0, (self.root.winfo_width() - win.winfo_reqwidth()) // 2)
         y = self.root.winfo_rooty() + 60
         win.geometry(f"+{x}+{y}")
