@@ -309,7 +309,10 @@ def strip_video(path: str, out: str) -> bool:
     for guests and share links. False when ffmpeg is absent or refuses."""
     if not FFMPEG:
         return False
-    tmp = f"{out}.{os.getpid()}-{threading.get_ident()}.tmp{os.path.splitext(out)[1]}"
+    # Beside *out*, under a name no "<id>-*" clean-up of that folder matches.
+    folder, name = os.path.split(out)
+    tmp = os.path.join(folder, f".{name}.{os.getpid()}-{threading.get_ident()}.tmp"
+                               f"{os.path.splitext(out)[1]}")
     try:
         proc = subprocess.run(
             [FFMPEG, "-v", "quiet", "-y", "-i", dates.long_path(path), "-map_metadata", "-1",

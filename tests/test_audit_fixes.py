@@ -86,7 +86,7 @@ def test_a01_upgrade_drops_links_already_pointing_at_nothing(tmp_path):
         c.execute("DROP TRIGGER shares_album_gone")
         c.execute("INSERT INTO shares (token, scope, target_id) VALUES ('a', 'asset', 41)")
         c.execute("INSERT INTO shares (token, scope, target_id) VALUES ('b', 'album', 42)")
-    c.execute(f"PRAGMA user_version = {len(db.MIGRATIONS) - 1}")
+    c.execute("PRAGMA user_version = 6")      # before index version 7
     db.migrate(c)
     assert c.execute("SELECT COUNT(*) FROM shares").fetchone()[0] == 0
     assert c.execute("PRAGMA user_version").fetchone()[0] == len(db.MIGRATIONS)

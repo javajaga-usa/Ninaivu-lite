@@ -3147,5 +3147,8 @@
   "{added} new photos and videos from the phone are in the archive. {already} were there already.": "தொலைபேசியிலிருந்து {added} புதிய புகைப்படங்களும் காணொளிகளும் காப்பகத்தில் சேர்ந்தன. {already} ஏற்கனவே இருந்தன.",
   "The phone could not be read. Keep it plugged in and unlocked, and try again.": "தொலைபேசியைப் படிக்க முடியவில்லை. அதை இணைப்பிலும் திறந்த நிலையிலும் வைத்து மீண்டும் முயலுங்கள்.",
   "The phone did not share its photos. Unlock it, and choose File transfer (on an iPhone, Trust this computer), then try again.": "தொலைபேசி தன் படங்களைப் பகிரவில்லை. அதைத் திறந்து, File transfer என்பதைத் தேர்ந்தெடுத்து (iPhone-இல், Trust this computer), மீண்டும் முயலுங்கள்.",
-  "A run is already going. Stop it first.": "ஓர் ஓட்டம் ஏற்கனவே நடக்கிறது. முதலில் அதை நிறுத்துங்கள்."
+  "A run is already going. Stop it first.": "ஓர் ஓட்டம் ஏற்கனவே நடக்கிறது. முதலில் அதை நிறுத்துங்கள்.",
+  "Visitors must sign in, but anyone on your home network can still tap into these Family profiles, which have no PIN: {names}. Give them a PIN on the People page to keep them private.": "பார்வையாளர்கள் உள்நுழைய வேண்டும்; ஆனால் உங்கள் வீட்டு நெட்வொர்க்கில் உள்ள எவரும் PIN இல்லாத இந்தக் குடும்பச் சுயவிவரங்களைத் தட்டித் திறக்கலாம்: {names}. அவற்றைத் தனிப்பட்டதாக வைக்க, நபர்கள் பக்கத்தில் அவற்றுக்கு ஒரு PIN கொடுங்கள்.",
+  "Choose your own password first.": "முதலில் உங்களுக்கென ஒரு கடவுச்சொல்லைத் தேர்ந்தெடுங்கள்.",
+  "Videos are being prepared for others. Try again in a moment.": "மற்றவர்களுக்காக வீடியோக்கள் தயாராகின்றன. சற்று நேரம் கழித்து மீண்டும் முயலவும்."
 }

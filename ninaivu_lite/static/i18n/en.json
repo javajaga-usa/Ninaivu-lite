@@ -3051,5 +3051,6 @@
   "{added} new photos and videos from the phone are in the archive. {already} were there already.": "{added} new photos and videos from the phone are in the archive. {already} were there already.",
   "The phone could not be read. Keep it plugged in and unlocked, and try again.": "The phone could not be read. Keep it plugged in and unlocked, and try again.",
   "The phone did not share its photos. Unlock it, and choose File transfer (on an iPhone, Trust this computer), then try again.": "The phone did not share its photos. Unlock it, and choose File transfer (on an iPhone, Trust this computer), then try again.",
-  "A run is already going. Stop it first.": "A run is already going. Stop it first."
+  "A run is already going. Stop it first.": "A run is already going. Stop it first.",
+  "Visitors must sign in, but anyone on your home network can still tap into these Family profiles, which have no PIN: {names}. Give them a PIN on the People page to keep them private.": "Visitors must sign in, but anyone on your home network can still tap into these Family profiles, which have no PIN: {names}. Give them a PIN on the People page to keep them private."
 }
