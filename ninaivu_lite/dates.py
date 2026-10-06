@@ -85,8 +85,8 @@ def _from_timestamp(ts: float | None, floor: int) -> datetime | None:
     return dt if plausible(dt, floor) else None
 
 
-def parse_exif_datetime(raw: object) -> float | None:
-    """An EXIF date string as a timestamp, or None if absent or implausible."""
+def exif_wall_clock(raw: object) -> datetime | None:
+    """An EXIF date string as the wall-clock time it says, or None."""
     if not raw or not isinstance(raw, str):
         return None
     raw = raw.strip().strip("\x00").split(".")[0]
@@ -95,8 +95,49 @@ def parse_exif_datetime(raw: object) -> float | None:
             when = datetime.strptime(raw, fmt)
         except ValueError:
             continue
-        return to_timestamp(when) if plausible(when) else None
+        return when if plausible(when) else None
     return None
+
+
+def parse_exif_datetime(raw: object) -> float | None:
+    """An EXIF date string as a timestamp, or None if absent or implausible."""
+    when = exif_wall_clock(raw)
+    return to_timestamp(when) if when else None
+
+
+_OFFSET = re.compile(r"^\s*([+-])(\d{2}):?(\d{2})\s*$")
+
+
+def parse_exif_offset(raw: object) -> timedelta | None:
+    """EXIF ``OffsetTimeOriginal`` ("+05:30") as a timedelta, or None."""
+    if isinstance(raw, bytes):
+        raw = raw.decode("ascii", "replace")
+    match = _OFFSET.match(raw.strip("\x00")) if isinstance(raw, str) else None
+    if not match or int(match.group(3)) >= 60:
+        return None
+    offset = timedelta(hours=int(match.group(2)), minutes=int(match.group(3)))
+    if offset > timedelta(hours=14):
+        return None
+    return -offset if match.group(1) == "-" else offset
+
+
+def wall_clock(utc: datetime, zone=None, floor: int = MIN_FS_YEAR) -> datetime | None:
+    """A moment kept in UTC (a video's header, a Takeout sidecar) as the time
+    on the clocks where it was taken, as a camera writes EXIF, so a photo and
+    a video of the same minute are filed on the same day. *zone*, asked with
+    the UTC moment, gives the offset there or None (see media.zone_near);
+    without one, this computer's local time is used."""
+    offset = zone(utc) if zone is not None else None
+    if offset is not None:
+        try:
+            when = (utc + offset).replace(tzinfo=None)
+        except OverflowError:
+            return None
+        return when if plausible(when, floor) else None
+    try:
+        return _from_timestamp(utc.timestamp(), floor)
+    except (OverflowError, ValueError, OSError):
+        return None
 
 
 def file_time(st: os.stat_result) -> float:
@@ -123,8 +164,10 @@ _MAX_BOXES = 4096
 _MAX_META_BYTES = 1024 * 1024
 
 
-def container_date(path: str) -> datetime | None:
-    """The recording date stored inside a video container, or None."""
+def container_date(path: str, zone=None) -> datetime | None:
+    """The recording date stored inside a video container, or None. *zone*
+    turns a time kept in UTC into the wall clock where it was recorded (see
+    :func:`wall_clock`)."""
     try:
         with open(long_path(os.fspath(path)), "rb") as f:
             head = f.read(12)
@@ -135,7 +178,7 @@ def container_date(path: str) -> datetime | None:
             if head[4:8] in _ISO_TOP_LEVEL:
                 if head[4:8] == b"ftyp" and head[8:11] in _STILL_BRANDS:
                     return None
-                return _iso_date(f, size)
+                return _iso_date(f, size, zone)
             if head[:4] == b"RIFF" and head[8:12] in (b"AVI ", b"AVIX"):
                 return _avi_date(f, size)
     except (OSError, ValueError, struct.error):
@@ -167,14 +210,14 @@ def _boxes(f, start, end):
         pos += size
 
 
-def _iso_date(f, size):
+def _iso_date(f, size, zone=None):
     for kind, body, end in _boxes(f, 0, size):
         if kind == b"moov":
-            return _moov_date(f, body, end)
+            return _moov_date(f, body, end, zone)
     return None
 
 
-def _moov_date(f, start, end):
+def _moov_date(f, start, end, zone=None):
     header_time = None
     apple = None
     for kind, body, box_end in _boxes(f, start, end):
@@ -200,7 +243,7 @@ def _moov_date(f, start, end):
         except OverflowError:
             return None
         if utc.year >= MIN_FS_YEAR:
-            return _from_timestamp(utc.timestamp(), MIN_FS_YEAR)
+            return wall_clock(utc, zone)
     return None
 
 
@@ -381,22 +424,27 @@ def read_takeout(path: str) -> dict | None:
         try:
             with open(long_path(sidecar), encoding="utf-8", errors="replace") as f:
                 meta = json.load(f)
-        except (OSError, ValueError):
+        except (OSError, ValueError, RecursionError):  # Recursion: JSON nested past reason
             continue
         if isinstance(meta, dict):
             return meta
     return None
 
 
-def takeout_date(path: str) -> datetime | None:
-    """The capture time from a Google Takeout sidecar, or None."""
+def takeout_date(path: str, zone=None) -> datetime | None:
+    """The capture time from a Google Takeout sidecar (kept in UTC), or None."""
     meta = read_takeout(path)
     if not meta:
         return None
     for key in ("photoTakenTime", "creationTime"):
         block = meta.get(key)
         if isinstance(block, dict) and block.get("timestamp"):
-            dt = _from_timestamp(block["timestamp"], MIN_YEAR)
+            try:
+                utc = _EPOCH.replace(tzinfo=timezone.utc) + timedelta(
+                    seconds=float(block["timestamp"]))
+            except (TypeError, ValueError, OverflowError):
+                continue
+            dt = wall_clock(utc, zone, MIN_YEAR)
             if dt:
                 return dt
     return None
@@ -515,14 +563,15 @@ def file_date(st: os.stat_result) -> datetime | None:
     return _from_timestamp(best, MIN_FS_YEAR)
 
 
-def fallback_date(path: str, st: os.stat_result | None = None) -> tuple[datetime | None, str]:
+def fallback_date(path: str, st: os.stat_result | None = None,
+                  zone=None) -> tuple[datetime | None, str]:
     """The capture date when EXIF has none: (datetime or None, source), where
     source is ``container``, ``takeout-json``, ``filename``, ``folder``,
-    ``filesystem`` or ``none``."""
-    dt = container_date(path)
+    ``filesystem`` or ``none``. *zone*: see :func:`wall_clock`."""
+    dt = container_date(path, zone)
     if dt is not None:
         return dt, "container"
-    dt = takeout_date(path)
+    dt = takeout_date(path, zone)
     if dt is not None:
         return dt, "takeout-json"
     dt = filename_date(path)

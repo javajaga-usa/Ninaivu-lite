@@ -12,6 +12,7 @@ forward in order, so an upgrade never asks anyone to rebuild their library.
 from __future__ import annotations
 
 import logging
+import os
 import sqlite3
 import threading
 from pathlib import Path
@@ -277,38 +278,95 @@ MIGRATIONS: list[str] = [
 ]
 
 
+class NewerIndex(sqlite3.DatabaseError):
+    """The index was made by a newer Ninaivu Lite than this one."""
+
+
 def connect(data_dir: str | Path) -> sqlite3.Connection:
     """A connection with the settings every caller wants, schema brought up to date."""
     path = Path(data_dir) / DB_FILE
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path), timeout=30, check_same_thread=False)
+    _private(path)              # before WAL: its files take the index's permissions
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout=30000")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("PRAGMA synchronous=NORMAL")
     try:
         mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
-    except sqlite3.DatabaseError:
-        mode = ""
+    except sqlite3.DatabaseError as exc:
+        # Locked by another process for longer than the busy timeout says
+        # nothing about the disk: the file keeps the mode it has, rather than
+        # leaving WAL for good.
+        transient = "locked" in str(exc) or "busy" in str(exc)
+        log.info("journal mode %s: %s", "left as it is" if transient else "not WAL", exc)
+        mode = "wal" if transient else ""
     if str(mode).lower() != "wal":
         # Network drives and some old filesystems cannot do WAL. The classic
         # journal is slower with many readers but always works.
         conn.execute("PRAGMA journal_mode=DELETE")
-    migrate(conn)
+    try:
+        migrate(conn)
+    except BaseException:
+        conn.close()
+        raise
     return conn
+
+
+def _private(path: Path) -> None:
+    """The index holds share tokens and PIN hashes: readable by its owner
+    only, on systems where other accounts could otherwise read it."""
+    if os.name == "nt":
+        return
+    for one in (path, path.with_name(path.name + "-wal"), path.with_name(path.name + "-shm")):
+        try:
+            if one.stat().st_mode & 0o077:
+                os.chmod(one, 0o600)
+        except OSError:
+            pass
 
 
 _MIGRATE_LOCK = threading.Lock()
 
 
 def migrate(conn: sqlite3.Connection) -> int:
+    """Bring the schema up to date. Safe with another process doing the same
+    (the panel and the server, or two servers started at once): each step
+    takes the write lock first and reads the version again under it."""
     with _MIGRATE_LOCK:
-        version = conn.execute("PRAGMA user_version").fetchone()[0]
-        for number, script in enumerate(MIGRATIONS[version:], start=version + 1):
-            log.info("updating the index to version %d", number)
-            # One transaction per step: a power cut leaves the old version, whole.
-            conn.executescript(f"BEGIN; {script}; PRAGMA user_version={number}; COMMIT;")
-        return len(MIGRATIONS)
+        while True:
+            version = conn.execute("PRAGMA user_version").fetchone()[0]
+            if version > len(MIGRATIONS):
+                raise NewerIndex(
+                    f"The index is version {version}, made by a newer Ninaivu Lite; this one "
+                    f"knows versions up to {len(MIGRATIONS)}. Update Ninaivu Lite to open it.")
+            if version == len(MIGRATIONS):
+                return len(MIGRATIONS)
+            conn.commit()
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                if conn.execute("PRAGMA user_version").fetchone()[0] == version:
+                    number = version + 1
+                    log.info("updating the index to version %d", number)
+                    # One transaction per step: a power cut leaves the old version, whole.
+                    for statement in _statements(MIGRATIONS[version]):
+                        conn.execute(statement)
+                    conn.execute(f"PRAGMA user_version={number}")
+                conn.commit()
+            except BaseException:
+                conn.rollback()
+                raise
+
+
+def _statements(script: str):
+    """A migration's statements one at a time (``executescript`` would commit
+    the transaction it runs in). A trigger's body is kept whole."""
+    buffer = ""
+    for piece in script.split(";"):
+        buffer += piece + ";"
+        if sqlite3.complete_statement(buffer):
+            yield buffer
+            buffer = ""
 
 
 def sync_folders(conn: sqlite3.Connection, paths: list[str]) -> dict[str, int]:
