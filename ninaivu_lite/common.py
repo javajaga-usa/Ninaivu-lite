@@ -340,6 +340,9 @@ def scan_snapshot() -> dict[str, Any]:
         "tagged": 0,
         "tag_total": 0,
         "unreachable": s.get("unreachable", []),
+        # Folders inside the library that could not be read on the last
+        # walk; their photographs were kept as they were.
+        "unreadable": s.get("unreadable", 0),
     }
 
 

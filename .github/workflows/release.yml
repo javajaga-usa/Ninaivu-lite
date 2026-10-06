@@ -17,12 +17,15 @@ name: Release installers
 #   MAC_SIGN_IDENTITY                                    its name, "Developer ID Application: … (TEAMID)"
 #   MAC_NOTARY_APPLE_ID, MAC_NOTARY_TEAM_ID, MAC_NOTARY_PASSWORD   an app-specific password
 #
-# A tag push (v1.2.0) is the usual way. "Run workflow" on a branch builds the
+# A tag push (v1.2.0) is the usual way. "Run workflow" on main builds the
 # same installers and publishes them as the release for the version in
 # ninaivu_lite/version.py, making that tag at the commit it ran on.
-# A push that changes the installers on any branch builds them too (and tries
-# the Linux one), without publishing anything: the release job runs only for a
-# tag or "Run workflow".
+# A push that changes the installers on any branch, or "Run workflow" on any
+# other branch, builds and tries them too, without signing through SignPath or
+# publishing anything: the release job runs only for a tag or "Run workflow"
+# on main, and only once the tests have passed on that very commit. The
+# installers that sign (Windows, macOS) wait for those tests too, so nothing
+# untested is ever sent for signing.
 on:
   push:
     tags: ["v*"]
@@ -34,23 +37,62 @@ permissions:
   contents: read
 
 jobs:
+  # The whole test suite, on every OS, for the very commit being released:
+  # nothing is published unless it passes.
+  tests:
+    name: Tests
+    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    uses: ./.github/workflows/tests.yml
+
+  # Before anything is built or sent for signing: the version being released
+  # is a new one. "Run workflow" takes the version from version.py, so with an
+  # unchanged version it would rebuild the last release's files from other
+  # code and replace them under the old tag; a tag that disagrees with
+  # version.py would publish files named for another version. A push that only
+  # builds the installers publishes nothing, so it is not checked.
+  version:
+    name: Version is new
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+      - name: Check the version, tag, release and changelog
+        if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: sh tools/check-release-version.sh
+
   windows:
     name: Windows installer
+    # Signed only after the tests pass when publishing; a build that does not
+    # publish runs no tests (skipped) and is not signed through SignPath.
+    needs: [version, tests]
+    if: ${{ !cancelled() && needs.version.result == 'success' && (needs.tests.result == 'success' || needs.tests.result == 'skipped') }}
     runs-on: windows-2022
     timeout-minutes: 45
     env:
       HAS_PFX: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 != '' }}
-      # Signed by SignPath only for a real release, and only once it is set up.
-      USE_SIGNPATH: ${{ secrets.SIGNPATH_API_TOKEN != '' && (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch') }}
+      # Signed by SignPath only for a real release (a tag, or "Run workflow" on
+      # main), and only once it is set up.
+      USE_SIGNPATH: ${{ secrets.SIGNPATH_API_TOKEN != '' && (github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version-file: .python-version
+      # Pinned, as everything that goes into the installer is: the runner's
+      # NSIS is 3.10 already, so this only makes sure of it.
       - name: Install pynsist and NSIS
         run: |
-          pip install pynsist
-          choco install nsis -y --no-progress
+          pip install pynsist==2.8
+          choco install nsis --version=3.10 --allow-downgrade -y --no-progress
+          $makensis = (Get-Command makensis -ErrorAction SilentlyContinue).Source
+          if (-not $makensis) { $makensis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe" }
+          $nsisVersion = (& $makensis /VERSION | Out-String).Trim()
+          if ($nsisVersion -ne "v3.10") { throw "NSIS is $nsisVersion, not v3.10" }
       - name: Import the signing certificate
         if: env.HAS_PFX == 'true'
         shell: pwsh
@@ -79,13 +121,13 @@ jobs:
       - name: The unsigned uninstaller, for SignPath
         id: unsigned-uninstaller
         if: env.USE_SIGNPATH == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-unsigned-uninstaller
           path: installers/windows/build/uninstaller/uninstall.exe
       - name: Sign the uninstaller with SignPath
         if: env.USE_SIGNPATH == 'true'
-        uses: signpath/github-action-submit-signing-request@v3
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -125,13 +167,13 @@ jobs:
       - name: The unsigned installer, for SignPath
         id: unsigned
         if: env.USE_SIGNPATH == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-unsigned
           path: installers/windows/build/nsis/*.exe
       - name: Sign the installer with SignPath
         if: env.USE_SIGNPATH == 'true'
-        uses: signpath/github-action-submit-signing-request@v3
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -187,9 +229,23 @@ jobs:
           & $python -m ninaivu_lite.control --data $data --stop --status
           # The installed folder, stopped, is what the portable zip carries (next step).
           Copy-Item -Recurse $dir (Join-Path $env:RUNNER_TEMP "portable-source")
+          # Removed while running from the usual data folder, with start-at-sign-in on (the
+          # installer ticks it): the uninstaller must stop it and take the sign-in shortcut away.
+          $startup = Join-Path ([Environment]::GetFolderPath("Startup")) "Ninaivu Lite.vbs"
+          if (-not (Test-Path $startup)) { throw "the installer did not turn on start-at-sign-in" }
+          Start-Process -FilePath (Join-Path $dir "Python\pythonw.exe") -ArgumentList "-m", "ninaivu_lite", "--no-browser"
+          $up = $false
+          foreach ($i in 1..40) {
+            try { Invoke-RestMethod http://127.0.0.1:8080/api/health -TimeoutSec 2 | Out-Null; $up = $true; break } catch { Start-Sleep 1 }
+          }
+          if (-not $up) { throw "the installed server did not start again before the uninstall" }
           # _?= makes the uninstaller run in place and wait, instead of copying itself away.
           Start-Process -FilePath (Join-Path $dir "uninstall.exe") -ArgumentList "/S", "_?=$dir" -Wait
           if (Test-Path (Join-Path $dir "pkgs")) { throw "uninstall left the program behind" }
+          if (Test-Path $startup) { throw "uninstall left the start-at-sign-in shortcut behind" }
+          $still = $true
+          try { Invoke-RestMethod http://127.0.0.1:8080/api/health -TimeoutSec 2 | Out-Null } catch { $still = $false }
+          if ($still) { throw "uninstall left Ninaivu Lite running" }
           Write-Host "installed, ran, stopped and removed"
 
       # The same program as a zip that runs from wherever it is extracted (a
@@ -263,15 +319,20 @@ jobs:
           if (-not (Test-Path (Join-Path $data "ninaivu-lite.db"))) { throw "the data did not stay in the extracted folder" }
           Write-Host "extracted, opened, ran and stopped, with its data beside it"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows
+          if-no-files-found: error
           path: |
             installers/windows/build/nsis/*.exe
             installers/windows/build/nsis/*-portable.zip
 
   macos:
     name: macOS app (${{ matrix.arch }})
+    # Signed and notarised for a release only after the tests pass; a build
+    # that does not publish runs no tests (skipped).
+    needs: [version, tests]
+    if: ${{ !cancelled() && needs.version.result == 'success' && (needs.tests.result == 'success' || needs.tests.result == 'skipped') }}
     strategy:
       matrix:
         include:
@@ -284,7 +345,7 @@ jobs:
     env:
       HAS_P12: ${{ secrets.MAC_SIGN_P12_BASE64 != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Import the signing certificate
         if: env.HAS_P12 == 'true'
         env:
@@ -310,27 +371,50 @@ jobs:
           echo "NINAIVU_NOTARY_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
       - name: Build
         run: bash installers/macos/build.sh
-      - uses: actions/upload-artifact@v4
+      # What a person does with it: open the disk image, and Ninaivu Lite
+      # starts from the app inside it, answers, and stops when asked.
+      - name: Open the disk image, start it, ask it how it is, stop it
+        run: |
+          mount="$RUNNER_TEMP/dmg"
+          data="$RUNNER_TEMP/nl-data"
+          hdiutil attach installers/macos/build/*.dmg -nobrowse -readonly -mountpoint "$mount"
+          app="$mount/Ninaivu Lite.app"
+          "$app/Contents/MacOS/ninaivu-lite" --server --version
+          "$app/Contents/MacOS/ninaivu-lite" --server --no-browser --host 127.0.0.1 --data "$data" > server.log 2>&1 &
+          up=0
+          for i in $(seq 1 40); do curl -fsS http://127.0.0.1:8080/api/health && { up=1; break; }; sleep 1; done
+          if [ "$up" != 1 ]; then cat server.log; tail -n 40 "$data/logs/ninaivu-lite.log" || true; exit 1; fi
+          curl -fsS http://127.0.0.1:8080/ > /dev/null
+          "$app/Contents/Resources/python/bin/python3" -m ninaivu_lite.control --data "$data" --stop --status
+          hdiutil detach "$mount" || hdiutil detach -force "$mount"
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-${{ matrix.arch }}
+          if-no-files-found: error
           path: installers/macos/build/*.dmg
 
   linux:
     name: Linux and Raspberry Pi (${{ matrix.arch }})
+    needs: [version]
     strategy:
       matrix:
-        arch: [amd64, arm64]
-    runs-on: ubuntu-latest
+        # Each on its own kind of machine, so the arm64 installer (a Raspberry
+        # Pi's) is run as well as built.
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version-file: .python-version
       - name: Build
         run: bash installers/linux/build.sh ${{ matrix.arch }}
       - name: Install it, start it, ask it how it is, remove it
-        if: matrix.arch == 'amd64'
         run: |
           sh installers/linux/build/*.sh --quiet --no-service
           ~/.local/bin/ninaivu-lite --version
@@ -339,29 +423,75 @@ jobs:
           curl -fsS http://127.0.0.1:8080/ > /dev/null
           ~/.local/lib/ninaivu-lite/python/bin/python3 -m ninaivu_lite.control --stop --status
           ~/.local/lib/ninaivu-lite/uninstall
-      - uses: actions/upload-artifact@v4
+      # As root: the system service, as its own account, with a data folder
+      # no one else reads; installed twice, as an upgrade is; then removed.
+      - name: Install it as root, as a service; upgrade it; remove it
+        run: |
+          set -x
+          installer=$(ls installers/linux/build/*.sh)
+          for round in install upgrade; do
+            sudo sh "$installer" --quiet
+            up=0
+            for i in $(seq 1 40); do curl -fsS http://127.0.0.1:8080/api/health && { up=1; break; }; sleep 1; done
+            [ "$up" = 1 ] || { sudo journalctl -u ninaivu-lite --no-pager | tail -n 40; exit 1; }
+          done
+          [ "$(systemctl show -p User --value ninaivu-lite)" = ninaivu-lite ]
+          pid=$(systemctl show -p MainPID --value ninaivu-lite)
+          [ "$(ps -o uid= -p "$pid" | tr -d ' ')" = "$(id -u ninaivu-lite)" ]
+          [ "$(sudo stat -c '%a %U' /var/lib/ninaivu-lite)" = "700 ninaivu-lite" ]
+          grep -q '^UMask=0027$' /etc/systemd/system/ninaivu-lite.service
+          [ ! -e /usr/local/bin/ninaivu-lite-panel ] && [ ! -e /usr/local/share/applications/ninaivu-lite.desktop ]
+          /usr/local/bin/ninaivu-lite --version
+          sudo /usr/local/bin/ninaivu-lite --version
+          sudo /opt/ninaivu-lite/uninstall --purge
+          [ ! -e /etc/systemd/system/ninaivu-lite.service ] && [ ! -e /opt/ninaivu-lite ] && [ ! -e /var/lib/ninaivu-lite ]
+          ! curl -fsS http://127.0.0.1:8080/api/health
+      - uses: actions/upload-artifact@v7
         with:
           name: linux-${{ matrix.arch }}
+          if-no-files-found: error
           path: installers/linux/build/*.sh
+
+  # The Docker image is not published, but it is built and started here, so a
+  # change to the Dockerfile or the requirements cannot break it unseen.
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build it, start it, ask it how it is
+        run: |
+          docker build -f installers/docker/Dockerfile -t ninaivu-lite:ci .
+          mkdir -p "$RUNNER_TEMP/photos"
+          docker run -d --name nl -p 127.0.0.1:8080:8080 -v "$RUNNER_TEMP/photos:/photos:ro" ninaivu-lite:ci
+          up=0
+          for i in $(seq 1 40); do curl -fsS http://127.0.0.1:8080/api/health && { up=1; break; }; sleep 1; done
+          docker logs nl
+          [ "$up" = 1 ]
+          [ "$(docker exec nl id -u)" = 1000 ]
+          docker rm -f nl
 
   release:
     permissions:
       contents: write
     name: Attach to the release
-    needs: [windows, macos, linux]
+    needs: [version, tests, windows, macos, linux]
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Only a version tag or "Run workflow" publishes. A push that merely
-    # changes the installers builds and tries them, and stops there.
-    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+    # Only a version tag or "Run workflow" on main publishes, and only when
+    # every job before it passed. A push that merely changes the installers
+    # builds and tries them, and stops there.
+    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'skipped') && (github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')) }}
     env:
       HAS_PFX: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 != '' || secrets.SIGNPATH_API_TOKEN != '' }}
-      HAS_NOTARY: ${{ secrets.MAC_SIGN_P12_BASE64 != '' && secrets.MAC_NOTARY_PASSWORD != '' }}
+      # Notarised only when the build had the identity to sign with as well.
+      HAS_NOTARY: ${{ secrets.MAC_SIGN_P12_BASE64 != '' && secrets.MAC_SIGN_IDENTITY != '' && secrets.MAC_NOTARY_PASSWORD != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: src
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: out
       - name: The version being released
@@ -374,6 +504,13 @@ jobs:
         run: |
           rm -rf out/windows-unsigned out/windows-unsigned-uninstaller
           mkdir files && find out -type f \( -name "*.exe" -o -name "*-portable.zip" -o -name "*.dmg" -o -name "*.sh" \) -exec cp {} files/ \;
+          # Every installer the notes name, or no release at all.
+          missing=0
+          for file in windows-x64.exe windows-x64-portable.zip macos-arm64.dmg macos-x86_64.dmg \
+                      linux-amd64.sh linux-arm64.sh; do
+            [ -f "files/Ninaivu-Lite-$VERSION-$file" ] || { echo "::error::Missing: Ninaivu-Lite-$VERSION-$file"; missing=1; }
+          done
+          [ "$missing" = 0 ]
           (cd files && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
       - name: Release notes
         run: |
@@ -396,8 +533,9 @@ jobs:
             awk -v v="$version" '$0 ~ "^## "v" " {on=1; next} on && /^## / {exit} on' src/CHANGELOG.md
           } > notes.md
           cat notes.md
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
+          fail_on_unmatched_files: true
           tag_name: v${{ env.VERSION }}
           target_commitish: ${{ github.sha }}
           name: Ninaivu Lite v${{ env.VERSION }}

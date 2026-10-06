@@ -14,15 +14,28 @@ internet** (no port forwarding, no public tunnels). HTTPS is planned for a later
 - **Other websites cannot act for you**: writes from another site are refused
   (`Sec-Fetch-Site` / `Origin` checks), and a strict Content-Security-Policy is sent.
 - **The first administrator** made from another device needs the setup code printed where
-  Ninaivu Lite was started.
+  Ninaivu Lite was started (its window, its log, the Control Panel, `journalctl` for the
+  Linux service or `docker logs` for Docker).
+- **Only this computer's own names are answered**: its addresses, its network name and
+  `localhost`. A request under any other name is refused, so a web page elsewhere cannot
+  point a name of its own at this computer (DNS rebinding). Other names are added in
+  `allowed_hosts` in `settings.json` or in `NINAIVU_ALLOWED_HOSTS`.
 - **Who sees what** is checked on the server for every photo, preview, download, search and
   share link. Files are served by id, never by a path from the request.
 - **Share links** show only their photo or album, as copies without location or camera data;
   passwords on links are hashed; links can expire or be turned off.
 - **Stopping the server** from the Control Panel works only from the same computer, with a
   random token the server keeps in its data folder.
-- **Your photos are never changed**: Lite opens them read-only and writes only to its own
-  data folder.
+- **Your photos are never changed**: Lite only reads them, and never moves, edits or deletes
+  one. It writes to its own data folder, and elsewhere only where an administrator asks it
+  to: the *Import* archive, an edited copy that Sudar saves beside its original, a drive
+  chosen for *Export media to this drive*, and, for a phone import on Windows, a temporary
+  `… phone copies` folder beside the data folder.
+- **The Linux service** (installed with `sudo`) runs as its own unprivileged `ninaivu-lite`
+  account, never as root, and reads only the photo folders it is given access to.
+- **Releases are not code-signed yet** (the SignPath Foundation application is pending).
+  Download them only from this repository's releases page and check them against its
+  `SHA256SUMS.txt`.
 
 ## Reporting a problem
 

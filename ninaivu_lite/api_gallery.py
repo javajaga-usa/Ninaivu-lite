@@ -76,6 +76,18 @@ INLINE_TYPES = frozenset({
 #: Picture formats that cannot carry where they were taken.
 NO_LOCATION_EXTS = frozenset({"gif", "bmp"})
 
+#: Videos copied without their metadata at once. ffmpeg runs inside the
+#: request, for guests and links too, and the server has eight threads in all.
+FFMPEG_SLOTS = threading.BoundedSemaphore(2)
+#: How long a second request for the same video waits for the first one's copy.
+STRIP_WAIT = 30.0
+#: The most the copies in views/ may take; past it the oldest go first.
+VIEWS_MAX_BYTES = 2 * 1024 ** 3
+VIEWS_CHECK_EVERY = 60.0
+_strip_locks: dict[int, threading.Lock] = {}
+_views_lock = threading.Lock()
+_views_checked_at = 0.0
+
 for _ext, _mime in ((".heic", "image/heic"), (".heif", "image/heif"), (".avif", "image/avif"),
                     (".webp", "image/webp"), (".m4v", "video/x-m4v"), (".mov", "video/quicktime"),
                     (".webm", "video/webm"), (".jfif", "image/jpeg")):
@@ -320,13 +332,16 @@ def grid_filters(who: auth.User) -> tuple[str, list[Any]]:
     clauses, args = [where], list(params)
     query = request.args
 
-    # Every word must match somewhere: the file name, its folder or the camera;
-    # a bare year ("2019") or month ("2019-05") also matches the date.
+    # Every word must match somewhere: the file name, its folder or (for the
+    # family: how a photo was taken is not for guests) the camera; a bare
+    # year ("2019") or month ("2019-05") also matches the date.
     for word in (query.get("q") or "").split():
         pattern = like(word)
-        part = ("(a.name LIKE ? ESCAPE '\\' OR a.dir LIKE ? ESCAPE '\\' "
-                "OR a.camera LIKE ? ESCAPE '\\'")
-        part_args: list[Any] = [pattern, pattern, pattern]
+        part = "(a.name LIKE ? ESCAPE '\\' OR a.dir LIKE ? ESCAPE '\\'"
+        part_args: list[Any] = [pattern, pattern]
+        if who.family_or_more:
+            part += " OR a.camera LIKE ? ESCAPE '\\'"
+            part_args.append(pattern)
         if YEAR_RE.match(word):
             part += " OR a.date_key LIKE ?"
             part_args.append(word + "-%")
@@ -367,7 +382,7 @@ def grid_filters(who: auth.User) -> tuple[str, list[Any]]:
         clauses.append("a.id IN (SELECT asset_id FROM album_items WHERE album_id = ?)")
         args.append(album)
 
-    if query.get("camera"):
+    if query.get("camera") and who.family_or_more:
         clauses.append("a.camera = ?")
         args.append(query["camera"])
 
@@ -441,6 +456,8 @@ def _folder_counts(where: str, params: list[Any], limit: int) -> list[dict[str, 
 
 
 def _camera_counts(where: str, params: list[Any], limit: int) -> list[dict[str, Any]]:
+    if not user().family_or_more:
+        return []     # as for one photo's details: cameras are for the family
     return [{"name": r[0], "count": r[1]} for r in conn().execute(
         f"""SELECT a.camera, COUNT(*) AS n FROM assets a
             WHERE {where} AND a.camera IS NOT NULL AND a.camera != ''
@@ -628,14 +645,15 @@ def thumb_response(row: sqlite3.Row, requested: str | None, *, cache: str) -> Re
         fail(404, "This item has no thumbnail.")
     size = snap_thumb(requested)
     thumbs = scanner().thumbs_dir
+    # A file on disk is served only when the index says it is this row's:
+    # ids are handed out again, and a removed photograph's thumbnail (a
+    # Hidden one, say) stays behind until the new one is made over it.
+    made = scanner().thumbnail_now(conn(), row["id"], size)
+    if not made and size != "s":
+        size = "s"
+        made = scanner().thumbnail_now(conn(), row["id"], size)
     path = media.thumb_path(thumbs, row["id"], size)
-    if not path.is_file():
-        scanner().thumbnail_now(conn(), row["id"], size)
-    if not path.is_file() and size != "s":
-        path = media.thumb_path(thumbs, row["id"], "s")
-        if not path.is_file():
-            scanner().thumbnail_now(conn(), row["id"], "s")
-    if not path.is_file():
+    if not made or not path.is_file():
         fail(404, "This item has no thumbnail.")
     stamp = path.stat().st_mtime_ns
     response = send_file(path, mimetype="image/webp", conditional=True,
@@ -665,6 +683,37 @@ def views_dir() -> Path:
     return Path(cfg().data_dir) / "views"
 
 
+def trim_views(keep: Path) -> None:
+    """Keep views/ under :data:`VIEWS_MAX_BYTES`, oldest copies out first
+    (never *keep*, the one just made). Looked at once a minute at most."""
+    global _views_checked_at
+    with _views_lock:
+        now = time.monotonic()
+        if _views_checked_at and now - _views_checked_at < VIEWS_CHECK_EVERY:
+            return
+        _views_checked_at = now
+    found, total = [], 0
+    for item in views_dir().glob("*/*"):
+        try:
+            st = item.stat()
+        except OSError:
+            continue
+        found.append((st.st_mtime, st.st_size, item))
+        total += st.st_size
+    if total <= VIEWS_MAX_BYTES:
+        return
+    for _mtime, size, item in sorted(found):
+        if total <= VIEWS_MAX_BYTES * 0.8:
+            break
+        if item == keep:
+            continue
+        try:
+            item.unlink()
+        except OSError:      # being sent right now (Windows): next time
+            continue
+        total -= size
+
+
 def viewing_response(row: sqlite3.Row, path: str, max_age: int, turned: bool = False) -> Response:
     """The picture re-encoded for viewing: upright, at most 2560 px, and with
     no metadata at all. Kept on disk in the data folder, keyed by the file's
@@ -691,6 +740,7 @@ def viewing_response(row: sqlite3.Row, path: str, max_age: int, turned: bool = F
             tmp = cache.with_name(f"{cache.name}.{os.getpid()}-{threading.get_ident()}.tmp")
             tmp.write_bytes(data)
             os.replace(tmp, cache)
+            trim_views(cache)
         except OSError:
             response = Response(data, mimetype="image/jpeg")
             response.headers["Cache-Control"] = f"private, max-age={max_age}"
@@ -718,8 +768,10 @@ def original_response(row: sqlite3.Row, path: str, max_age: int = 3600) -> Respo
 def stripped_video_response(row: sqlite3.Row, path: str, max_age: int) -> Response:
     """A video with its metadata removed (a phone writes where it was shot
     into the file), kept in the data folder like the viewing copies. Without
-    ffmpeg, or for a file it cannot remux, the original: better a video that
-    plays than one that does not, and the guide says which it is."""
+    ffmpeg, or for a file it cannot remux, the video is refused: the person
+    asking is a guest or a stranger with a link, and the original may say
+    where it was shot. Only an administrator's choice (``video_originals``)
+    sends such a video as it is, marked so in a header."""
     try:
         st = os.stat(long_path(path))
     except OSError:
@@ -727,11 +779,34 @@ def stripped_video_response(row: sqlite3.Row, path: str, max_age: int) -> Respon
     ext = os.path.splitext(row["name"])[1].lower() or ".mp4"
     cache = views_dir() / f"{row['id'] % 256:02x}" / f"{row['id']}-{st.st_size}-{int(st.st_mtime)}{ext}"
     if not cache.is_file():
-        cache.parent.mkdir(parents=True, exist_ok=True)
-        for old in cache.parent.glob(f"{row['id']}-*{ext}"):
-            old.unlink(missing_ok=True)
-        if not media.strip_video(path, str(cache)):
-            return original_response(row, path, max_age)
+        # One copy of a video at a time (a player asks several times over),
+        # and only a few videos at once, so guests cannot use up the threads.
+        lock = _strip_locks.setdefault(row["id"], threading.Lock())
+        if not lock.acquire(timeout=STRIP_WAIT):
+            fail(503, "Videos are being prepared for others. Try again in a moment.")
+        try:
+            if not cache.is_file():
+                if not FFMPEG_SLOTS.acquire(blocking=False):
+                    fail(503, "Videos are being prepared for others. Try again in a moment.")
+                try:
+                    cache.parent.mkdir(parents=True, exist_ok=True)
+                    for old in cache.parent.glob(f"{row['id']}-*{ext}"):
+                        try:
+                            old.unlink(missing_ok=True)
+                        except OSError:      # still being sent (Windows)
+                            pass
+                    stripped = media.strip_video(path, str(cache))
+                finally:
+                    FFMPEG_SLOTS.release()
+                if not stripped:
+                    if not cfg().video_originals:
+                        fail(415, "This video cannot be shared without its location data.")
+                    response = original_response(row, path, max_age)
+                    response.headers["X-Ninaivu-Metadata"] = "original"
+                    return response
+                trim_views(cache)
+        finally:
+            lock.release()
     mime, _ = mimetypes.guess_type(row["name"])
     response = send_file(cache, mimetype=mime or "video/mp4", conditional=True,
                          etag=cache.stem, max_age=max_age)

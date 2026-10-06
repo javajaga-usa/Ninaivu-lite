@@ -58,6 +58,12 @@ ConvertTo-Json -Compress -InputObject @($out)
 
 #: Prints one JSON object per line: {"total": n}, {"done": i}, {"finished": true},
 #: or {"error": "gone" | "locked"}. Never a file name, so nothing needs escaping.
+#: A copy that did not finish in time is deleted, said as {"done": i,
+#: "failed": 1}, and its path written to NL_FAILED (the shell may still be
+#: writing it, so it is deleted again before the import). A file whose size
+#: the phone does not tell is taken when it stops growing, but cannot be known
+#: to be whole: its path goes to NL_UNSURE, so it is never put on the list of
+#: what came in, and is fetched again next time.
 FETCH_SCRIPT = r"""
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $shell = New-Object -ComObject Shell.Application
@@ -101,22 +107,30 @@ foreach ($t in $todo) {
   $local = Join-Path $env:NL_DEST $rel
   $file = Join-Path $local $name
   $have = Test-Path -LiteralPath $file
-  if ($skip.ContainsKey("$rel\$name") -or ($have -and ($size -le 0 -or (Get-Item -LiteralPath $file).Length -eq $size))) {
+  if ($skip.ContainsKey("$rel\$name") -or ($have -and $size -gt 0 -and (Get-Item -LiteralPath $file).Length -eq $size)) {
     "{""done"":$n,""skipped"":1}"; continue
   }
+  # A copy left from before, of a size nobody can check, is fetched again.
+  if ($have) { Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue }
   [void][IO.Directory]::CreateDirectory($local)
   # 4 no progress box, 16 yes to all, 512 no folder question, 1024 no error box
   $shell.NameSpace($local).CopyHere($it, 1556)
-  $deadline = (Get-Date).AddMinutes(15); $last = -1; $still = 0
+  $deadline = (Get-Date).AddMinutes(15); $last = -1; $still = 0; $ok = $false
   while ((Get-Date) -lt $deadline) {
     Start-Sleep -Milliseconds 200
     if (-not (Test-Path -LiteralPath $file)) { continue }
     $len = (Get-Item -LiteralPath $file).Length
-    if ($size -gt 0) { if ($len -eq $size) { break } }
-    elseif ($len -gt 0 -and $len -eq $last) { $still++; if ($still -ge 5) { break } }
+    if ($size -gt 0) { if ($len -eq $size) { $ok = $true; break } }
+    elseif ($len -gt 0 -and $len -eq $last) { $still++; if ($still -ge 5) { $ok = $true; break } }
     else { $still = 0 }
     $last = $len
   }
+  if (-not $ok) {
+    Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue
+    [IO.File]::AppendAllText($env:NL_FAILED, "$rel\$name`n", [Text.Encoding]::UTF8)
+    "{""done"":$n,""failed"":1}"; continue
+  }
+  if ($size -le 0) { [IO.File]::AppendAllText($env:NL_UNSURE, "$rel\$name`n", [Text.Encoding]::UTF8) }
   "{""done"":$n}"
 }
 '{"finished":true}'
@@ -208,9 +222,19 @@ def mirror_for(data_dir: str, drive: Drive) -> str:
     return os.path.join(f"{data_dir} {MIRROR_DIR}", _name(drive))
 
 
-def imported_list(data_dir: str, drive: Drive) -> str:
-    """What has already come in from this phone, one path per line."""
-    return os.path.join(data_dir, MIRROR_DIR, f"{_name(drive)}.imported")
+def imported_list(data_dir: str, drive: Drive, kind: str = "imported") -> str:
+    """What has already come in from this phone, one path per line. With
+    *kind* "failed" or "unsure", the last fetch's copies that did not finish
+    or whose size the phone did not tell."""
+    return os.path.join(data_dir, MIRROR_DIR, f"{_name(drive)}.{kind}")
+
+
+def _read_list(path: str) -> set[str]:
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            return {line.strip("\r\n") for line in f if line.strip()}
+    except OSError:
+        return set()
 
 
 class PhoneImport:
@@ -268,6 +292,14 @@ class PhoneImport:
         try:
             if not self._fetch(drive, mirror):
                 return
+            # What did not finish coming across is not imported: it would be
+            # archived as it is, cut short.
+            failed = _read_list(imported_list(data_dir, drive, "failed"))
+            for rel in failed:
+                try:
+                    os.remove(os.path.join(mirror, rel))
+                except OSError:
+                    pass
             self._set(phase="importing", done=0, total=0)
             engine.start([mirror], destination, ["image", "video"], "copy")
             while engine.running:
@@ -276,10 +308,18 @@ class PhoneImport:
                 self._set(phase="stopped", message=_say(
                     "Stopped. Nothing on the phone was changed."))
                 return
-            added, already = self._tidy(mirror, data_dir, imported_list(data_dir, drive))
-            self._set(phase="done", message=_say(
-                "{added} new photos and videos from the phone are in the archive. "
-                "{already} were there already.", added=f"{added:,}", already=f"{already:,}"))
+            added, already = self._tidy(mirror, data_dir, imported_list(data_dir, drive),
+                                        _read_list(imported_list(data_dir, drive, "unsure")))
+            counts = {"added": f"{added:,}", "already": f"{already:,}"}
+            if failed:
+                counts["failed"] = f"{len(failed):,}"
+                key = ("{added} new photos and videos from the phone are in the archive. "
+                       "{already} were there already. {failed} did not finish copying from "
+                       "the phone; they will be copied again next time.")
+            else:
+                key = ("{added} new photos and videos from the phone are in the archive. "
+                       "{already} were there already.")
+            self._set(phase="done", message=_say(key, **counts))
         except Exception:  # noqa: BLE001 — said, not raised
             log.exception("phone import failed")
             self._set(phase="failed", message=_say(
@@ -292,9 +332,17 @@ class PhoneImport:
         from . import media
         os.makedirs(mirror, exist_ok=True)
         exts = sorted(media.PHOTO_EXTS | media.VIDEO_EXTS)
+        failed, unsure = (imported_list(self.data_dir, drive, k) for k in ("failed", "unsure"))
+        os.makedirs(os.path.dirname(failed), exist_ok=True)
+        for stale in (failed, unsure):
+            try:
+                os.remove(stale)
+            except FileNotFoundError:
+                pass
         env = {"NL_PHONE": drive.path, "NL_DEST": mirror, "NL_EXTS": "|".join(exts),
                "NL_TOPS": "|".join(PHONE_FOLDERS),
-               "NL_SKIP": imported_list(self.data_dir, drive)}
+               "NL_SKIP": imported_list(self.data_dir, drive),
+               "NL_FAILED": failed, "NL_UNSURE": unsure}
         self.process = _powershell(FETCH_SCRIPT, env)
         error = None
         finished = False
@@ -327,23 +375,40 @@ class PhoneImport:
             return False
         return True
 
-    def _tidy(self, mirror: str, data_dir: str, listing: str) -> tuple[int, int]:
+    def _tidy(self, mirror: str, data_dir: str, listing: str,
+              unsure: set[str] = frozenset()) -> tuple[int, int]:
         """Each copy the import verified, or found already in the archive, is
-        written down as imported and deleted from the data folder."""
+        written down as imported and deleted from the data folder. A copy in
+        *unsure* (the phone did not tell its size, so it may be cut short) is
+        deleted but not written down, so the next fetch brings it again and
+        the import keeps it only if it differs."""
         from . import db
+        from .importer import still_done
         conn = db.connect(data_dir)
         try:
             rows = conn.execute(
-                "SELECT source, status FROM import_files WHERE status IN ('verified', 'duplicate')"
+                "SELECT source, status, destination, duplicate_of, size, mtime "
+                "FROM import_files WHERE status IN ('verified', 'duplicate')"
             ).fetchall()
         finally:
             conn.close()
         added = already = 0
         done = []
-        for source, status in rows:
-            if not is_within(source, mirror) or not os.path.isfile(source):
+        for row in rows:
+            source, status = row["source"], row["status"]
+            if not is_within(source, mirror):
                 continue
-            done.append(os.path.relpath(source, mirror))
+            try:
+                st = os.stat(source)
+            except OSError:
+                continue
+            # Only a copy whose record describes this very file, with its
+            # archived copy still there, is safe to let go of.
+            if not still_done(row, st):
+                continue
+            rel = os.path.relpath(source, mirror)
+            if rel not in unsure:
+                done.append(rel)
             if status == "verified":
                 added += 1
             else:

@@ -185,6 +185,7 @@ def overview():
             "home_url": "/",
             "open_browsing": c.open_browsing,
             "watch": c.watch,
+            "video_originals": c.video_originals,
             "house_name": c.house_name,
             "house_name_effective": c.house_name_effective,
             "default_language": c.language,
@@ -204,6 +205,10 @@ def overview():
             # People, not sessions: every phone and browser keeps its own.
             "signed_in": signed_in["n"],
             "sessions": signed_in["s"],
+            # Family profiles anyone on the network can tap into, open
+            # browsing or not: the console warns about them.
+            "open_family": [p.display_name for p in active
+                            if p.role == auth.ROLE_FAMILY and p.entry == "open"],
         },
         "stats": _stats(who),
         "rules": _rule_list(_active_folder_id()),
@@ -446,6 +451,7 @@ def _settings_payload() -> dict[str, Any]:
     c = cfg()
     return {"house_name": c.house_name, "house_name_effective": c.house_name_effective,
             "open_browsing": c.open_browsing, "watch": c.watch,
+            "video_originals": c.video_originals,
             "language": c.language, "default_language": c.language}
 
 
@@ -460,7 +466,7 @@ def settings():
         if not isinstance(data["house_name"], str):
             fail(400, "house_name must be text.")
         updates["house_name"] = clean_house_name(data["house_name"])
-    for key in ("open_browsing", "watch"):
+    for key in ("open_browsing", "watch", "video_originals"):
         if key in data:
             if not isinstance(data[key], bool):
                 fail(400, f"{key} must be true or false.")

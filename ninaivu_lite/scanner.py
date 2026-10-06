@@ -39,6 +39,8 @@ IGNORE_DIRS = {"$RECYCLE.BIN", "System Volume Information", "@eaDir", "#recycle"
                ".Trashes", ".git", "node_modules", "__pycache__", ".thumbnails", ".cache"}
 BATCH = 200
 RESCAN_EVERY = 30 * 60
+#: How soon to try again when the index could not be opened at all.
+RETRY_EVERY = 60
 
 
 class Scanner:
@@ -58,7 +60,7 @@ class Scanner:
         self.status: dict[str, Any] = {
             "state": "idle", "found": 0, "new": 0, "added": 0, "removed": 0,
             "thumbs_left": 0, "thumbs_total": 0, "started": None,
-            "unreachable": [], "last_finished": None,
+            "unreachable": [], "unreadable": 0, "last_finished": None,
         }
 
     # --- lifecycle -------------------------------------------------------------
@@ -79,19 +81,25 @@ class Scanner:
         self._wake.set()
 
     def _run(self) -> None:
-        conn = db.connect(self.data_dir)
+        conn = None
         try:
             while not self._stop.is_set():
                 try:
+                    # Opened inside the loop: an index locked or unreadable for a
+                    # moment must not end scanning until the next restart.
+                    if conn is None:
+                        conn = db.connect(self.data_dir)
                     self.scan_once(conn)
                 except Exception:  # noqa: BLE001 — the loop must survive anything
                     log.exception("scan failed; will try again later")
                     self._set(state="idle")
                 # With "watch" off it waits for the Rescan button only.
-                self._wake.wait(RESCAN_EVERY if self.auto else None)
+                self._wake.wait(RETRY_EVERY if conn is None
+                                else RESCAN_EVERY if self.auto else None)
                 self._wake.clear()
         finally:
-            conn.close()
+            if conn is not None:
+                conn.close()
 
     # --- one scan --------------------------------------------------------------
 
@@ -107,7 +115,7 @@ class Scanner:
         ids = db.sync_folders(conn, self.folders)
         self.generation += 1
         self._set(state="walking", found=0, new=0, added=0, removed=0, unreachable=[],
-                  started=time.time())
+                  unreadable=0, started=time.time())
         unreachable = []
         for path, folder_id in ids.items():
             if self._stop.is_set():
@@ -128,12 +136,28 @@ class Scanner:
                      "SELECT id, dir, name, size, mtime, missing FROM assets WHERE folder_id = ?",
                      (folder_id,))}
         seen: set[int] = set()
+        failed: list[str] = []          # folders inside the root that could not be read
         pending: list[tuple] = []
         rules: dict[str, int | None] = {}
 
         def flush() -> None:
             if not pending:
                 return
+            try:
+                write(pending)
+            except (sqlite3.Error, OverflowError):
+                # One row the index cannot hold (a value out of range) must not
+                # cost the batch: the rest go in one by one, the bad one is left.
+                for one in pending:
+                    try:
+                        write([one])
+                    except (sqlite3.Error, OverflowError) as exc:
+                        log.warning("could not index %s/%s: %s", one[1], one[2], exc)
+                        failed.append(f"{one[1]}/{one[2]}" if one[1] else one[2])
+            pending.clear()
+            self.generation += 1
+
+        def write(rows: list[tuple]) -> None:
             with conn:
                 conn.executemany(
                     """INSERT INTO assets (folder_id, dir, name, ext, kind, size, mtime, captured_at,
@@ -160,11 +184,9 @@ class Scanner:
                            rot_source=CASE WHEN assets.rot_source='manual' THEN 'manual'
                                            ELSE excluded.rot_source END,
                            upright=CASE WHEN assets.rot_source='manual' THEN 1 ELSE excluded.upright END""",
-                    pending)
-            pending.clear()
-            self.generation += 1
+                    rows)
 
-        for rel_dir, name, full, st in self._files(root):
+        for rel_dir, name, full, st in self._files(root, failed):
             if self._stop.is_set():
                 break
             kind = media.kind_of(name)
@@ -182,9 +204,14 @@ class Scanner:
                                      "thumb = CASE WHEN thumb = ? THEN 0 ELSE thumb END "
                                      "WHERE id = ?", (db.THUMB_NONE, row[0]))
                 continue
-            info = media.describe(full, name, kind, st)
-            if rel_dir not in rules:
-                rules[rel_dir] = db.rule_for(conn, folder_id, rel_dir)
+            try:
+                info = media.describe(full, name, kind, st)
+                if rel_dir not in rules:
+                    rules[rel_dir] = db.rule_for(conn, folder_id, rel_dir)
+            except Exception:  # noqa: BLE001 — one bad file must not stop the scan
+                log.exception("could not look at %s", full)
+                failed.append(f"{rel_dir}/{name}" if rel_dir else name)
+                continue
             rule = rules[rel_dir]
             # A camera's own orientation tag is final (the browser and the
             # thumbnails honour it); a photograph without one is looked at
@@ -210,7 +237,12 @@ class Scanner:
         flush()
         if self._stop.is_set():
             return
-        gone = [r[0] for r in known.values() if r[0] not in seen and not r[3]]
+        # A folder that could not be read this time (permissions, a flaky
+        # disk) says nothing about the photographs in it: they keep their
+        # place until a walk that can read it finds them really gone.
+        self.status["unreadable"] += len(failed)
+        gone = [r[0] for (rel_dir, name), r in known.items()
+                if r[0] not in seen and not r[3] and not under_any(rel_dir, name, failed)]
         self.status["removed"] += len(gone)
         if gone:
             with conn:
@@ -255,8 +287,9 @@ class Scanner:
         self.thumbnail_now(conn, asset_id, "s")
         return asset_id
 
-    def _files(self, root: str):
-        """(relative dir, name, full path, stat) for every file under *root*."""
+    def _files(self, root: str, failed: list[str] | None = None):
+        """(relative dir, name, full path, stat) for every file under *root*.
+        What could not be read is added to *failed*, as paths relative to it."""
         stack = [""]
         visited: set[tuple[int, int]] = set()
         while stack:
@@ -272,6 +305,8 @@ class Scanner:
                     items = list(entries)
             except OSError as exc:
                 log.info("skipping %s: %s", current, exc)
+                if failed is not None:
+                    failed.append(rel)
                 continue
             subdirs = []
             for entry in items:
@@ -287,7 +322,14 @@ class Scanner:
                             subdirs.append(f"{rel}/{name}" if rel else name)
                     elif entry.is_file():
                         yield rel, name, os.path.join(current, name), entry.stat()
+                    elif entry.is_symlink():
+                        # A link whose target cannot be reached (a linked folder
+                        # on a drive that is unplugged) is unread, not empty.
+                        entry.stat()
+                        continue
                 except OSError:
+                    if failed is not None:
+                        failed.append(f"{rel}/{name}" if rel else name)
                     continue
             stack.extend(sorted(subdirs, reverse=True))
 
@@ -305,28 +347,32 @@ class Scanner:
             total = conn.execute(
                 f"SELECT COUNT(*) FROM assets a WHERE {where} AND a.missing = 0").fetchone()[0]
             self._set(state=state, thumbs_total=total, thumbs_left=total)
-            # Each row is tried once per pass. A row the attempt leaves in the
-            # queue (its drive asleep, its file gone) would otherwise come back
-            # in the next page, and the pass would spin on it at full CPU.
-            tried: set[int] = set()
+            # Each row is tried once per pass, in date order, newest first. The
+            # next page starts after the last row tried (not at an offset):
+            # rows done leave the queue and rows that failed stay in it, so
+            # an offset would skip work, and starting over would spin at full
+            # CPU on a row whose drive is asleep.
+            after: tuple[float, int] | None = None
             while not self._stop.is_set():
+                page = "" if after is None else \
+                    "AND (a.captured_at < ? OR (a.captured_at = ? AND a.id < ?))"
+                args = () if after is None else (after[0], after[0], after[1])
                 rows = conn.execute(
-                    f"""SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.rotation, f.path AS root
+                    f"""SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.rotation, a.captured_at,
+                               f.path AS root
                         FROM assets a JOIN folders f ON f.id = a.folder_id
-                        WHERE {where} AND a.missing = 0
-                        ORDER BY a.captured_at DESC LIMIT 50 OFFSET ?""",
-                    (len(tried),)).fetchall()
+                        WHERE {where} AND a.missing = 0 {page}
+                        ORDER BY a.captured_at DESC, a.id DESC LIMIT 50""", args).fetchall()
                 left = conn.execute(
                     f"SELECT COUNT(*) FROM assets a WHERE {where} AND a.missing = 0").fetchone()[0]
                 self._set(thumbs_left=left)
-                rows = [row for row in rows if row["id"] not in tried]
                 if not rows:
                     break
                 self.generation += 1
                 for row in rows:
                     if self._stop.is_set() or self._wake.is_set():
                         return  # a rescan was asked for: walk first, then carry on here
-                    tried.add(row["id"])
+                    after = (row["captured_at"], row["id"])
                     self._thumbnail(conn, row, sizes)
 
     # --- which way up ------------------------------------------------------------
@@ -439,6 +485,12 @@ class Scanner:
 def day_of(taken_at: float) -> str:
     """'YYYY-MM-DD' in local time: the day a photo is filed under."""
     return from_timestamp(taken_at).strftime("%Y-%m-%d")
+
+
+def under_any(rel_dir: str, name: str, failed: list[str]) -> bool:
+    """Whether the file *rel_dir*/*name* lies in (or is) one of the *failed* paths."""
+    path = f"{rel_dir}/{name}" if rel_dir else name
+    return any(p == "" or path == p or path.startswith(p + "/") for p in failed)
 
 
 def full_path(root: str, rel_dir: str, name: str) -> str:

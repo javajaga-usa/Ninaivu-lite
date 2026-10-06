@@ -155,7 +155,25 @@ def capture_date(path: str, kind: str, st: os.stat_result) -> tuple[datetime | N
         taken = _exif_date(path)
         if taken is not None:
             return taken, "exif"
-    return dates.fallback_date(path, st)
+    return dates.fallback_date(path, st, media.zone_near(path))
+
+
+def still_done(row: sqlite3.Row, st: os.stat_result) -> bool:
+    """Whether an earlier run's answer for a source still holds: the source is
+    the file it was then (same size and modified time), and the archived copy
+    it was filed as, or found already in the archive as, is still there at
+    that size. A changed source or a lost copy is imported again; a copy
+    whose bytes changed at the same size is for the audit (Verify) to find."""
+    if row["size"] != st.st_size or row["mtime"] is None \
+            or abs(row["mtime"] - st.st_mtime) >= 1:
+        return False
+    if row["status"] == "skipped":
+        return True
+    kept = row["destination"] if row["status"] == "verified" else row["duplicate_of"]
+    try:
+        return bool(kept) and os.stat(long_path(kept)).st_size == st.st_size
+    except OSError:
+        return False
 
 
 def target_folder(destination: str, taken: datetime | None) -> str:
@@ -422,7 +440,7 @@ class Importer:
                 "kinds": list(kinds), "phase": "counting", "message": "",
                 "processed": 0, "stepped_over": 0, "total_files": 0, "total_bytes": 0,
                 "bytes_copied": 0, "started_at": time.time(), "ended_at": None,
-                "fresh_started": None, "unreadable": 0, "job_id": None,
+                "fresh_started": None, "unreadable": 0, "job_id": None, "plan_aside": {},
             }
             self._thread = threading.Thread(target=self._run, name="importer", daemon=True)
             self._thread.start()
@@ -607,7 +625,13 @@ class Importer:
     # -- one run --------------------------------------------------------------------
 
     def _run(self) -> None:
-        conn = db.connect(self.data_dir)
+        try:
+            conn = db.connect(self.data_dir)
+        except Exception as exc:  # noqa: BLE001 — said on the console, not left "counting"
+            log.exception("import could not open the index")
+            self._set(phase="failed", message=f"{type(exc).__name__}: {exc}",
+                      ended_at=time.time())
+            return
         job_id = None
         try:
             job_id = self._begin(conn)
@@ -672,6 +696,8 @@ class Importer:
             "SELECT status, COUNT(*) FROM import_files WHERE job_id = ? GROUP BY status",
             (j["job_id"],))}
         if j["mode"] == "dry-run":
+            for status, n in j.get("plan_aside", {}).items():
+                counts[status] = counts.get(status, 0) + n
             text = (f"Dry run finished: {counts.get('planned', 0):,} files would be archived, "
                     f"{counts.get('plan-duplicate', 0):,} are duplicates. Nothing was written.")
         else:
@@ -752,10 +778,11 @@ class Importer:
         j = self.job
         dry = j["mode"] == "dry-run"
         name = os.path.basename(src)
-        row = conn.execute("SELECT status, destination FROM import_files WHERE source = ?",
-                           (src,)).fetchone()
+        row = conn.execute("SELECT status, destination, dest_hash, duplicate_of, size, mtime "
+                           "FROM import_files WHERE source = ?", (src,)).fetchone()
         if row is not None and row["status"] in TERMINAL and (
-                not row["destination"] or is_within(row["destination"], j["destination"])):
+                not row["destination"] or is_within(row["destination"], j["destination"])) \
+                and still_done(row, st):
             with self._lock:
                 self.job["stepped_over"] += 1
             return
@@ -765,11 +792,25 @@ class Importer:
                     "INSERT INTO import_files (source, name, size, mtime, status, job_id, "
                     "updated_at) VALUES (?, ?, ?, ?, 'pending', ?, ?)",
                     (src, name, st.st_size, st.st_mtime, j["job_id"], time.time()))
+        # A dry run never writes over what a real run recorded (an archived
+        # copy, a duplicate, an error to retry): its answer for such a file is
+        # only counted.
+        aside = dry and row is not None and row["status"] not in PLAN + ("pending",)
+
+        def mark(status: str, **fields: Any) -> None:
+            if aside:
+                with self._lock:
+                    tally = self.job["plan_aside"]
+                    tally[status] = tally.get(status, 0) + 1
+                return
+            # Looked at again: what is recorded is what the file is now, written
+            # with the answer, so a run stopped mid-copy is not taken as done.
+            self._mark(conn, src, status, size=st.st_size, mtime=st.st_mtime, **fields)
+
         tmp = None
         try:
             if st.st_size == 0:
-                self._mark(conn, src, "plan-skip" if dry else "skipped",
-                           error="The file is empty.")
+                mark("plan-skip" if dry else "skipped", error="The file is empty.")
                 return
             taken, source = capture_date(src, kind, st)
             folder = target_folder(j["destination"], taken)
@@ -779,20 +820,20 @@ class Importer:
             # the hash is taken while copying, which reads the file once.
             if dry or self._size_known(conn, st.st_size):
                 src_hash = hash_file(src, self.gate)
-                dup = self._duplicate_of(conn, src_hash, src)
+                dup = self._duplicate_of(conn, src_hash, src, st.st_size)
                 if dup:
-                    self._mark(conn, src, "plan-duplicate" if dry else "duplicate",
-                               hash=src_hash, taken=when, date_source=source, duplicate_of=dup)
+                    mark("plan-duplicate" if dry else "duplicate",
+                         hash=src_hash, taken=when, date_source=source, duplicate_of=dup)
                     return
             if dry:
                 candidate, identical = self._unique_path(conn, folder, name, src_hash,
                                                          st.st_size, planning=True, source=src)
                 if identical:
-                    self._mark(conn, src, "plan-duplicate", hash=src_hash, taken=when,
-                               date_source=source, duplicate_of=candidate)
+                    mark("plan-duplicate", hash=src_hash, taken=when, date_source=source,
+                         duplicate_of=candidate)
                 else:
-                    self._mark(conn, src, "planned", hash=src_hash, taken=when,
-                               date_source=source, destination=candidate)
+                    mark("planned", hash=src_hash, taken=when, date_source=source,
+                         destination=candidate)
                 return
             tmp = os.path.join(self._partial_dir(), f"{uuid.uuid4().hex}.tmp")
             digest, count = self._copy_and_hash(src, tmp)
@@ -801,16 +842,16 @@ class Importer:
             if count != st.st_size and count != os.stat(long_path(src)).st_size:
                 raise OSError("The file changed size while it was being read.")
             if not src_hash:
-                dup = self._duplicate_of(conn, digest, src)
+                dup = self._duplicate_of(conn, digest, src, count)
                 if dup:
-                    self._mark(conn, src, "duplicate", hash=digest, taken=when,
-                               date_source=source, duplicate_of=dup)
+                    mark("duplicate", hash=digest, taken=when, date_source=source,
+                         duplicate_of=dup)
                     return
             os.makedirs(long_path(folder), exist_ok=True)
-            prior = row["destination"] if row is not None and row["status"] == "error" else None
-            if prior and is_within(prior, j["destination"]) and os.path.isfile(long_path(prior)):
-                # The audit found this run's own earlier copy damaged: the
+            if self._damaged_copy(row, j["destination"]):
+                # The audit found this source's earlier copy damaged: the
                 # fresh copy takes its place rather than a _1 beside it.
+                prior = row["destination"]
                 final, identical = prior, self._same_bytes(conn, prior, digest, count)
             else:
                 final, identical = self._unique_path(conn, folder, name, digest, count)
@@ -831,20 +872,34 @@ class Importer:
                         pass
                     raise OSError("The copy read back from the archive did not match the "
                                   "original, so it was removed.")
-            self._mark(conn, src, "verified", hash=digest, dest_hash=digest, taken=when,
-                       date_source=source, destination=final)
+            mark("verified", hash=digest, dest_hash=digest, taken=when, date_source=source,
+                 destination=final)
             self._copy_sidecars(src, final)
         except Cancelled:
             raise
         except Exception as exc:  # noqa: BLE001 — recorded against the file, run goes on
             log.info("import: %s: %s", src, exc)
-            self._mark(conn, src, "error", error=f"{exc}"[:300])
+            mark("error", error=f"{exc}"[:300])
         finally:
             if tmp:
                 try:
                     os.remove(long_path(tmp))
                 except OSError:
                     pass
+
+    def _damaged_copy(self, row: sqlite3.Row | None, destination: str) -> bool:
+        """Whether the archived copy an error row points at is one the audit
+        found damaged (its bytes no longer match the hash it was filed with).
+        A row marked error for any other reason, such as a read error on a
+        changed source, still points at a good earlier copy of something else,
+        which must never be written over."""
+        if row is None or row["status"] != "error" or not row["destination"] \
+                or not row["dest_hash"] or not is_within(row["destination"], destination):
+            return False
+        try:
+            return hash_file(row["destination"], self.gate) != row["dest_hash"]
+        except OSError:
+            return False
 
     def _mark(self, conn: sqlite3.Connection, src: str, status: str, **fields: Any) -> None:
         fields.update(status=status, updated_at=time.time(), job_id=self.job["job_id"])
@@ -860,12 +915,19 @@ class Importer:
         return conn.execute("SELECT 1 FROM import_files WHERE size = ? AND status IN "
                             "('verified', 'planned') LIMIT 1", (size,)).fetchone() is not None
 
-    def _duplicate_of(self, conn: sqlite3.Connection, digest: str, src: str) -> str | None:
-        """The archived copy of these bytes, inside this destination, or None."""
+    def _duplicate_of(self, conn: sqlite3.Connection, digest: str, src: str,
+                      size: int) -> str | None:
+        """The archived copy of these bytes, inside this destination, or None.
+
+        A copy counts only if it is on disk now with these very bytes: one
+        deleted or changed since it was recorded is no reason to leave the
+        new file out. A planned copy (a dry run) is not on disk yet."""
         for row in conn.execute(
-                "SELECT destination FROM import_files WHERE hash = ? AND source != ? "
+                "SELECT destination, status FROM import_files WHERE hash = ? AND source != ? "
                 "AND status IN ('verified', 'planned') AND destination IS NOT NULL", (digest, src)):
-            if is_within(row[0], self.job["destination"]):
+            if not is_within(row[0], self.job["destination"]):
+                continue
+            if row[1] == "planned" or self._same_bytes(conn, row[0], digest, size):
                 return row[0]
         return None
 
@@ -897,10 +959,12 @@ class Importer:
             return False
         if digest is None:
             return False
-        row = conn.execute("SELECT dest_hash FROM import_files WHERE destination = ? "
-                           "AND status = 'verified'", (candidate,)).fetchone()
-        known = row[0] if row else None
-        return (known or hash_file(candidate, self.gate)) == digest
+        # Read from disk, never taken from the index: an archived file can be
+        # changed or replaced after its hash was recorded.
+        try:
+            return hash_file(candidate, self.gate) == digest
+        except OSError:
+            return False
 
     def _copy_and_hash(self, src: str, tmp: str) -> tuple[str, int]:
         h = hashlib.sha256()

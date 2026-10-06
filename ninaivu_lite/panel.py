@@ -280,7 +280,8 @@ class Panel:
                 phones = net.lan_addresses()[:2] if running else []
                 summary = self.controller.library_summary()
                 self.events.put(("reading", running, port, phones, summary,
-                                 self.controller.can_stop()))
+                                 self.controller.can_stop(),
+                                 self.controller.setup_code() if running else None))
                 if running:
                     self.look_for_drives(summary.get("folders") or [])
             except Exception as exc:  # noqa: BLE001 — a bad reading must not end the loop
@@ -332,7 +333,7 @@ class Panel:
         if not self.finished.is_set():
             self.root.after(150, self.pump)
 
-    def show_reading(self, running, port, phones, summary, can_stop) -> None:
+    def show_reading(self, running, port, phones, summary, can_stop, setup_code=None) -> None:
         self.is_running = running
         if not self.busy:
             self.status.set("Running" if running else "Stopped")
@@ -343,6 +344,9 @@ class Panel:
             rows += [("On your phone", f"http://{a}:{port}/") for a in phones]
             if not can_stop:
                 rows.append(("", "Started from its own window: stop it there."))
+            if setup_code:      # until the first administrator is made
+                rows.append(("Setup code", setup_code))
+                rows.append(("", "Asked for when the administrator is made from another device."))
         else:
             rows = [("", "Not running. Press Start, then open it on this computer "
                          "or on a phone on the same Wi-Fi.")]
@@ -446,6 +450,10 @@ class Panel:
         win.protocol("WM_DELETE_WINDOW", lambda: pick(None))
         win.bind("<Escape>", lambda _event: pick(None))
         win.update_idletasks()
+        if not win.winfo_exists():
+            # Closed while it was being laid out (macOS Tk can handle events
+            # here): that is Not now, and there is nothing left to place.
+            return answer["choice"]
         x = self.root.winfo_rootx() + max(0, (self.root.winfo_width() - win.winfo_reqwidth()) // 2)
         y = self.root.winfo_rooty() + 60
         win.geometry(f"+{x}+{y}")
@@ -481,7 +489,11 @@ class Panel:
             self.update_text.set("Could not reach GitHub to check." if asked else "")
             self.download_button.pack_forget()
             return
-        self.update_url = info["url"]
+        # Only ever a page on GitHub: the answer is read back from a file in
+        # the data folder, and what it names is opened (on Windows, run).
+        url = info.get("url")
+        self.update_url = url if isinstance(url, str) and url.startswith("https://github.com/") \
+            else updates.RELEASES_PAGE
         if info["available"]:
             self.update_text.set(f"Version {info['version']} is available (you have {__version__}). "
                                  "Before installing it, stop Ninaivu Lite and close this panel.")

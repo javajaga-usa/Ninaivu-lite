@@ -245,7 +245,7 @@ def test_settings_echo_and_persist(app, admin, library):
     assert set(data["changed"]) == {"house_name", "open_browsing", "watch", "language"}
     assert data["settings"] == {"house_name": "Our Home", "house_name_effective": "Our Home",
                                 "open_browsing": False, "watch": False, "language": "ta",
-                                "default_language": "ta"}
+                                "default_language": "ta", "video_originals": False}
     assert app.config["SCANNER"].auto is False
     saved = Config.load(data_dir)
     assert (saved.house_name, saved.open_browsing, saved.watch, saved.language) == \

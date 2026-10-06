@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import logging
+import os
+import socket
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
 from flask import Flask, g, request
 
-from . import common, compress, drives, phones
+from . import auth, common, compress, drives, phones
 from .common import ApiError
 from .config import Config
 from .importer import Importer
@@ -41,6 +44,57 @@ OPEN_PATHS = {"/", "/admin", "/admin/", "/sw.js", "/healthz", "/readyz", "/api/h
               "/manifest.webmanifest", "/admin/manifest.webmanifest", "/favicon.ico",
               "/api/local/stop"}
 UNSAFE = {"POST", "PUT", "PATCH", "DELETE"}
+#: What someone on a temporary password may still change (sign-in is open).
+MUST_CHANGE_PATHS = {"/api/me", "/api/me/password"}
+
+#: Endings a home network's own names use for this computer (its name plus one of these).
+LOCAL_SUFFIXES = ("", ".local", ".lan", ".home", ".home.arpa", ".internal", ".localdomain")
+
+
+def host_allowed(host: str, extra: list[str] | tuple[str, ...] = ()) -> bool:
+    """Whether a request's Host names this computer.
+
+    A web page anywhere can point a name it owns at this computer's address
+    (DNS rebinding), and the browser then treats Ninaivu Lite as that page's
+    own site. Such a page always arrives under its own name, so only names
+    this computer has are answered: an address typed directly (any IP), this
+    computer's name on the home network, ``localhost``, and whatever the
+    household added to ``allowed_hosts`` in settings.json or to the
+    ``NINAIVU_ALLOWED_HOSTS`` environment variable, separated by commas (for
+    a reverse proxy, a name of their own, or a container, whose own name is
+    not the computer's)."""
+    name = host.strip().lower()
+    if name.startswith("["):                          # [::1]:8080
+        name = name[1:name.find("]")] if "]" in name else name[1:]
+    elif name.count(":") == 1:
+        name = name.split(":", 1)[0]
+    name = name.rstrip(".")
+    if not name:
+        return False
+    try:
+        ipaddress.ip_address(name)
+        return True
+    except ValueError:
+        pass
+    if name == "localhost" or name.endswith(".localhost"):
+        return True
+    own = {n.lower() for n in (socket.gethostname(), socket.gethostname().split(".")[0]) if n}
+    if any(name == f"{base}{suffix}" for base in own for suffix in LOCAL_SUFFIXES):
+        return True
+    named = [*extra, *os.environ.get("NINAIVU_ALLOWED_HOSTS", "").split(",")]
+    return name in {h.strip().lower().rstrip(".") for h in named if isinstance(h, str)}
+
+
+#: Body types a page on another site may send without asking first (CORS's
+#: "simple" requests); anything else, or the header below, needs the
+#: browser's permission, which Ninaivu Lite never gives.
+SIMPLE_TYPES = {"", "application/x-www-form-urlencoded", "multipart/form-data", "text/plain"}
+SCRIPT_HEADER = "X-Ninaivu"
+
+
+def script_sent() -> bool:
+    """Whether this request could only have come from a script on this site."""
+    return bool(request.headers.get(SCRIPT_HEADER)) or request.mimetype not in SIMPLE_TYPES
 
 
 def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
@@ -88,6 +142,10 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
 
     @app.before_request
     def guard():
+        # Only for this computer's own names: never a stranger's name pointed here.
+        if not host_allowed(request.host, cfg.allowed_hosts):
+            raise ApiError(400, "This address is not one Ninaivu Lite answers to. Open it "
+                                "with this computer's address instead.")
         # Writes only from this site's own pages.
         if request.method in UNSAFE:
             site = request.headers.get("Sec-Fetch-Site")
@@ -95,7 +153,13 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
             if site is not None:
                 if site not in ("same-origin", "none"):
                     raise ApiError(403, "Cross-origin request refused.")
-            elif origin and origin != "null" and urlsplit(origin).netloc != request.host:
+            elif origin and origin != "null":
+                if urlsplit(origin).netloc != request.host:
+                    raise ApiError(403, "Cross-origin request refused.")
+            elif request.cookies.get(auth.SESSION_COOKIE) and not script_sent():
+                # No origin to go by (plain HTTP sends no Sec-Fetch-Site, a
+                # sandboxed or no-referrer page says "null"): a signed-in
+                # write must be one a form or another site could not send.
                 raise ApiError(403, "Cross-origin request refused.")
         # A closed library answers nobody who has not signed in.
         path = request.path
@@ -103,6 +167,11 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
             return None
         if not cfg.open_browsing and common.user().anonymous:
             raise ApiError(401, "This library is private. Please sign in.")
+        # A password an administrator set is only for getting in: nothing is
+        # changed with it until its owner has chosen their own.
+        if request.method in UNSAFE and path.startswith("/api/") \
+                and path not in MUST_CHANGE_PATHS and common.user().must_change:
+            raise ApiError(403, "Choose your own password first.", must_change=True)
         return None
 
     @app.after_request

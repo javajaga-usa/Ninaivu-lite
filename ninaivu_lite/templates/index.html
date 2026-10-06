@@ -361,6 +361,10 @@
     <div class="year-strip" id="year-strip" hidden role="group" aria-label="Years" data-i18n-label="Years"></div>
     <div class="scroller" id="scroller" tabindex="0">
       <div class="grid" id="grid" role="grid" aria-label="Media gallery" data-i18n-label="Media gallery"></div>
+      <div class="load-more-failed" id="load-more-failed" role="status" hidden>
+        <span data-i18n="Could not load more media">Could not load more media</span>
+        <button class="btn ghost small" id="load-more-retry" data-i18n="Try again">Try again</button>
+      </div>
       <div class="empty" id="empty" hidden>
         <svg viewBox="0 0 24 24" class="empty-art empty-art-default"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="m5 17 4.5-4.5 3.5 3.5 2.5-2.5L21 18"/></svg>
         <svg viewBox="0 0 24 24" class="empty-art empty-art-offline" fill="none" stroke="currentColor" stroke-width="1.5" hidden><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/><path d="m2 2 20 20"/></svg>
@@ -591,6 +595,7 @@
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
+{% include "_too_old.html" %}
 <script type="module" src="{{ asset('/static/js/app.js') }}"></script>
 </body>
 </html>

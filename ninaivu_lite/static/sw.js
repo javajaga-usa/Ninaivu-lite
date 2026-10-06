@@ -13,11 +13,12 @@
  *   /admin, /admin/*    the console is never offline and never cached.
  *   /share/*            a stranger's link, answered by the server each time.
  *
- * The caches are versioned. Changing CACHE_VERSION drops every old one on the
- * next activation, which is how a stale app shell gets cleaned up.
+ * The caches are versioned. The server writes the version of the app's files
+ * into CACHE_VERSION as it sends this file, so every upgrade is a new worker,
+ * and its activation drops the old caches.
  */
 
-const CACHE_VERSION = 'lite-1';
+const CACHE_VERSION = 'lite-1';  // replaced by the server: see pages.service_worker
 /**
  * Thumbnails keep the version they were cached under. They are the expensive
  * thing to fetch again — thousands of them for a library scrolled through — and
@@ -92,24 +93,26 @@ async function cacheFirst(request, cacheName, limit) {
   return response || new Response('', { status: 504, statusText: 'Offline' });
 }
 
-async function staleWhileRevalidate(request, cacheName, limit) {
+/**
+ * The app's files from the server whenever it answers, the cached copy only
+ * when it does not. Only the entry script's URL carries a version; the modules
+ * it imports, the translations and the editor do not, so a cache answering
+ * first would hand a new app.js the old api.js after an upgrade, and the page
+ * would never open. On the home network asking costs a 304.
+ */
+async function networkFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
-  const hit = await cache.match(request);
-
-  const network = fetch(request).then(async (response) => {
-    // Only ever store a plain success. An opaque, partial or error response
-    // cached here would be served back as though it were the real thing.
-    if (response && response.status === 200 && response.type === 'basic') {
-      await cache.put(request, response.clone());
-      if (limit) trim(cacheName, limit);
-    }
+  const response = await fetch(request).catch(() => null);
+  // Only ever store a plain success. An opaque, partial or error response
+  // cached here would be served back as though it were the real thing.
+  if (response && response.status === 200 && response.type === 'basic') {
+    await cache.put(request, response.clone());
     return response;
-  }).catch(() => null);
-
+  }
+  if (response && response.status !== 504) return response;
+  const hit = await cache.match(request);
   if (hit) return hit;
-  const fresh = await network;
-  if (fresh) return fresh;
-  return new Response('', { status: 504, statusText: 'Offline' });
+  return response || new Response('', { status: 504, statusText: 'Offline' });
 }
 
 async function networkFirstNavigation(request, cacheName) {
@@ -123,8 +126,13 @@ async function networkFirstNavigation(request, cacheName) {
   } catch {
     const hit = await cache.match(request) || await cache.match('/');
     if (hit) return hit;
+    // Both languages: the page's own choice lives in a script this worker
+    // has not got, and an English-only page told a Tamil reader nothing.
     return new Response(
-      '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Ninaivu — Offline</title><style>body{background:#12161c;color:#e6e8eb;font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;padding:24px;box-sizing:border-box;text-align:center}.card{max-width:320px}h1{font-size:20px;margin-bottom:8px}p{color:#8b949e;font-size:14px;line-height:1.5}</style></head><body><div class="card"><h1>Ninaivu is Offline</h1><p>Check your Wi-Fi or network connection to reconnect to your library.</p></div></body></html>',
+      '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Ninaivu — Offline · இணைப்பு இல்லை</title><style>body{background:#12161c;color:#e6e8eb;font-family:system-ui,-apple-system,"Noto Sans Tamil","Latha",sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;box-sizing:border-box;text-align:center}.card{max-width:340px}h1{font-size:20px;margin-bottom:8px}p{color:#8b949e;font-size:14px;line-height:1.6}hr{border:0;border-top:1px solid #30363d;margin:20px 0}</style></head><body><div class="card">'
+      + '<h1>Ninaivu is offline</h1><p>Check your Wi-Fi or network connection to reconnect to your library.</p>'
+      + '<hr><div lang="ta"><h1>நினைவுடன் இணைப்பு இல்லை</h1><p>உங்கள் நூலகத்துடன் மீண்டும் இணைய, Wi-Fi அல்லது நெட்வொர்க் இணைப்பைச் சரிபார்க்கவும்.</p></div>'
+      + '</div></body></html>',
       { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
     );
   }
@@ -158,7 +166,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (url.pathname.startsWith('/static/')) {
-    event.respondWith(staleWhileRevalidate(request, SHELL_CACHE, 0));
+    event.respondWith(networkFirst(request, SHELL_CACHE));
     return;
   }
   // Everything else is left alone deliberately — see the note at the top.

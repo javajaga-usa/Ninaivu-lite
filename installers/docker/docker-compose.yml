@@ -15,6 +15,12 @@ services:
     restart: unless-stopped
     ports:
       - "8080:8080"
+    environment:
+      # Ninaivu Lite answers to addresses (http://192.168.1.20:8080) and to
+      # localhost. A name for this computer (mypc.local, a name from your
+      # router) must be listed here, comma-separated: inside the container,
+      # the computer's own name is not known.
+      NINAIVU_ALLOWED_HOSTS: ${ALLOWED_HOSTS:-}
     volumes:
       - ${MEDIA_DIR:-./photos}:/photos:ro
       - ninaivu_lite_data:/data

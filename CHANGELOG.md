@@ -1,5 +1,269 @@
 # Changelog
 
+## 1.6.0 — 2026-10-06
+
+Fixes for all ten findings of the project audit of 2026-10-05 (A01-A10). Three of them change
+what you may notice:
+
+- On a computer without ffmpeg (the installers do not include it), guests and share links are
+  told a video cannot be shared, rather than being sent a file that may say where it was
+  shot. Settings has a new switch to send such videos as they are.
+- Installed as root on Linux, Ninaivu Lite now runs as its own `ninaivu-lite` account. The
+  installer names any photo folder that account cannot read, with the command to allow it.
+- The daily backups in `backups/` are now zips holding the index, the settings and profile
+  pictures, the same as the download.
+
+- **A share link ends with what it points at.** Removing a photograph from the index (for
+  example when its library folder is taken out) or deleting an album now deletes its share
+  links. Before, the index could hand the same id to a different photograph or album, and an
+  old link would then show something nobody shared. Links already pointing at nothing are
+  dropped on upgrade. (`db.py`, index version 7)
+- **Damaged or missing settings no longer empty the library.** When `settings.json` is
+  missing, unreadable, not valid JSON, or has no folder list, the library folders are taken
+  back from the index and the settings are written out again, instead of starting with no
+  folders and letting the next scan delete every favourite, album and visibility choice. The
+  damaged file is still kept as `settings.json.damaged` (older ones renamed by date). (`config.py`)
+- **Import, run again, checks what was done before.** A file is stepped over only if it is
+  still the same file (size and modified time) and its archived copy is still there. A
+  changed source is imported again beside the earlier copy; a lost copy is copied again.
+  The phone import deletes a fetched copy only on the same check. (`importer.py`, `phones.py`)
+- **A duplicate needs a real archived copy.** A new file is left out as a duplicate only
+  when the archive holds a copy that is on disk now with the same bytes, read from the disk
+  rather than taken from the stored hash. (`importer.py`)
+- **A video is never sent to a guest or a share link with its location by accident.** When
+  ffmpeg is missing or cannot remove a video's metadata, a guest or someone with a link is
+  now told the video cannot be shared, instead of receiving the original file (which can say
+  where it was shot). An administrator can choose otherwise in Settings (*Send videos to
+  guests and share links as they are when their location cannot be removed*); such a file
+  then carries `X-Ninaivu-Metadata: original`. The family's own view is unchanged.
+  (`api_gallery.py`, `config.py`, `static/js/admin.js`)
+- **Every pending thumbnail is made in one pass.** The thumbnail queue moved on by an offset
+  while finished rows left it, so a large scan skipped work (70 of 120 in the audit's
+  reproduction). It now continues after the last row it tried. (`scanner.py`)
+- **Backups hold everything a restore needs.** The daily copy in `backups/` is now the same
+  zip as the download, and both carry the index, `settings.json` and people's profile
+  pictures (`avatars/`). Older index-only daily copies are pruned with the new ones.
+  (`backups.py`)
+- **A folder that cannot be read is not a folder emptied.** Photographs under a subfolder
+  the scan could not read (permissions, a flaky disk) keep their place instead of being
+  marked missing, and the console says some folders could not be read. (`scanner.py`)
+- **The Linux system service no longer runs as root.** Installed as root, Ninaivu Lite now
+  runs as its own `ninaivu-lite` account that owns `/var/lib/ninaivu-lite`, with systemd's
+  privilege restrictions on, and the installer names any photo folder that account cannot
+  read. Where no account can be made, no system service is set up. (`installers/linux/install.sh`)
+- **A release runs the tests first.** The release workflow runs the whole test suite on
+  Windows, macOS and Linux for the exact commit it publishes, for a tag and for "Run
+  workflow" alike, and publishes nothing unless it passes. (`.github/workflows/`)
+
+
+Fixes for the critical and the eight high findings of the project audit of 2026-10-06
+(A11-A19). Three of them change what you may notice:
+
+- Ninaivu Lite now answers only to this computer's own addresses and network name. If you
+  reach it through a name of your own (a reverse proxy, a name set in your router), add that
+  name to `allowed_hosts` in `settings.json` (or, with Docker, to `ALLOWED_HOSTS`).
+- A backup is put back with `ninaivu-lite --restore <zip>` (with Ninaivu Lite stopped).
+- If the settings are missing and the index cannot be read either, Ninaivu Lite now refuses
+  to start and says why, instead of starting with no library folders.
+
+- **A retried import never writes over an older photo.** After a failed attempt at a file
+  (a read error on a card, say), the next run could put the new file in place of the
+  archived copy of whatever had been at that path before, such as a 2019 photo replaced by a
+  2024 one from a reused card. Only a copy that the audit (Verify) found damaged is now
+  replaced; anything else goes beside the earlier copy. (`importer.py`)
+- **A web page cannot borrow this computer's address.** A page on the internet could point a
+  name it owns at the home computer (DNS rebinding) and then read Family photos through any
+  profile without a PIN, or, before setup, become the administrator. Requests that arrive
+  under any other name than this computer's addresses, its network name or `localhost` are
+  refused. (`app.py`, `config.py`)
+- **Restoring a backup puts back the backup.** The new `--restore` command checks the zip
+  (a whole index, from this version or an older one), moves what is there aside into a
+  `before-restore-…` folder instead of deleting it, and removes the index's `-wal` and
+  `-shm` files, which SQLite would otherwise replay over the restored index and so bring back
+  what was being undone. It will not run while Ninaivu Lite is running. The note inside each
+  backup says how, by command or by hand. (`backups.py`, `__main__.py`)
+- **An index that cannot be read no longer empties the library.** The 1.6.0 recovery of
+  missing settings read the index through a `file:` address, which a data folder on a network
+  share cannot have; failing that, it went on with no folders, and the first scan removed
+  them all. The index is now read by its path, and if it still cannot be read, nothing is
+  saved or scanned and the server does not start. (`config.py`, `__main__.py`)
+- **The Linux uninstaller removes only what it installed.** Installed with `--prefix /opt` or
+  a shared folder, `uninstall` used to delete that whole folder. It now removes its own
+  files and then the folder only if it is empty. (`installers/linux/install.sh`)
+- **The Windows uninstaller stops Ninaivu Lite and removes start-at-sign-in.** It asked the
+  program to do this after the program's packages were already removed, so a running server
+  was left running and the sign-in shortcut stayed behind, showing an error at every sign-in.
+  This now happens first, and the shortcut is also removed by name.
+  (`installers/windows/ninaivu-lite.nsi`)
+- **A release is always a new version.** Before anything is built or sent for signing, the
+  release workflow checks that the version is not already tagged or released, that a tag
+  matches `version.py`, and that this changelog has a section for it. "Run workflow" with an
+  unchanged version used to rebuild and replace the last release's files.
+  (`.github/workflows/release.yml`, `tools/check-release-version.sh`)
+- **An upgrade can no longer leave the app stuck on "Opening your library".** The offline
+  worker kept serving the old copies of the app's scripts after an upgrade, so a new `app.js`
+  could meet an old `api.js` and never start. The worker's version now follows the app's
+  files, and scripts come from the server whenever it answers. (`static/sw.js`, `pages.py`)
+- **The first-day guide fits in Tamil.** On the import step, the longer Tamil text spilled
+  over the footer and covered *Start the import*. The step now scrolls inside its card.
+  (`static/css/admin.css`)
+
+Fixes for the remaining 45 findings of the project audit of 2026-10-06 (A20-A64). What you may
+notice:
+
+- A PIN set or removed by an administrator signs that person out everywhere, and someone
+  signed in with a password an administrator set can look but change nothing until they
+  choose their own.
+- Guests no longer see camera models. While two videos are being prepared for guests or
+  share links, a third is asked to try again in a moment.
+- On Linux and macOS the data folder is readable only by its owner. A system-wide (root)
+  Linux install has no Control Panel; it is run with `systemctl`, and its `ninaivu-lite`
+  command always runs as the service's account.
+- Choosing Export (or a Windows phone) from a drive prompt link now asks first.
+- Starting `ninaivu-lite <folder>` while Ninaivu Lite is running refuses and says to add
+  the folder on the Admin page. An index made by a newer version is refused at start.
+- A browser too old to run Ninaivu says so, in English and Tamil, instead of loading forever.
+- "Run workflow" publishes a release only from main.
+
+### Server and security
+
+- **A new photograph never shows an old one's thumbnail.** When the index hands a removed
+  photograph's id to a new one, the thumbnail on disk is served only once the index says it
+  belongs to the new photograph. Before, a guest could see a removed Hidden photograph in its
+  place. (`api_gallery.py`)
+- **Undo stays with its own folder.** A library folder's visibility history is removed with
+  the folder, so undoing an old change can no longer put a removed folder's rules on the next
+  folder added. History left from folders already removed is dropped on upgrade.
+  (`db.py`, index version 8)
+- **Wrong guesses no longer lock the owner out.** The username sign-in and the profile picker
+  count against one limit per account, a day's limit (60 tries) keeps a 4-digit PIN out of
+  reach, nobody on the network can use the limit to keep this computer itself out, and failed
+  sign-ins are written to the log. (`api_auth.py`)
+- **A drive link asks before it copies.** A console link with `?drive=…&do=export` now shows
+  the drive question instead of starting to copy the library onto that drive.
+  (`static/js/drives.js`)
+- **Guests' videos can't tie up the server.** Only two videos are prepared for guests and
+  share links at once, each video once, and its temporary file can no longer be deleted by a
+  second request. The viewing copies in `views/` are kept under 2 GB.
+  (`api_gallery.py`, `media.py`)
+- **Camera models are for the family.** Guests no longer see camera names in the filters,
+  suggestions or search. (`api_gallery.py`)
+- **Changing a PIN signs that person out, and a temporary password must be replaced.** The
+  server refuses changes while a password set by an administrator is still in use. The
+  Control Panel opens an update link only if it is on GitHub. (`auth.py`, `app.py`,
+  `panel.py`)
+- **The console points out Family profiles without a PIN.** With open browsing off,
+  Settings names any Family profile anyone on the home network can still tap into.
+  (`api_admin.py`, `static/js/admin.js`)
+- **Writes from another page are refused, even with no origin.** A signed-in change that
+  doesn't say which page sent it (or says "null") must be JSON or carry the `X-Ninaivu`
+  header, which only this site's own scripts send. (`app.py`)
+
+### Library, import and drives
+
+- **The data folder is private on Linux and macOS.** It is created readable only by its
+  owner (an existing one is tightened), and the index is readable only by its owner. The
+  Linux installer makes it 0700 too, owned by the service account on a system-wide install, and
+  the service writes with `UMask=0027`. (`config.py`, `db.py`, `installers/linux/install.sh`)
+- **A changed file whose copy was stopped is copied next time.** Its new size and time are
+  saved only with the copy's result. (`importer.py`)
+- **A phone copy that may be cut short is never taken as imported (Windows).** A copy that
+  does not finish in 15 minutes is deleted and fetched again next time, a file whose size the
+  phone does not report is never marked as done, and the result says how many did not
+  finish. (`phones.py`)
+- **The Linux system service sees the desktop's drives and phones.** Installed as root, it
+  now looks in every user's `/media` and `/run/media` folder and phone folders (gvfs), where
+  their permissions let it. (`drives.py`)
+- **A photo and a video of the same moment are filed on the same day.** A video's UTC time
+  (and a Google Takeout time) is read on the clock of the nearest photo in the same folder
+  that records its time zone. (`dates.py`, `media.py`, `importer.py`)
+- **One bad file no longer stops the scan.** An error reading one file is logged against it
+  and the rest of the library is still indexed. (`scanner.py`, `media.py`, `dates.py`,
+  `takeout.py`)
+- **A linked folder on an unplugged drive keeps its photos.** They are treated as unreadable,
+  not deleted. (`scanner.py`)
+- **Folders named while Ninaivu Lite is running are not lost.** The command now says to add
+  the folder on the Admin page and changes nothing, instead of saving a list the server then
+  wrote over. (`__main__.py`)
+- **Copying to a pendrive keeps every file.** On FAT and exFAT drives, names that differ only
+  in case get separate names instead of overwriting each other, and folders or files that
+  cannot be read are counted as errors instead of being skipped silently. (`drives.py`)
+- **A dry run keeps the record of earlier imports.** (`importer.py`)
+- **Scanning and importing survive a busy index.** The scanner tries again a minute later if
+  the index cannot be opened, an import that cannot open it says why, and a passing lock no
+  longer switches the index out of WAL mode. (`scanner.py`, `importer.py`, `db.py`)
+- **Index updates are safe with two programs open at once, and a newer index is refused.**
+  Each update takes the write lock first. Every damaged `settings.json` is now kept, older
+  copies renamed by date. (`db.py`, `config.py`, `__main__.py`)
+
+### Web pages
+
+- **The viewer forgets the last person.** When the person viewing changes, the viewer closes
+  and is cleared with the gallery, and shortcuts do nothing behind the sign-in screen.
+  (`static/js/app.js`)
+- **Old browsers are told, and older iPads stay readable.** A browser too old to run Ninaivu
+  says so instead of loading forever; tinted backgrounds fall back to plain colours, so the
+  sign-in screen is no longer see-through and the home's name no longer invisible on iOS 15;
+  the share page works on iOS 14. (`templates/`, `static/css/`, `static/js/share.js`)
+- **A refused video says why.** The share page and the guest viewer show the server's reason
+  instead of "This media could not be displayed." (`static/js/api.js`)
+- **Sudar keeps full size and format.** HEIC and TIFF are edited from a full-size copy, a
+  JPEG comes back as a JPEG, and a failed edit is reported once instead of being run again on
+  the page. (`api_sudar.py`, `static/js/sudar/`)
+- **A long gallery doesn't stop at one failed page.** It tries again after a growing pause
+  and shows a *Try again* row; a failed status check says the server could not be reached.
+  (`static/js/app.js`)
+- **More in Tamil.** The server's error messages, the iPhone install banner, the share page's
+  errors, the offline page and a few console labels left in English. (`static/i18n/ta.json`,
+  `static/sw.js`)
+- **Dialogs act like dialogs.** The page behind them can't be reached with Tab or a screen
+  reader, focus moves in when one opens and back when it closes. (`static/js/dialogs.js`)
+- **Every sentence is in both languages.** `en.json` has the 32 keys it was missing, and a
+  new test checks every key, its placeholders and every server message's Tamil.
+  (`tests/test_language.py`)
+
+### Installers, releases and tests
+
+- **A system-wide Linux install is run with `systemctl`.** It no longer installs a Control
+  Panel that could not work, its command always runs as the service's account even with
+  `--no-service`, and the advice for unreadable photo folders covers the folders above them
+  and photos added later. (`installers/linux/install.sh`)
+- **Bundled Python is checked.** The Linux and macOS builds check python-build-standalone
+  against hashes in `installers/PYTHON_SHA256SUMS`, cached copies included; the Windows build
+  checks the embedded Python is signed by the Python Software Foundation; pynsist and NSIS
+  are pinned.
+- **The release workflow's third-party actions are pinned to exact commits.**
+- **"Run workflow" publishes only from main.** On another branch it only builds and tests the
+  installers.
+- **Sign-in is tested over HTTP.** Passwords, PINs, their limits, the console's
+  administrators-only check and password changes. (`tests/test_auth_api.py`)
+- **The setup code is in the Control Panel and the log.** So it can be found when Ninaivu Lite
+  was started from the Control Panel or as a service. (`__main__.py`, `control.py`,
+  `panel.py`)
+- **A release fails if an installer is missing,** installers are sent for signing only after
+  the tests pass, and the notes say the Mac app is notarised only when it was signed.
+- **Upgrading on Linux restarts the service on the new version.**
+- **Windows installs and upgrades are gentler.** An upgrade remembers that start-at-sign-in
+  was off, installing into a folder that holds other programs no longer deletes its Python
+  or bin folders, and the installed, portable and from-source copies each get their own
+  sign-in file. (`installers/windows/`)
+- **Every release runs what it ships:** the Mac app from its disk image, the Raspberry Pi
+  installer on an arm64 machine, a root install as a service with an upgrade, and the Docker
+  image.
+- **ruff and the test Python are pinned.**
+
+### Documentation
+
+- The README, user guides (English and Tamil) and installer notes now cover the portable
+  zip's data and upgrades, a Linux install with `sudo` (its data folder, service account,
+  `setfacl` and firewall), restoring a backup, resetting a password for each kind of install,
+  where to find the setup code, video sharing without ffmpeg, and the names Ninaivu Lite
+  answers to (`allowed_hosts`).
+- Statements that no longer matched are corrected (releases are unsigned until the SignPath
+  application is approved, the Windows installer may ask for administrator permission, where
+  Lite writes files, when CI runs), and the guides use the exact on-screen labels in both
+  languages.
+
 ## 1.5.1 — 2026-10-04
 
 - **A portable Windows zip, nothing to install.** Each release also carries

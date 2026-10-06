@@ -95,6 +95,8 @@ def sign_in(app, client, role="admin", username=None, **fields):
                                 name=f"{role.title()} Person", role=role, **fields)
     token = auth.start_session(conn, user.id)
     client.set_cookie(auth.SESSION_COOKIE, token)
+    # As the app's own pages do: a signed-in write names where it came from.
+    client.environ_base.setdefault("HTTP_ORIGIN", "http://localhost")
     return user
 
 

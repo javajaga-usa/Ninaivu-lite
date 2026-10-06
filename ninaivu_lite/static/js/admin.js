@@ -844,7 +844,19 @@ function renderLibrary() {
     [settings, 'open_browsing', i18n.t('Let visitors browse public media without signing in'),
       data.app.open_browsing],
     [indexing, 'watch', i18n.t('Watch the folder and index new files automatically'), data.app.watch],
+    [settings, 'video_originals',
+      i18n.t('Send videos to guests and share links as they are when their location cannot be removed'),
+      data.app.video_originals],
   ];
+  // Visitors kept out still leaves a Family profile without a PIN one tap
+  // away for anyone on the home network, originals and locations included.
+  const openFamily = el('p', 'hint warn');
+  const showOpenFamily = () => {
+    const names = state.overview.people?.open_family || [];
+    openFamily.hidden = state.overview.app.open_browsing || !names.length;
+    openFamily.textContent = i18n.t('Visitors must sign in, but anyone on your home network can still tap into these Family profiles, which have no PIN: {names}. Give them a PIN on the People page to keep them private.',
+      { names: names.join(', ') });
+  };
   for (const [where, key, label, value] of toggles) {
     const row = el('label', 'toggle');
     const input = el('input');
@@ -858,6 +870,7 @@ function renderLibrary() {
         // What the server made of it, not what was sent.
         const saved = result?.settings?.[key];
         state.overview.app[key] = saved === undefined ? input.checked : saved;
+        if (key === 'open_browsing') showOpenFamily();
       } catch (exc) {
         toast(exc.message, true);
         input.checked = !input.checked;
@@ -865,6 +878,10 @@ function renderLibrary() {
     };
     row.append(input, el('span', null, label));
     where.appendChild(row);
+    if (key === 'open_browsing') {
+      showOpenFamily();
+      where.appendChild(openFamily);
+    }
   }
 }
 
@@ -1660,9 +1677,10 @@ function onProgress(scan) {
     const strapline = $('#scan-text');
     if (strapline) strapline.textContent = text;
   }
-  const phase = `${scan.status}:${scan.added}:${scan.removed}`;
+  const phase = `${scan.status}:${scan.added}:${scan.removed}:${scan.unreadable || 0}`;
   if (phase !== lastPhase && (scan.status === 'done' || scan.status === 'error')) {
     lastPhase = phase;
+    if (scan.unreadable) toast(i18n.t('Some folders could not be read, so their photos were kept as they were. Check that this computer may read them, then rescan.'), true);
     refresh();
   }
 }

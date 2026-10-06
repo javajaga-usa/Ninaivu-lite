@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import time
@@ -13,11 +14,18 @@ from .common import (asset_path, avatar_file, avatar_path, body, cfg, conn, drop
                      fail, require_signed_in, sweep_avatars, user, visible_asset)
 from .dates import long_path
 
+log = logging.getLogger(__name__)
+
 bp = Blueprint("auth_api", __name__)
 
-#: Ninaivu's limits: per address and name, and per name from anywhere.
+#: Ninaivu's limits: per address and account, and per account from anywhere.
+#: The username login and the profile picker count against the same account.
+#: The day's limit is what keeps a 4-digit PIN out of reach (5,000 guesses
+#: on average, 60 a day). The account-wide limits never lock out this
+#: computer itself, so nobody on the network can keep the owner out.
 throttle_short = auth.Throttle(limit=8, window=300)
 throttle_long = auth.Throttle(limit=20, window=1800)
+throttle_day = auth.Throttle(limit=60, window=86400)
 throttle_setup = auth.Throttle(limit=10, window=300)
 
 COLOR_RE = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
@@ -111,22 +119,37 @@ def auth_setup():
     return _signed_in(who)
 
 
+def _too_many(account: str) -> bool:
+    """Whether this address, or anybody but this computer, has used up the
+    tries for *account*."""
+    if throttle_short.blocked(f"{request.remote_addr}|{account}"):
+        return True
+    return not _is_local() and (throttle_long.blocked(account) or throttle_day.blocked(account))
+
+
+def _failed(account: str) -> None:
+    log.warning("sign-in failed for %r from %s", account, request.remote_addr)
+    throttle_short.fail(f"{request.remote_addr}|{account}")
+    throttle_long.fail(account)
+    throttle_day.fail(account)
+
+
 @bp.post("/api/auth/login")
 def auth_login():
     data = body()
     username = str(data.get("username") or "").strip().lower()
     password = str(data.get("password") or "")
-    keys = (f"{request.remote_addr}|{username}",)
-    if throttle_short.blocked(*keys) or throttle_long.blocked(username):
+    known = auth.get_user_by_name(conn(), username) if username else None
+    account = f"account|{known.id}" if known else f"name|{username}"
+    if _too_many(account):
         fail(429, "Too many attempts. Wait a few minutes and try again.")
     who = auth.authenticate(conn(), username, password)
     if who is None:
-        throttle_short.fail(*keys)
-        throttle_long.fail(username)
+        _failed(account)
         fail(401, "That username and password don't match.")
     if data.get("console") and not who.is_admin:
         fail(403, "This console is for administrators. Use the family app to sign in.")
-    throttle_short.forget(*keys)
+    throttle_short.forget(f"{request.remote_addr}|{account}")
     return _signed_in(who)
 
 
@@ -140,15 +163,14 @@ def auth_enter():
     target = auth.get_user(conn(), user_id)
     if target is None or not target.active:
         fail(400, "Pick a profile.")
-    keys = (f"{request.remote_addr}|enter|{user_id}",)
-    if throttle_short.blocked(*keys) or throttle_long.blocked(f"enter|{user_id}"):
+    account = f"account|{user_id}"
+    if _too_many(account):
         fail(429, "Too many attempts. Wait a while and try again.")
     who = auth.enter_profile(conn(), user_id, str(data.get("secret") or ""))
     if who is None:
-        throttle_short.fail(*keys)
-        throttle_long.fail(f"enter|{user_id}")
+        _failed(account)
         fail(401, "That PIN isn't right." if target.has_pin else "That password isn't right.")
-    throttle_short.forget(*keys)
+    throttle_short.forget(f"{request.remote_addr}|{account}")
     return _signed_in(who)
 
 

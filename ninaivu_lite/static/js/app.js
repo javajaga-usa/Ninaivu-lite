@@ -9,6 +9,7 @@ import { MODES, scrubberTicks, sectionAt } from './layout.js';
 import { accountsApi, avatarNode, copyText, Gate, ProfileSheet } from './accounts.js';
 import { enterPressesTheButton } from './enter-key.js';
 import { initPalette } from './palette.js';
+import { wireDialogs } from './dialogs.js';
 import { PosterMaker } from './posters.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -123,12 +124,14 @@ async function init() {
   wireViewer();
   wireKeyboard();
   initPalette();
+  wireDialogs();
 
   gate = new Gate($('#gate'), {
     toast,
     onSignedIn: async (user) => {
       sessionRestored();
       forgetCachedShell();
+      forgetPerson();
       // Signing in can change the name: this person may keep their own.
       try { applyHomeName(await accountsApi.state()); } catch { /* keep the house name */ }
       start(user);
@@ -147,6 +150,7 @@ async function init() {
       authState = {};
     }
     bootDone();
+    forgetPerson();
     gate.show(authState, authState.setup_required ? 'setup' : 'picker');
   });
   profileSheet = new ProfileSheet($('#profile-sheet'), {
@@ -173,6 +177,27 @@ async function init() {
   }
 
   await finishStartup(auth);
+}
+
+/**
+ * Put away everything the last person was looking at.
+ *
+ * Called whenever who is viewing changes — a session that ended under an open
+ * photograph, somebody new picked on the sign-in screen, a guest tapping "Just
+ * looking". The viewer used to stay open behind the gate with its photograph,
+ * its GPS details and its filmstrip, and the arrow keys still moved through
+ * the last person's photographs.
+ */
+function forgetPerson() {
+  if (viewer?.isOpen) viewer.close();
+  viewer?.cache?.clear();
+  if (viewer?.filmstrip) viewer.filmstrip.innerHTML = '';
+  if (viewer?.infoList) viewer.infoList.innerHTML = '';
+  for (const overlay of document.querySelectorAll('.modal, .sheet')) overlay.hidden = true;
+  searchController?.abort();
+  paging = { next: null, filters: null, signal: null, loading: false };
+  showLoadMoreFailed(null);
+  grid?.setData([], { resetScroll: true });
 }
 
 /** Everything that depends on knowing who the viewer is. */
@@ -331,15 +356,18 @@ function setupIOSInstallPrompt() {
   const closeBtn = document.getElementById('ios-install-close');
   if (!banner) return;
 
+  // The share glyph goes in as a substitution so the sentence around it is
+  // translated whole, as the console's banner does; it was English only.
+  const share = '<svg class="ios-share-glyph" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></svg>';
   if (isIPad) {
     if (title) title.textContent = i18n.t('Install Ninaivu on your iPad');
     if (desc) {
-      desc.innerHTML = 'Tap <svg class="ios-share-glyph" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></svg> Share in Safari’s top toolbar, then select <strong>Add to Home Screen</strong> [+]';
+      desc.innerHTML = i18n.t('Tap {share} Share in Safari’s top toolbar, then select <strong>Add to Home Screen</strong> [+]', { share });
     }
   } else {
     if (title) title.textContent = i18n.t('Install Ninaivu on your iPhone');
     if (desc) {
-      desc.innerHTML = 'Tap <svg class="ios-share-glyph" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></svg> Share below, then select <strong>Add to Home Screen</strong> [+]';
+      desc.innerHTML = i18n.t('Tap {share} Share below, then select <strong>Add to Home Screen</strong> [+]', { share });
     }
   }
 
@@ -724,7 +752,11 @@ async function refreshStatus() {
   countsAskedAt = Date.now();
   try {
     state.status = await api.status();
+    state.statusFailed = false;
   } catch (err) {
+    // Remembered so the gallery can tell "the status call failed" from "no
+    // library folder yet": with no status, it used to say the latter.
+    state.statusFailed = true;
     if (isNetworkFailure(err)) {
       setServerOffline();
       return;
@@ -842,6 +874,12 @@ function currentFilters() {
  * background rescan, a viewer mutation syncing back. See Grid.setData().
  */
 async function reload({ resetScroll = false } = {}) {
+  if (!state.status && state.statusFailed) {
+    if (!serverIsOffline) {
+      showEmpty(i18n.t('Could not load media'), i18n.t('Cannot reach the server.'), { retry: true });
+    }
+    return;
+  }
   if (!state.status?.has_library) {
     showEmpty(
       i18n.t('No library folder yet'),
@@ -913,7 +951,11 @@ async function reload({ resetScroll = false } = {}) {
 /** Fetch the next piece once the scroll is within a few screens of the end. */
 async function loadMoreIfNear() {
   const page = paging;
+  if (page !== loadMoreFailed.page) showLoadMoreFailed(null);
   if (page.next == null || page.loading || !page.signal || page.signal.aborted) return;
+  // After a failure, wait out the back-off rather than asking again on every
+  // scroll frame; the Retry row (or the timer) clears it.
+  if (page.retryAt && Date.now() < page.retryAt) return;
   const view = grid.scroller.clientHeight || 1;
   const remaining = grid.layout.height - (grid.scroller.scrollTop + view);
   if (remaining > view * 3) return;
@@ -925,19 +967,49 @@ async function loadMoreIfNear() {
     });
     if (page !== paging) return;           // a reload replaced this result set
     page.next = data.next_offset;
+    page.retryAt = 0;
+    page.retryDelay = 0;
+    showLoadMoreFailed(null);
     grid.appendData(data.segments);
     showTruncation(data);
   } catch (error) {
     if (error.name === 'AbortError' || page !== paging) return;
     if (isNetworkFailure(error)) setServerOffline();
     else toast(error.message || i18n.t('Could not load more media'), true);
-    page.next = null;                      // stop retrying on every scroll frame
+    // One failed piece used to end the gallery for the session (`next` was
+    // set to null). It is kept, and asked for again after a growing pause, or
+    // at once from the Retry row at the foot of the grid.
+    page.retryDelay = Math.min(LOAD_MORE_MAX_DELAY, (page.retryDelay || 1000) * 2);
+    page.retryAt = Date.now() + page.retryDelay;
+    showLoadMoreFailed(page);
+    setTimeout(() => { if (page === paging) loadMoreIfNear(); }, page.retryDelay);
     return;
   } finally {
     page.loading = false;
   }
   // A short piece may still leave the screen unfilled.
   if (page === paging) loadMoreIfNear();
+}
+
+/** The longest pause between automatic retries of a failed piece. */
+const LOAD_MORE_MAX_DELAY = 60000;
+const loadMoreFailed = { page: null };
+
+/** The "Couldn't load more · Retry" row under the grid; null hides it. */
+function showLoadMoreFailed(page) {
+  loadMoreFailed.page = page;
+  const row = $('#load-more-failed');
+  if (!row) return;
+  row.hidden = !page;
+  const retry = $('#load-more-retry');
+  if (retry && !retry.onclick) {
+    retry.onclick = () => {
+      const current = loadMoreFailed.page;
+      if (!current || current !== paging) return;
+      current.retryAt = 0;
+      loadMoreIfNear();
+    };
+  }
 }
 
 // The grid lays out at most one request's worth of items. A library larger
@@ -975,7 +1047,7 @@ function anyFilter() {
     || f.album || f.favorites || f.kinds?.length);
 }
 
-function showEmpty(title, text, { signIn = false } = {}) {
+function showEmpty(title, text, { signIn = false, retry = false } = {}) {
   const empty = $('#empty');
   empty.classList.remove('offline');
   empty.hidden = false;
@@ -988,6 +1060,14 @@ function showEmpty(title, text, { signIn = false } = {}) {
     action.hidden = false;
     action.textContent = i18n.t('Sign in');
     action.onclick = () => $('#signin-btn').click();
+  } else if (retry) {
+    action.hidden = false;
+    action.textContent = i18n.t('Try again');
+    action.onclick = async () => {
+      await refreshStatus();
+      if (state.status) await Promise.all([reload(), refreshFacets()]);
+      else reload();
+    };
   } else if (needsFolder) {
     // Setting the library up happens on the console — send them there.
     action.hidden = !canFix;
@@ -2082,6 +2162,9 @@ function wireViewer() {
 
 function wireKeyboard() {
   document.addEventListener('keydown', (event) => {
+    // While the sign-in screen is up, the gallery behind it is nobody's: no
+    // theme key, no layout keys, no arrows through a photograph.
+    if (!$('#gate').hidden) return;
     const target = event.target;
     const typing = target.matches('input, textarea, select') || target.isContentEditable;
     const key = event.key.toLowerCase();
