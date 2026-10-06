@@ -3,8 +3,9 @@ Panel (:mod:`ninaivu_lite.panel`) uses. Standard library only, so the panel
 opens quickly and works even before the web app's packages load.
 
 How the two find each other: a running server writes ``server.json`` in its
-data folder (its process id, port and a random stop token) and removes it as it
-stops. The panel reads that file, asks ``/api/health`` whether that is really
+data folder (its process id, port and a random stop token, and the first-run
+setup code while there is no administrator yet) and removes it as it stops.
+The panel reads that file, asks ``/api/health`` whether that is really
 Ninaivu Lite answering, and stops it by sending the token back to
 ``/api/local/stop``, which answers only requests from this computer. It never
 force-kills: a server that does not stop when asked is left alone and said so.
@@ -26,20 +27,40 @@ from .config import DEFAULT_PORT, Config
 
 STATE_FILE = "server.json"
 ROOT = Path(__file__).resolve().parent.parent
-#: The Windows sign-in shortcut, shared with tools/start-with-windows.cmd.
+#: The Windows sign-in shortcut of the installed copy (the uninstaller removes
+#: it by this name). Before 1.6.0 every kind of copy used it.
 STARTUP_NAME = "Ninaivu Lite.vbs"
+#: Each kind of copy its own, so turning one off never turns off another
+#: (tools/start-with-windows.cmd writes the checkout's).
+STARTUP_NAMES = {"installed": STARTUP_NAME,
+                 "portable": "Ninaivu Lite (portable).vbs",
+                 "checkout": "Ninaivu Lite (source).vbs"}
 LINUX_AUTOSTART = "ninaivu-lite.desktop"
+
+
+def install_kind(root: Path | None = None) -> str:
+    """What kind of copy this is: "installed" (the Windows installer's folder),
+    "portable" (the same folder from the zip, which has no uninstaller) or
+    "checkout"."""
+    root = root or ROOT
+    if root.name.lower() == "pkgs":        # pynsist's layout: <folder>/pkgs/ninaivu_lite
+        return "installed" if (root.parent / "uninstall.exe").is_file() else "portable"
+    return "checkout"
 
 
 # --- the server's side --------------------------------------------------------------------
 
-def write_state(data_dir: str | Path, port: int) -> str:
-    """Called by the server once it is listening. Returns the stop token."""
+def write_state(data_dir: str | Path, port: int, setup_code: str | None = None) -> str:
+    """Called by the server once it is listening. Returns the stop token.
+    ``setup_code``, while there is no administrator, is for the Control Panel
+    to show: the file is this account's alone, as the code is this computer's."""
     token = secrets.token_urlsafe(24)
     path = Path(data_dir) / STATE_FILE
     tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"pid": os.getpid(), "port": port, "token": token,
-                               "started": time.time()}), encoding="utf-8")
+    state = {"pid": os.getpid(), "port": port, "token": token, "started": time.time()}
+    if setup_code:
+        state["setup_code"] = setup_code
+    tmp.write_text(json.dumps(state), encoding="utf-8")
     if os.name != "nt":
         os.chmod(tmp, 0o600)
     os.replace(tmp, path)
@@ -111,6 +132,25 @@ class Controller:
     def can_stop(self) -> bool:
         """Was the running server started in a way this panel can stop?"""
         return bool(self.state().get("token"))
+
+    def setup_code(self) -> str | None:
+        """The code asked for when the first administrator is made from another
+        device, while none has been made yet (read without the server)."""
+        code = self.state().get("setup_code")
+        if not isinstance(code, str) or not code:
+            return None
+        import sqlite3
+        db = self.data_dir / "ninaivu-lite.db"
+        try:
+            conn = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True, timeout=1)
+            try:
+                made = conn.execute("SELECT 1 FROM users WHERE role = 'admin' AND active = 1 "
+                                    "LIMIT 1").fetchone()
+            finally:
+                conn.close()
+        except sqlite3.Error:
+            made = None
+        return None if made else code
 
     def library_summary(self) -> dict:
         """Folders and how many items are indexed, read without the server."""
@@ -196,18 +236,35 @@ class Controller:
         return sys.platform == "win32" or sys.platform.startswith("linux")
 
     @staticmethod
-    def _autostart_path() -> Path:
+    def _autostart_path(name: str | None = None) -> Path:
         if sys.platform == "win32":
             base = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
-            return base / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / STARTUP_NAME
+            return (base / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+                    / (name or STARTUP_NAMES[install_kind()]))
         base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
         return base / "autostart" / LINUX_AUTOSTART
 
+    @classmethod
+    def _old_autostart(cls) -> Path | None:
+        """This copy's shortcut from before 1.6.0, under the name every kind
+        then shared; another copy's is left alone."""
+        if sys.platform != "win32" or STARTUP_NAMES[install_kind()] == STARTUP_NAME:
+            return None
+        path = cls._autostart_path(STARTUP_NAME)
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+        return path if f'"{ROOT}"'.lower() in text.lower() else None
+
     def autostart_enabled(self) -> bool:
-        return self._autostart_path().is_file()
+        return self._autostart_path().is_file() or self._old_autostart() is not None
 
     def set_autostart(self, on: bool) -> None:
         path = self._autostart_path()
+        old = self._old_autostart()
+        if old is not None:
+            old.unlink(missing_ok=True)
         if not on:
             path.unlink(missing_ok=True)
             return

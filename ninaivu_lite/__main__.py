@@ -236,13 +236,19 @@ def main(argv: list[str] | None = None) -> int:
     if cfg.port != args.port:
         print(f"  (port {args.port} was busy, so {cfg.port} is used)")
     from . import auth
+    setup_code = None
     if auth.needs_setup(db.connect(cfg.data_dir)):
+        setup_code = auth.setup_code()
         print("\n  First time: open the address above to make the administrator.")
-        print(f"  From another device you will be asked for this code: {auth.setup_code()}")
+        print(f"  From another device you will be asked for this code: {setup_code}")
+        # Started by the Control Panel or a service, nothing above is seen:
+        # the log has it, and the panel shows it (server.json).
+        logging.getLogger(__name__).info(
+            "first-time setup: from another device, the code asked for is %s", setup_code)
     print("  Press Ctrl+C to stop.\n")
 
     from . import control
-    app.config["STOP_TOKEN"] = control.write_state(cfg.data_dir, cfg.port)
+    app.config["STOP_TOKEN"] = control.write_state(cfg.data_dir, cfg.port, setup_code)
 
     def finish() -> None:
         keeper.stop()

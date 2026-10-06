@@ -21,6 +21,8 @@ ExecStart=/home/pi/Ninaivu-lite/.venv/bin/python -m ninaivu_lite --no-browser
 Restart=on-failure
 RestartSec=10
 Nice=5
+# What it writes (the index, previews, backups, logs) is not for other accounts.
+UMask=0027
 
 [Install]
 WantedBy=multi-user.target

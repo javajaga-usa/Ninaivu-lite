@@ -11,8 +11,9 @@ around the signed copy, and the installer is then signed in turn. -Sign does
 all of it here with a certificate of your own.
 
 Needs the Python named in .python-version (from python.org, so it has Tk) on
-PATH — the same minor version at least — `pip install pynsist`
-and NSIS (`choco install nsis`, or https://nsis.sourceforge.io). Makes
+PATH — the same minor version at least — `pip install pynsist==2.8`
+and NSIS 3.10 (`choco install nsis --version=3.10`, or https://nsis.sourceforge.io),
+the versions the release workflow pins. Makes
 installers\windows\build\nsis\Ninaivu-Lite-<version>-windows-x64.exe.
 
 -Sign signs the installer with signtool and the certificate whose thumbprint
@@ -168,6 +169,42 @@ $tcl = Join-Path $here "tcl"
 if (Test-Path $tcl) { Remove-Item -Recurse -Force $tcl }
 Copy-Item -Recurse (Join-Path $pyhome "tcl") $tcl
 Write-Host "Tk from $pyhome"
+
+# The embeddable Python pynsist puts in the installer. pynsist would download
+# it unchecked, so it is fetched here into a cache of this build's own, which
+# pynsist then uses (PYNSIST_CACHE_DIR): checked against
+# installers\PYTHON_SHA256SUMS when that lists it, and its programs always
+# checked to be signed by the Python Software Foundation.
+$embedName = "python-$pinned-embed-amd64.zip"
+$cache = Join-Path $here "build\pynsist-cache"
+New-Item -ItemType Directory -Force $cache | Out-Null
+$embed = Join-Path $cache $embedName
+if (-not (Test-Path $embed)) {
+    Invoke-WebRequest -Uri "https://www.python.org/ftp/python/$pinned/$embedName" -OutFile "$embed.part" -UseBasicParsing
+    Move-Item "$embed.part" $embed -Force
+}
+$have = (Get-FileHash $embed -Algorithm SHA256).Hash.ToLower()
+$listed = Get-Content (Join-Path $root "installers\PYTHON_SHA256SUMS") |
+    Where-Object { ($_ -split '\s+')[1] -eq $embedName } | ForEach-Object { ($_ -split '\s+')[0].ToLower() }
+if ($listed -and $have -ne $listed) {
+    Remove-Item $embed -Force
+    throw "${embedName}: SHA-256 $have, expected $listed (installers\PYTHON_SHA256SUMS)"
+}
+$unpacked = Join-Path $here "build\embed-check"
+if (Test-Path $unpacked) { Remove-Item -Recurse -Force $unpacked }
+Expand-Archive $embed -DestinationPath $unpacked
+$majorMinor = $pinned.Substring(0, $pinned.LastIndexOf('.')).Replace('.', '')
+foreach ($name in @("python.exe", "pythonw.exe", "python$majorMinor.dll")) {
+    $signature = Get-AuthenticodeSignature (Join-Path $unpacked $name)
+    if ($signature.Status -ne "Valid" -or $signature.SignerCertificate.Subject -notlike "*Python Software Foundation*") {
+        Remove-Item $embed -Force
+        throw "${embedName}: $name is not signed by the Python Software Foundation ($($signature.Status))"
+    }
+}
+Remove-Item -Recurse -Force $unpacked
+if (-not $listed) { Write-Warning "$embedName is not in installers\PYTHON_SHA256SUMS; once checked, add:  $have  $embedName" }
+Write-Host "Embeddable Python $pinned, SHA-256 $have"
+$env:PYNSIST_CACHE_DIR = $cache
 
 # installer.cfg with this version and this Python.
 $cfg = (Get-Content (Join-Path $here "installer.cfg") -Raw).Replace("__VERSION__", $version).Replace("__PYTHON__", $pinned)
