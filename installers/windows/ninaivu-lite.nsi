@@ -1,6 +1,7 @@
 ; pynsist's own template with four additions: a "start at sign-in" box, the
 ; Control Panel on the Desktop, the Control Panel opened when the installer
-; finishes, and a tidy stop before an upgrade or an uninstall, with the old
+; finishes, and a tidy stop before an upgrade or an uninstall (the uninstall's
+; in a section of its own that runs before the packages go), with the old
 ; program removed before an upgrade. Everything else is pynsist's; see
 ; https://github.com/takluyver/pynsist/blob/master/nsist/pyapp.nsi
 [% extends "pyapp.nsi" %]
@@ -92,15 +93,6 @@
   Delete "$DESKTOP\Ninaivu Lite Control Panel.lnk"
 [% endblock %]
 
-[% block uninstall_files %]
-  ; Stop it and stop starting it, while the program is still there to ask,
-  ; and wait until nothing of it is in use, as an upgrade does.
-  ; The data folder (%LOCALAPPDATA%\Ninaivu-lite: settings, index, previews)
-  ; is left alone, and so, always, are the photographs.
-  ExecWait '"$INSTDIR\Python\pythonw.exe" -m ninaivu_lite.control --stop --autostart off'
-  !insertmacro WaitUntilNotInUse
-  [[ super() ]]
-[% endblock %]
 
 [% block sections %]
   ; A signed uninstaller. NSIS writes the uninstaller on the person's computer,
@@ -115,6 +107,21 @@
       Quit
     SectionEnd
   !endif
+  ; Before pynsist's own "Uninstall" section (uninstaller sections run in the
+  ; order they are written), which removes the packages first: stop Ninaivu
+  ; Lite and stop starting it while the program is still there to ask, and
+  ; wait until nothing of it is in use, as an upgrade does. The sign-in
+  ; shortcut is then removed by name too, so even a failed ask leaves no
+  ; shortcut pointing at a removed program. The data folder
+  ; (%LOCALAPPDATA%\Ninaivu-lite: settings, index, previews) is left alone,
+  ; and so, always, are the photographs.
+  Section "un.Stop Ninaivu Lite"
+    SetShellVarContext current
+    IfFileExists "$INSTDIR\Python\pythonw.exe" 0 +2
+      ExecWait '"$INSTDIR\Python\pythonw.exe" -m ninaivu_lite.control --stop --autostart off'
+    Delete "$SMSTARTUP\Ninaivu Lite.vbs"
+    !insertmacro WaitUntilNotInUse
+  SectionEnd
   [[ super() ]]
   !ifdef SIGNED_UNINSTALLER
     Section -SignedUninstaller

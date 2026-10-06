@@ -106,6 +106,31 @@ def reset_password(cfg: Config, username: str) -> int:
     return 0
 
 
+def restore_backup(data_dir: str | None, bundle: str) -> int:
+    """Put a backup zip back, but never under a running server."""
+    import json
+
+    from .config import default_data_dir
+    folder = Path(data_dir) if data_dir else default_data_dir()
+    try:
+        state = json.loads((folder / "server.json").read_text(encoding="utf-8"))
+        port = int(state.get("port", DEFAULT_PORT))
+    except (OSError, ValueError, TypeError):
+        port = DEFAULT_PORT
+    if net.already_running(port):
+        print(f"  {APP_NAME} is running. Stop it (Control Panel, Stop) and run this again.",
+              file=sys.stderr)
+        return 2
+    try:
+        aside = backups.restore(folder, bundle)
+    except backups.RestoreError as exc:
+        print(f"  {exc}", file=sys.stderr)
+        return 2
+    print(f"  Restored from {bundle}.")
+    print(f"  What was there before is kept in {aside}.")
+    return 0
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(prog="ninaivu_lite", description=f"{APP_NAME} {__version__}")
     p.add_argument("folders", nargs="*", help="photo folders to show (remembered)")
@@ -119,6 +144,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                    help="write people, albums, favourites and links to FILE for Ninaivu, then stop")
     p.add_argument("--reset-password", metavar="USERNAME",
                    help="set a new password for USERNAME (for a forgotten admin password), then stop")
+    p.add_argument("--restore", metavar="ZIP",
+                   help="put back a backup zip (Ninaivu Lite must be stopped), then stop")
     p.add_argument("--version", action="version", version=__version__)
     return p.parse_args(argv)
 
@@ -142,8 +169,17 @@ def serve(app, host: str, port: int) -> None:
 def main(argv: list[str] | None = None) -> int:
     use_utf8_output()
     args = parse_args(argv)
+    if args.restore:
+        # Before anything opens the index: a restore must not be mixed with it.
+        return restore_backup(args.data, args.restore)
     cfg = Config.load(args.data)
     setup_logging(cfg.data_dir)
+    if cfg.folders_unknown:
+        print(f"  The settings in {cfg.data_dir} are missing or damaged, and the index there\n"
+              "  cannot be read to recover the library folders. Nothing was changed.\n"
+              "  Restore a backup (--restore), or look at the log in the logs folder.",
+              file=sys.stderr)
+        return 2
     if args.reset_password:
         return reset_password(cfg, args.reset_password)
     if args.export:

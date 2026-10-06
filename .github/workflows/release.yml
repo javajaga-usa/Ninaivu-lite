@@ -41,8 +41,30 @@ jobs:
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/tests.yml
 
+  # Before anything is built or sent for signing: the version being released
+  # is a new one. "Run workflow" takes the version from version.py, so with an
+  # unchanged version it would rebuild the last release's files from other
+  # code and replace them under the old tag; a tag that disagrees with
+  # version.py would publish files named for another version. A push that only
+  # builds the installers publishes nothing, so it is not checked.
+  version:
+    name: Version is new
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+      - name: Check the version, tag, release and changelog
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: sh tools/check-release-version.sh
+
   windows:
     name: Windows installer
+    needs: [version]
     runs-on: windows-2022
     timeout-minutes: 45
     env:
@@ -194,9 +216,23 @@ jobs:
           & $python -m ninaivu_lite.control --data $data --stop --status
           # The installed folder, stopped, is what the portable zip carries (next step).
           Copy-Item -Recurse $dir (Join-Path $env:RUNNER_TEMP "portable-source")
+          # Removed while running from the usual data folder, with start-at-sign-in on (the
+          # installer ticks it): the uninstaller must stop it and take the sign-in shortcut away.
+          $startup = Join-Path ([Environment]::GetFolderPath("Startup")) "Ninaivu Lite.vbs"
+          if (-not (Test-Path $startup)) { throw "the installer did not turn on start-at-sign-in" }
+          Start-Process -FilePath (Join-Path $dir "Python\pythonw.exe") -ArgumentList "-m", "ninaivu_lite", "--no-browser"
+          $up = $false
+          foreach ($i in 1..40) {
+            try { Invoke-RestMethod http://127.0.0.1:8080/api/health -TimeoutSec 2 | Out-Null; $up = $true; break } catch { Start-Sleep 1 }
+          }
+          if (-not $up) { throw "the installed server did not start again before the uninstall" }
           # _?= makes the uninstaller run in place and wait, instead of copying itself away.
           Start-Process -FilePath (Join-Path $dir "uninstall.exe") -ArgumentList "/S", "_?=$dir" -Wait
           if (Test-Path (Join-Path $dir "pkgs")) { throw "uninstall left the program behind" }
+          if (Test-Path $startup) { throw "uninstall left the start-at-sign-in shortcut behind" }
+          $still = $true
+          try { Invoke-RestMethod http://127.0.0.1:8080/api/health -TimeoutSec 2 | Out-Null } catch { $still = $false }
+          if ($still) { throw "uninstall left Ninaivu Lite running" }
           Write-Host "installed, ran, stopped and removed"
 
       # The same program as a zip that runs from wherever it is extracted (a
@@ -279,6 +315,7 @@ jobs:
 
   macos:
     name: macOS app (${{ matrix.arch }})
+    needs: [version]
     strategy:
       matrix:
         include:
@@ -324,6 +361,7 @@ jobs:
 
   linux:
     name: Linux and Raspberry Pi (${{ matrix.arch }})
+    needs: [version]
     strategy:
       matrix:
         arch: [amd64, arm64]
@@ -355,7 +393,7 @@ jobs:
     permissions:
       contents: write
     name: Attach to the release
-    needs: [tests, windows, macos, linux]
+    needs: [version, tests, windows, macos, linux]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Only a version tag or "Run workflow" publishes. A push that merely

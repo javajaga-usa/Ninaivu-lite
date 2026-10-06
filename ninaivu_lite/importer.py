@@ -770,7 +770,7 @@ class Importer:
         j = self.job
         dry = j["mode"] == "dry-run"
         name = os.path.basename(src)
-        row = conn.execute("SELECT status, destination, duplicate_of, size, mtime "
+        row = conn.execute("SELECT status, destination, dest_hash, duplicate_of, size, mtime "
                            "FROM import_files WHERE source = ?", (src,)).fetchone()
         if row is not None and row["status"] in TERMINAL and (
                 not row["destination"] or is_within(row["destination"], j["destination"])) \
@@ -830,10 +830,10 @@ class Importer:
                                date_source=source, duplicate_of=dup)
                     return
             os.makedirs(long_path(folder), exist_ok=True)
-            prior = row["destination"] if row is not None and row["status"] == "error" else None
-            if prior and is_within(prior, j["destination"]) and os.path.isfile(long_path(prior)):
-                # The audit found this run's own earlier copy damaged: the
+            if self._damaged_copy(row, j["destination"]):
+                # The audit found this source's earlier copy damaged: the
                 # fresh copy takes its place rather than a _1 beside it.
+                prior = row["destination"]
                 final, identical = prior, self._same_bytes(conn, prior, digest, count)
             else:
                 final, identical = self._unique_path(conn, folder, name, digest, count)
@@ -868,6 +868,20 @@ class Importer:
                     os.remove(long_path(tmp))
                 except OSError:
                     pass
+
+    def _damaged_copy(self, row: sqlite3.Row | None, destination: str) -> bool:
+        """Whether the archived copy an error row points at is one the audit
+        found damaged (its bytes no longer match the hash it was filed with).
+        A row marked error for any other reason, such as a read error on a
+        changed source, still points at a good earlier copy of something else,
+        which must never be written over."""
+        if row is None or row["status"] != "error" or not row["destination"] \
+                or not row["dest_hash"] or not is_within(row["destination"], destination):
+            return False
+        try:
+            return hash_file(row["destination"], self.gate) != row["dest_hash"]
+        except OSError:
+            return False
 
     def _mark(self, conn: sqlite3.Connection, src: str, status: str, **fields: Any) -> None:
         fields.update(status=status, updated_at=time.time(), job_id=self.job["job_id"])

@@ -13,11 +13,12 @@
  *   /admin, /admin/*    the console is never offline and never cached.
  *   /share/*            a stranger's link, answered by the server each time.
  *
- * The caches are versioned. Changing CACHE_VERSION drops every old one on the
- * next activation, which is how a stale app shell gets cleaned up.
+ * The caches are versioned. The server writes the version of the app's files
+ * into CACHE_VERSION as it sends this file, so every upgrade is a new worker,
+ * and its activation drops the old caches.
  */
 
-const CACHE_VERSION = 'lite-1';
+const CACHE_VERSION = 'lite-1';  // replaced by the server: see pages.service_worker
 /**
  * Thumbnails keep the version they were cached under. They are the expensive
  * thing to fetch again — thousands of them for a library scrolled through — and
@@ -92,24 +93,26 @@ async function cacheFirst(request, cacheName, limit) {
   return response || new Response('', { status: 504, statusText: 'Offline' });
 }
 
-async function staleWhileRevalidate(request, cacheName, limit) {
+/**
+ * The app's files from the server whenever it answers, the cached copy only
+ * when it does not. Only the entry script's URL carries a version; the modules
+ * it imports, the translations and the editor do not, so a cache answering
+ * first would hand a new app.js the old api.js after an upgrade, and the page
+ * would never open. On the home network asking costs a 304.
+ */
+async function networkFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
-  const hit = await cache.match(request);
-
-  const network = fetch(request).then(async (response) => {
-    // Only ever store a plain success. An opaque, partial or error response
-    // cached here would be served back as though it were the real thing.
-    if (response && response.status === 200 && response.type === 'basic') {
-      await cache.put(request, response.clone());
-      if (limit) trim(cacheName, limit);
-    }
+  const response = await fetch(request).catch(() => null);
+  // Only ever store a plain success. An opaque, partial or error response
+  // cached here would be served back as though it were the real thing.
+  if (response && response.status === 200 && response.type === 'basic') {
+    await cache.put(request, response.clone());
     return response;
-  }).catch(() => null);
-
+  }
+  if (response && response.status !== 504) return response;
+  const hit = await cache.match(request);
   if (hit) return hit;
-  const fresh = await network;
-  if (fresh) return fresh;
-  return new Response('', { status: 504, statusText: 'Offline' });
+  return response || new Response('', { status: 504, statusText: 'Offline' });
 }
 
 async function networkFirstNavigation(request, cacheName) {
@@ -158,7 +161,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (url.pathname.startsWith('/static/')) {
-    event.respondWith(staleWhileRevalidate(request, SHELL_CACHE, 0));
+    event.respondWith(networkFirst(request, SHELL_CACHE));
     return;
   }
   // Everything else is left alone deliberately — see the note at the top.
