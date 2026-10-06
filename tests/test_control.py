@@ -92,6 +92,8 @@ def test_package_import_does_not_load_the_web_app():
 
 
 def test_command_line_for_installers(tmp_path, monkeypatch, capsys):
+    # A real server may already be listening on the default port.
+    monkeypatch.setattr(control.Controller, "health", lambda self, timeout=1.5: None)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
     data = str(tmp_path / "data")
