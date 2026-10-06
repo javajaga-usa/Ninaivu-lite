@@ -7,7 +7,11 @@ chcp 65001 >nul
 setlocal
 set "ROOT=%~dp0.."
 for %%I in ("%ROOT%") do set "ROOT=%%~fI"
-set "LINK=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Ninaivu Lite.vbs"
+set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+rem This copy's own name; the installed and portable ones have theirs (ninaivu_lite\control.py).
+set "LINK=%STARTUP%\Ninaivu Lite (source).vbs"
+rem Before 1.6.0 every copy used "Ninaivu Lite.vbs": taken away when it starts this one.
+if exist "%STARTUP%\Ninaivu Lite.vbs" findstr /l /i /c:"%ROOT%" "%STARTUP%\Ninaivu Lite.vbs" >nul 2>&1 && del "%STARTUP%\Ninaivu Lite.vbs" >nul 2>&1
 
 if /i "%~1"=="off" (
   del "%LINK%" >nul 2>&1

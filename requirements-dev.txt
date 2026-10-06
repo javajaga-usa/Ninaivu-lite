@@ -1,3 +1,4 @@
 -r requirements.txt
 pytest>=8,<10
-ruff>=0.6
+# Exact: a release runs the lint, and a new ruff must not start failing it (Dependabot proposes updates).
+ruff==0.16.10

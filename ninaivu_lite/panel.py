@@ -280,7 +280,8 @@ class Panel:
                 phones = net.lan_addresses()[:2] if running else []
                 summary = self.controller.library_summary()
                 self.events.put(("reading", running, port, phones, summary,
-                                 self.controller.can_stop()))
+                                 self.controller.can_stop(),
+                                 self.controller.setup_code() if running else None))
                 if running:
                     self.look_for_drives(summary.get("folders") or [])
             except Exception as exc:  # noqa: BLE001 — a bad reading must not end the loop
@@ -332,7 +333,7 @@ class Panel:
         if not self.finished.is_set():
             self.root.after(150, self.pump)
 
-    def show_reading(self, running, port, phones, summary, can_stop) -> None:
+    def show_reading(self, running, port, phones, summary, can_stop, setup_code=None) -> None:
         self.is_running = running
         if not self.busy:
             self.status.set("Running" if running else "Stopped")
@@ -343,6 +344,9 @@ class Panel:
             rows += [("On your phone", f"http://{a}:{port}/") for a in phones]
             if not can_stop:
                 rows.append(("", "Started from its own window: stop it there."))
+            if setup_code:      # until the first administrator is made
+                rows.append(("Setup code", setup_code))
+                rows.append(("", "Asked for when the administrator is made from another device."))
         else:
             rows = [("", "Not running. Press Start, then open it on this computer "
                          "or on a phone on the same Wi-Fi.")]

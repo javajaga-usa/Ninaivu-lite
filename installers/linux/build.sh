@@ -38,14 +38,24 @@ mkdir -p "$payload/wheels" "$build"
 # 1. The Python: the one version every installer carries, from .python-version
 #    at the repository root, as a python-build-standalone build (the release is
 #    in installers/PBS_RELEASE). PBS_PYTHON and PBS_RELEASE override both.
+#    Checked against installers/PYTHON_SHA256SUMS, downloaded or kept from an
+#    earlier build alike: a file replaced upstream is not shipped.
 pbs_python=${PBS_PYTHON:-$(tr -d '[:space:]' < "$root/.python-version")}
 pbs_release=${PBS_RELEASE:-$(tr -d '[:space:]' < "$here/../PBS_RELEASE")}
 minor=${pbs_python%.*}
 tarball="cpython-${pbs_python}+${pbs_release}-${triple}-install_only_stripped.tar.gz"
+expected=$(awk -v f="$tarball" '$2 == f { print $1 }' "$here/../PYTHON_SHA256SUMS")
+[ -n "$expected" ] || { echo "no SHA-256 for $tarball in installers/PYTHON_SHA256SUMS" >&2; exit 1; }
 if [ ! -f "$build/$tarball" ]; then
     curl -fsSL -o "$build/$tarball.part" \
         "https://github.com/astral-sh/python-build-standalone/releases/download/${pbs_release}/${tarball}"
     mv "$build/$tarball.part" "$build/$tarball"
+fi
+actual=$(sha256sum "$build/$tarball" | cut -d' ' -f1)
+if [ "$actual" != "$expected" ]; then
+    rm -f "$build/$tarball"
+    echo "$tarball: SHA-256 $actual, expected $expected (installers/PYTHON_SHA256SUMS)" >&2
+    exit 1
 fi
 tar -xzf "$build/$tarball" -C "$payload"           # unpacks to ./python
 rm -rf "$payload/python/lib/python$minor/test" "$payload/python/lib/python$minor/idlelib" \
