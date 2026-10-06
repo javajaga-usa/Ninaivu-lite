@@ -331,17 +331,28 @@ class PhoneImport:
         """Each copy the import verified, or found already in the archive, is
         written down as imported and deleted from the data folder."""
         from . import db
+        from .importer import still_done
         conn = db.connect(data_dir)
         try:
             rows = conn.execute(
-                "SELECT source, status FROM import_files WHERE status IN ('verified', 'duplicate')"
+                "SELECT source, status, destination, duplicate_of, size, mtime "
+                "FROM import_files WHERE status IN ('verified', 'duplicate')"
             ).fetchall()
         finally:
             conn.close()
         added = already = 0
         done = []
-        for source, status in rows:
-            if not is_within(source, mirror) or not os.path.isfile(source):
+        for row in rows:
+            source, status = row["source"], row["status"]
+            if not is_within(source, mirror):
+                continue
+            try:
+                st = os.stat(source)
+            except OSError:
+                continue
+            # Only a copy whose record describes this very file, with its
+            # archived copy still there, is safe to let go of.
+            if not still_done(row, st):
                 continue
             done.append(os.path.relpath(source, mirror))
             if status == "verified":
