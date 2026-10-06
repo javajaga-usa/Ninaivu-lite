@@ -175,7 +175,7 @@ def test_a14_unreadable_index_with_missing_settings_changes_nothing(tmp_path, mo
 def test_a14_index_is_read_by_plain_path_not_uri(tmp_path):
     from ninaivu_lite import db
     from ninaivu_lite.config import index_folders
-    data = tmp_path / "data #1 ?x நினைவு"
+    data = tmp_path / "data #1 நினைவு"            # "?" is not allowed on Windows
     c = db.connect(data)
     db.sync_folders(c, ["/photos/a"])
     c.close()
