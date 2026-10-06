@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+Fixes from the project audit of 2026-10-05 (A05-A10).
+
+- **A video is never sent to a guest or a share link with its location by accident.** When
+  ffmpeg is missing or cannot remove a video's metadata, a guest or someone with a link is
+  now told the video cannot be shared, instead of receiving the original file (which can say
+  where it was shot). An administrator can choose otherwise in Settings (*Send videos to
+  guests and share links as they are when their location cannot be removed*); such a file
+  then carries `X-Ninaivu-Metadata: original`. The family's own view is unchanged.
+  (`api_gallery.py`, `config.py`, `static/js/admin.js`)
+- **Every pending thumbnail is made in one pass.** The thumbnail queue moved on by an offset
+  while finished rows left it, so a large scan skipped work (70 of 120 in the audit's
+  reproduction). It now continues after the last row it tried. (`scanner.py`)
+- **Backups hold everything a restore needs.** The daily copy in `backups/` is now the same
+  zip as the download, and both carry the index, `settings.json` and people's profile
+  pictures (`avatars/`). Older index-only daily copies are pruned with the new ones.
+  (`backups.py`)
+- **A folder that cannot be read is not a folder emptied.** Photographs under a subfolder
+  the scan could not read (permissions, a flaky disk) keep their place instead of being
+  marked missing, and the console says some folders could not be read. (`scanner.py`)
+- **The Linux system service no longer runs as root.** Installed as root, Ninaivu Lite now
+  runs as its own `ninaivu-lite` account that owns `/var/lib/ninaivu-lite`, with systemd's
+  privilege restrictions on, and the installer names any photo folder that account cannot
+  read. Where no account can be made, no system service is set up. (`installers/linux/install.sh`)
+- **A release runs the tests first.** The release workflow runs the whole test suite on
+  Windows, macOS and Linux for the exact commit it publishes, for a tag and for "Run
+  workflow" alike, and publishes nothing unless it passes. (`.github/workflows/`)
+
 ## 1.5.1 — 2026-10-04
 
 - **A portable Windows zip, nothing to install.** Each release also carries

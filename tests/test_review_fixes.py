@@ -106,7 +106,8 @@ def test_a_shared_photograph_comes_out_the_way_up_the_index_says(app, admin, lib
 
 
 def test_a_guest_gets_a_video_without_its_location(app, admin, guest, library, monkeypatch):
-    """With ffmpeg: the metadata is gone. Without: the original, as the guide says."""
+    """With ffmpeg: the metadata is gone. Without: refused, unless an
+    administrator chose to send such videos as they are (audit A05)."""
     import shutil
     import subprocess
     from ninaivu_lite import media
@@ -130,7 +131,12 @@ def test_a_guest_gets_a_video_without_its_location(app, admin, guest, library, m
     served = guest.get(f"/api/file/{target}")
     assert served.status_code == 200 and b"SECRETMARK" not in served.data
     assert served.headers["Accept-Ranges"] == "bytes"
-    # Without ffmpeg the original is sent (and the guide says so).
+    # Without ffmpeg the video is refused rather than sent with its location.
     monkeypatch.setattr(media, "FFMPEG", None)
     shutil.rmtree(os.path.join(app.config["LITE"].data_dir, "views"), ignore_errors=True)
-    assert b"SECRETMARK" in guest.get(f"/api/file/{target}").data
+    refused = guest.get(f"/api/file/{target}")
+    assert refused.status_code == 415 and b"SECRETMARK" not in refused.data
+    # An administrator may choose otherwise; the original then says what it is.
+    assert admin.post("/api/admin/settings", json={"video_originals": True}).status_code == 200
+    sent = guest.get(f"/api/file/{target}")
+    assert b"SECRETMARK" in sent.data and sent.headers["X-Ninaivu-Metadata"] == "original"

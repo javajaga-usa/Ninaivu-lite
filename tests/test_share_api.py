@@ -135,7 +135,12 @@ def test_shared_video_has_range(app, family):
     stranger = app.test_client()
     item = stranger.get(f"/api/share/{token}").json["item"]
     assert item["kind"] == "video" and item["view"] == item["src"]
+    # The sample clip cannot be remuxed, so its metadata cannot be removed:
+    # refused until an administrator chooses to send such videos as they are.
+    assert stranger.get(item["src"]).status_code == 415
+    app.config["LITE"].video_originals = True
     full = stranger.get(item["src"])
+    assert full.headers["X-Ninaivu-Metadata"] == "original"
     assert full.mimetype == "video/mp4"
     part = stranger.get(item["src"], headers={"Range": "bytes=0-3"})
     assert part.status_code == 206 and part.data == full.data[:4]

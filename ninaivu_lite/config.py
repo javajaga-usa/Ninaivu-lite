@@ -46,6 +46,10 @@ class Config:
     open_browsing: bool = True       # "Just looking" without signing in: Public photos only
     language: str = "en"             # for people and devices that have not chosen
     watch: bool = True               # look for new photos by itself (every 30 minutes)
+    # A video whose metadata (a phone's GPS location among it) cannot be
+    # removed, for want of ffmpeg, is refused to guests and share links
+    # unless the household chooses to send such videos as they are.
+    video_originals: bool = False
     first_day_done: bool = False
     # The importer's last job, so the console's Import page opens as it was left.
     import_sources: list[str] = field(default_factory=list)
@@ -55,6 +59,7 @@ class Config:
     port: int = DEFAULT_PORT
 
     SAVED = ("folders", "active", "house_name", "open_browsing", "language", "watch",
+             "video_originals",
              "first_day_done", "import_sources", "import_destination", "import_kinds")
 
     @property

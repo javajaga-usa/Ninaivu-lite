@@ -718,8 +718,10 @@ def original_response(row: sqlite3.Row, path: str, max_age: int = 3600) -> Respo
 def stripped_video_response(row: sqlite3.Row, path: str, max_age: int) -> Response:
     """A video with its metadata removed (a phone writes where it was shot
     into the file), kept in the data folder like the viewing copies. Without
-    ffmpeg, or for a file it cannot remux, the original: better a video that
-    plays than one that does not, and the guide says which it is."""
+    ffmpeg, or for a file it cannot remux, the video is refused: the person
+    asking is a guest or a stranger with a link, and the original may say
+    where it was shot. Only an administrator's choice (``video_originals``)
+    sends such a video as it is, marked so in a header."""
     try:
         st = os.stat(long_path(path))
     except OSError:
@@ -731,7 +733,11 @@ def stripped_video_response(row: sqlite3.Row, path: str, max_age: int) -> Respon
         for old in cache.parent.glob(f"{row['id']}-*{ext}"):
             old.unlink(missing_ok=True)
         if not media.strip_video(path, str(cache)):
-            return original_response(row, path, max_age)
+            if not cfg().video_originals:
+                fail(415, "This video cannot be shared without its location data.")
+            response = original_response(row, path, max_age)
+            response.headers["X-Ninaivu-Metadata"] = "original"
+            return response
     mime, _ = mimetypes.guess_type(row["name"])
     response = send_file(cache, mimetype=mime or "video/mp4", conditional=True,
                          etag=cache.stem, max_age=max_age)

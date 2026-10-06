@@ -7,7 +7,8 @@
 # wheel into it, offline; makes the `ninaivu-lite` command (and
 # `ninaivu-lite-panel`, the Control Panel, for a desktop); writes a desktop
 # entry; sets up a systemd service that starts Ninaivu Lite at boot (a user
-# service, or a system one when run as root); starts it; says where to open it.
+# service, or a system one when run as root, which runs as its own unprivileged
+# account, never as root); starts it; says where to open it.
 # Run a newer installer to upgrade in place: settings, people and the index are
 # kept, because they live in the data folder, not with the program. The
 # photographs are only ever read.
@@ -78,6 +79,7 @@ rm -f "$bindir/ninaivu-lite" "$bindir/ninaivu-lite-panel" "$apps/ninaivu-lite.de
       "\${XDG_CONFIG_HOME:-\$HOME/.config}/systemd/user/ninaivu-lite.service" \\
       /etc/systemd/system/ninaivu-lite.service 2>/dev/null
 [ "\$1" = "--purge" ] && rm -rf "$data"
+[ "\$1" = "--purge" ] && [ "\$(id -u)" = 0 ] && userdel ninaivu-lite 2>/dev/null || true
 rm -rf "$prefix"
 echo "Ninaivu Lite removed."
 WRAP
@@ -114,14 +116,65 @@ if [ -n "$photos" ]; then
     folder_arg=" \"$photos\""
 fi
 
+# A system service never runs as root: it answers the network, and its
+# administrators can import and export files. It gets an account of its own
+# that owns the data folder and only reads the photographs it is let read.
+account=ninaivu-lite
+make_account() {
+    id -u "$account" >/dev/null 2>&1 && return 0
+    nologin=$(command -v nologin 2>/dev/null || echo /usr/sbin/nologin)
+    if command -v useradd >/dev/null 2>&1; then
+        useradd --system --user-group --home-dir "$data" --no-create-home \
+            --shell "$nologin" --comment "Ninaivu Lite" "$account"
+    elif command -v adduser >/dev/null 2>&1; then
+        addgroup -S "$account" 2>/dev/null || true
+        adduser -S -D -H -h "$data" -s "$nologin" -G "$account" "$account"
+    else
+        return 1
+    fi
+}
+
+# Folders the service account cannot read (the library's, and --photos), so
+# the installer can say so.
+unreadable_for_account() {
+    command -v runuser >/dev/null 2>&1 || return 0
+    {
+        "$py" -c 'import sys; from ninaivu_lite.config import Config
+print("\n".join(Config.load(sys.argv[1]).folders))' "$data" 2>/dev/null || true
+        [ -n "$photos" ] && printf '%s\n' "$photos"
+    } | sort -u | while IFS= read -r folder; do
+        [ -n "$folder" ] || continue
+        runuser -u "$account" -- test -r "$folder" -a -x "$folder" 2>/dev/null || printf '%s\n' "$folder"
+    done
+}
+
 # The service: Ninaivu Lite at boot, restarted if it fails.
 started=0
 if [ "$service" = 1 ] && command -v systemctl >/dev/null 2>&1; then
+    run_as=""
     if [ "$(id -u)" = 0 ]; then
         unit=/etc/systemd/system/ninaivu-lite.service; scope=""; wanted=multi-user.target
+        if make_account; then
+            chown -R "$account:$account" "$data"
+            run_as="User=$account
+Group=$account
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes"
+        else
+            service=0
+            say "No way to make the $account account here (no useradd or adduser), so no"
+            say "system service was set up: Ninaivu Lite is not run as root."
+        fi
     else
         unit="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/ninaivu-lite.service"; scope="--user"; wanted=default.target
     fi
+fi
+if [ "$service" = 1 ] && command -v systemctl >/dev/null 2>&1; then
     mkdir -p "$(dirname "$unit")"
     cat > "$unit" <<UNIT
 [Unit]
@@ -134,10 +187,21 @@ ExecStart="$py" -m ninaivu_lite --no-browser --data "$data"$folder_arg
 Environment=PYTHONUNBUFFERED=1
 Restart=on-failure
 RestartSec=5
+$run_as
 
 [Install]
 WantedBy=$wanted
 UNIT
+    if [ -n "$run_as" ]; then
+        blocked=$(unreadable_for_account)
+        if [ -n "$blocked" ]; then
+            say "The service runs as the '$account' account, which cannot read:"
+            printf '%s\n' "$blocked" | while IFS= read -r folder; do
+                say "    $folder"
+                say "  Let it read that folder, for example:  setfacl -R -m u:$account:rX \"$folder\""
+            done
+        fi
+    fi
     if systemctl $scope daemon-reload 2>/dev/null && systemctl $scope enable --now ninaivu-lite 2>/dev/null; then
         started=1
         say "Started as a service; it starts again at boot."

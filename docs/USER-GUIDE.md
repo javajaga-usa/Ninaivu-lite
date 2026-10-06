@@ -182,9 +182,11 @@ manager first; on a Mac, phones are not detected.
 
 From the viewer or an album, choose **Share**. You can add a password and an expiry date.
 Send the link to someone on your home network. They see only that photo or album, as a copy
-without location or camera details; a video is sent with its location removed too, when
-ffmpeg is installed on the computer (without it, the video is sent as it is). Your list of links is in your profile; you can turn a link
-off at any time.
+without location or camera details. A video is sent with its location removed too, which
+needs ffmpeg on the computer; without it, a guest or someone with a link is told the video
+cannot be shared, unless an administrator turns on *Send videos to guests and share links as
+they are when their location cannot be removed* in Settings. Your list of links is in your
+profile; you can turn a link off at any time.
 
 > Links work only on your home network. Ninaivu Lite is not meant to be reached from the internet.
 
