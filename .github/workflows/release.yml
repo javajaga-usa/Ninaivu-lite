@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
       - name: Check the version, tag, release and changelog
         if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
@@ -79,7 +79,7 @@ jobs:
       # main), and only once it is set up.
       USE_SIGNPATH: ${{ secrets.SIGNPATH_API_TOKEN != '' && (github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
@@ -121,7 +121,7 @@ jobs:
       - name: The unsigned uninstaller, for SignPath
         id: unsigned-uninstaller
         if: env.USE_SIGNPATH == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-unsigned-uninstaller
           path: installers/windows/build/uninstaller/uninstall.exe
@@ -167,7 +167,7 @@ jobs:
       - name: The unsigned installer, for SignPath
         id: unsigned
         if: env.USE_SIGNPATH == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-unsigned
           path: installers/windows/build/nsis/*.exe
@@ -319,7 +319,7 @@ jobs:
           if (-not (Test-Path (Join-Path $data "ninaivu-lite.db"))) { throw "the data did not stay in the extracted folder" }
           Write-Host "extracted, opened, ran and stopped, with its data beside it"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows
           if-no-files-found: error
@@ -345,7 +345,7 @@ jobs:
     env:
       HAS_P12: ${{ secrets.MAC_SIGN_P12_BASE64 != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Import the signing certificate
         if: env.HAS_P12 == 'true'
         env:
@@ -387,7 +387,7 @@ jobs:
           curl -fsS http://127.0.0.1:8080/ > /dev/null
           "$app/Contents/Resources/python/bin/python3" -m ninaivu_lite.control --data "$data" --stop --status
           hdiutil detach "$mount" || hdiutil detach -force "$mount"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-${{ matrix.arch }}
           if-no-files-found: error
@@ -408,7 +408,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
@@ -446,7 +446,7 @@ jobs:
           sudo /opt/ninaivu-lite/uninstall --purge
           [ ! -e /etc/systemd/system/ninaivu-lite.service ] && [ ! -e /opt/ninaivu-lite ] && [ ! -e /var/lib/ninaivu-lite ]
           ! curl -fsS http://127.0.0.1:8080/api/health
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux-${{ matrix.arch }}
           if-no-files-found: error
@@ -459,7 +459,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build it, start it, ask it how it is
         run: |
           docker build -f installers/docker/Dockerfile -t ninaivu-lite:ci .
@@ -488,10 +488,10 @@ jobs:
       # Notarised only when the build had the identity to sign with as well.
       HAS_NOTARY: ${{ secrets.MAC_SIGN_P12_BASE64 != '' && secrets.MAC_SIGN_IDENTITY != '' && secrets.MAC_NOTARY_PASSWORD != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: src
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: out
       - name: The version being released
@@ -533,7 +533,7 @@ jobs:
             awk -v v="$version" '$0 ~ "^## "v" " {on=1; next} on && /^## / {exit} on' src/CHANGELOG.md
           } > notes.md
           cat notes.md
-      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           fail_on_unmatched_files: true
           tag_name: v${{ env.VERSION }}
