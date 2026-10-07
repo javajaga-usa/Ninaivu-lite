@@ -3180,6 +3180,7 @@
   "Share expiry must be a finite number of days": "பகிர்வின் காலாவதி ஒரு வரம்புள்ள நாள் எண்ணிக்கையாக இருக்க வேண்டும்",
   "The edited copy must be a JPEG, PNG or WebP image.": "திருத்திய நகல் JPEG, PNG அல்லது WebP படமாக இருக்க வேண்டும்.",
   "This address is not one Ninaivu Lite answers to. Open it with this computer's address instead.": "இந்த முகவரிக்கு நினைவு லைட் பதிலளிக்காது. இந்தக் கணினியின் முகவரியைக் கொண்டு திறக்கவும்.",
+  "Ninaivu Lite answers only the home network.": "நினைவு லைட் வீட்டு வலையமைப்புக்கு மட்டுமே பதில் தரும்.",
   "Send a JSON object.": "ஒரு JSON பொருளை அனுப்புங்கள்.",
   "{added} new photos and videos from the phone are in the archive. {already} were there already. {failed} did not finish copying from the phone; they will be copied again next time.": "தொலைபேசியிலிருந்து {added} புதிய புகைப்படங்களும் காணொளிகளும் காப்பகத்தில் சேர்ந்தன. {already} ஏற்கனவே இருந்தன. {failed} தொலைபேசியிலிருந்து நகலெடுப்பது முடியவில்லை; அடுத்த முறை மீண்டும் நகலெடுக்கப்படும்.",
   "Moved?": "இடம் மாறியதா?",

@@ -106,7 +106,11 @@ def _manifest(name: str, start: str, icons: str) -> str:
 @bp.get("/healthz")
 def health():
     # Which data folder: two copies of Ninaivu Lite on one computer (an
-    # installed one and a portable one) are told apart by this.
+    # installed one and a portable one) are told apart by this. The rest of
+    # the network is told only that it is up: the version would tell a
+    # stranger which published problem to try.
+    if not auth.is_local_request(request.remote_addr, request.headers):
+        return jsonify(ok=True, app="Ninaivu Lite")
     return jsonify(ok=True, app="Ninaivu Lite", version=__version__,
                    instance=current_app.config.get("INSTANCE"), busy=busy())
 

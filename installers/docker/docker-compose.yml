@@ -21,6 +21,9 @@ services:
       # router) must be listed here, comma-separated: inside the container,
       # the computer's own name is not known.
       NINAIVU_ALLOWED_HOSTS: ${ALLOWED_HOSTS:-}
+      # Requests from the internet are refused; 1 allows them, only behind
+      # HTTPS of your own.
+      NINAIVU_ALLOW_INTERNET: ${ALLOW_INTERNET:-}
     volumes:
       - ${MEDIA_DIR:-./photos}:/photos:ro
       - ninaivu_lite_data:/data

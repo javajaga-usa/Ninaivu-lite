@@ -201,6 +201,13 @@ addresses (`http://192.168.1.20:8080`), its network name (`mypc`, `mypc.local`) 
 `NINAIVU_ALLOWED_HOSTS` environment variable, separated by commas; with Docker, set
 `ALLOWED_HOSTS`, since a container does not know the computer's name.
 
+**Home network only:** a request from an internet address (a port forwarded on the router, a
+tunnel such as ngrok or Cloudflare Tunnel) is refused with *"Ninaivu Lite answers only the home
+network."* Phones and computers on the same network, and private VPNs such as Tailscale, are
+answered. To reach it from the internet on purpose (behind HTTPS of your own), set
+`"allow_internet": true` in `settings.json`, or `NINAIVU_ALLOW_INTERNET=1` (with Docker,
+`ALLOW_INTERNET=1`).
+
 ## Security
 
 Lite uses plain **HTTP** and is meant for your **home network only** — do not open it to the

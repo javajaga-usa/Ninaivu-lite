@@ -8,7 +8,9 @@ internet** (no port forwarding, no public tunnels). HTTPS is planned for a later
 
 - **Passwords and PINs** are stored only as salted scrypt hashes (PBKDF2 where scrypt is
   unavailable). A wrong username and a wrong password take the same time and give the same answer.
-- **Sign-in is rate-limited** per address and name, and per name across addresses.
+- **Sign-in is rate-limited** per address and name, and per name across addresses (60 tries a
+  day for a PIN or password). Signing in again ends the browser's previous session, and the
+  health check tells other devices only that the server is up, not its version.
 - **Sessions** are random tokens, stored hashed; the cookie is `HttpOnly` and `SameSite=Lax`.
   An admin can sign anyone out everywhere; disabling a person ends their sessions.
 - **Other websites cannot act for you**: writes from another site are refused
@@ -20,10 +22,16 @@ internet** (no port forwarding, no public tunnels). HTTPS is planned for a later
   `localhost`. A request under any other name is refused, so a web page elsewhere cannot
   point a name of its own at this computer (DNS rebinding). Other names are added in
   `allowed_hosts` in `settings.json` or in `NINAIVU_ALLOWED_HOSTS`.
+- **Only the home network is answered**: a request from an internet address, directly (a
+  port forwarded on the router) or through a tunnel or proxy on this computer, is refused.
+  The same network, private VPNs such as Tailscale and this computer itself are answered.
+  `allow_internet` in `settings.json` (or `NINAIVU_ALLOW_INTERNET=1`) turns this off, for
+  someone who puts HTTPS of their own in front of it.
 - **Who sees what** is checked on the server for every photo, preview, download, search and
   share link. Files are served by id, never by a path from the request.
 - **Share links** show only their photo or album, as copies without location or camera data;
-  passwords on links are hashed; links can expire or be turned off.
+  their addresses carry 128 random bits; passwords on links are hashed and can be tried 60
+  times a day at most; links can expire or be turned off.
 - **Stopping the server** from the Control Panel works only from the same computer, with a
   random token the server keeps in its data folder.
 - **Your photos are never changed**: Lite only reads them, and never moves, edits or deletes
@@ -36,6 +44,15 @@ internet** (no port forwarding, no public tunnels). HTTPS is planned for a later
 - **Releases are not code-signed yet** (the SignPath Foundation application is pending).
   Download them only from this repository's releases page and check them against its
   `SHA256SUMS.txt`.
+
+## What it leaves to the computer
+
+- **Photos, the index and backups are not encrypted** by Ninaivu Lite. Turn on the
+  computer's own disk encryption (BitLocker, FileVault, LUKS) so a stolen computer or drive
+  does not give them away.
+- **A profile with no PIN or password** can be opened by anyone on the network, and
+  *Just looking* (on by default) shows Public photos without signing in. Give each profile
+  a PIN, and turn *Just looking* off in Settings, if the network is shared.
 
 ## Reporting a problem
 

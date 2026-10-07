@@ -38,6 +38,9 @@ def _is_local() -> bool:
 
 
 def _signed_in(who: auth.User, payload: dict | None = None):
+    # The session this browser had (another profile, before a switch) ends
+    # here, rather than living on unseen for its thirty days.
+    auth.end_session(conn(), request.cookies.get(auth.SESSION_COOKIE))
     token = auth.start_session(conn(), who.id, request.headers.get("User-Agent", ""))
     response = jsonify({"ok": True, "user": auth.get_user(conn(), who.id).public(),
                         **(payload or {})})

@@ -44,6 +44,9 @@ UNLOCK_SECONDS = 12 * 3600
 #: per link from anywhere.
 throttle_short = auth.Throttle(limit=8, window=300)
 throttle_long = auth.Throttle(limit=20, window=1800)
+#: And per link per day, as for a PIN: without it a 4-character password
+#: could be tried nearly a thousand times a day.
+throttle_day = auth.Throttle(limit=60, window=86400)
 
 #: Not the file name: "Chennai_home_2021.jpg" can say where a photograph was
 #: taken, which a link promises to leave out.
@@ -177,13 +180,15 @@ def _proof(stored: str, token: str) -> str:
 def _password_attempt(token: str, supplied: str, stored: str) -> bool | None:
     """True if right, False if wrong, None if refused because the limits are spent."""
     near, anywhere = f"{request.remote_addr}|share:{token}", f"*|share:{token}"
-    if throttle_short.blocked(near) or throttle_long.blocked(anywhere):
+    if throttle_short.blocked(near) or throttle_long.blocked(anywhere) \
+            or throttle_day.blocked(anywhere):
         return None
     if supplied and auth.verify_password(supplied, stored):
         throttle_short.forget(near)
         return True
     throttle_short.fail(near)
     throttle_long.fail(anywhere)
+    throttle_day.fail(anywhere)
     return False
 
 
