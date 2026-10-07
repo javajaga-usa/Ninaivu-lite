@@ -222,7 +222,7 @@ later. The visitor does not see the file's name.
   command below with `--restore <zip>`; what was there is kept in a `before-restore-…` folder
   inside the data folder, never deleted, and everyone signs in again afterwards. On a new
   computer, where the photo folders are somewhere else, use **Moved?** beside each folder
-  under *Library settings*. Your photos are not in the zip: they are your own files, so back
+  *Library settings* cannot find. Your photos are not in the zip: they are your own files, so back
   them up as you always do.
 - **Data folder** — `%LOCALAPPDATA%\Ninaivu-lite` on Windows, `~/Library/Application
   Support/Ninaivu-lite` on macOS, `~/.local/share/ninaivu-lite` on Linux; the `data` folder
@@ -246,8 +246,8 @@ later. The visitor does not see the file's name.
 - **A drive unplugged?** Its photos show as unavailable and come back when it returns.
   Nothing is lost. Unplugged during an import, the import ends as not finished: plug it back
   in and press *Start* to finish. After copying to a pendrive, eject it before unplugging it.
-- **A library folder moved, or not needed?** *Library settings* → **Moved?** points the folder
-  at its new place and keeps everything. *Remove* takes it out of the gallery; who sees what,
+- **A library folder moved, or not needed?** **Moved?**, beside a folder *Library settings* cannot
+  find, points it at its new place and keeps everything. *Remove* takes it out of the gallery; who sees what,
   favourites, albums and share links come back if the same folder is added again.
 - **Updating** — with an installer, run the new installer (the Control Panel's
   **Download** button opens its page); on Linux, run the newer `.sh` the same way as the first.

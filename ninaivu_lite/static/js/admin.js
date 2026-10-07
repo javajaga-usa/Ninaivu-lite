@@ -96,12 +96,18 @@ async function renderBackups() {
   let data;
   try { data = await adminApi.backups(); } catch { return; }
   const list = data.backups || [];
-  kept.textContent = list.length
-    ? i18n.t('{count} copies are kept in {folder}. The newest is from {when}.', {
-      count: list.length, folder: data.folder,
-      when: new Date(list[0].at * 1000).toLocaleString(i18n.locale()),
-    })
-    : i18n.t('No copy has been kept yet: one is made each day while Ninaivu Lite runs.');
+  const newest = list.length ? new Date(list[0].at * 1000).toLocaleString(i18n.locale()) : '';
+  if (list.length > 1) {
+    kept.textContent = i18n.t('{count} copies are kept in {folder}. The newest is from {when}.', {
+      count: list.length, folder: data.folder, when: newest,
+    });
+  } else if (list.length === 1) {
+    kept.textContent = i18n.t('One copy is kept in {folder}, from {when}.', {
+      folder: data.folder, when: newest,
+    });
+  } else {
+    kept.textContent = i18n.t('No copy has been kept yet: one is made each day while Ninaivu Lite runs.');
+  }
   failure.hidden = !data.failure;
   if (data.failure) {
     failure.textContent = i18n.t('The last daily copy failed ({when}): {why}', {
