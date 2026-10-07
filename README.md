@@ -14,8 +14,12 @@ page — over a much lighter engine: no models, no cloud, three small dependenci
 Ninaivu's tools come along, lightened: the **Import** that sweeps old drives into one
 archive, and **Sudar**, the photo studio that runs in the browser.
 
-> **Status: 1.5.1.** See the [changelog](CHANGELOG.md) and the [user guide](docs/USER-GUIDE.md)
+> **Status: 1.6.0.** See the [changelog](CHANGELOG.md) and the [user guide](docs/USER-GUIDE.md)
 > ([தமிழில்](docs/USER-GUIDE.ta.md)).
+
+**[Download the latest release](https://github.com/javajaga-usa/Ninaivu-lite/releases/latest)**
+· **[Ninaivu and Lite comparison](https://javajaga-usa.github.io/Ninaivu/#ninaivu-lite)**
+· **[English guide](docs/USER-GUIDE.md)** · **[தமிழ் வழிகாட்டி](docs/USER-GUIDE.ta.md)**
 
 ## Why Lite
 
