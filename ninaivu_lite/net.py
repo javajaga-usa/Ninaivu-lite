@@ -35,9 +35,14 @@ def pick_port(host: str, preferred: int, tries: int = 20) -> int:
     """*preferred* if free, else the next free one above it, else any free port."""
     bind_host = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host
     for candidate in range(preferred, min(preferred + tries, 65536)):
+        # Both this computer's own address and the one the server will
+        # really listen on: another program holding the port on a network
+        # address leaves 127.0.0.1 free, and the start then failed.
         free = port_is_free(bind_host, candidate)
         if free is None and bind_host != host:
-            free = port_is_free(host, candidate)
+            free = port_is_free(host or "0.0.0.0", candidate)
+        elif free and bind_host != host:
+            free = port_is_free(host or "0.0.0.0", candidate) is not False
         if free:
             return candidate
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -115,13 +120,20 @@ def _addresses_by_name(timeout: float) -> list[str]:
     return list(result) if not thread.is_alive() else []
 
 
-def already_running(port: int) -> bool:
-    """Is Ninaivu Lite itself already answering on this port?"""
+def already_running(port: int, instance: str | None = None) -> bool:
+    """Is Ninaivu Lite itself already answering on this port, and, given
+    *instance* (the data folder's name, see lock.instance_id), is it the one
+    on this data folder? A server too old to say which folder it is on
+    counts as this one."""
     import json
     import urllib.request
 
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=1.5) as r:
-            return json.load(r).get("app") == "Ninaivu Lite"
+            data = json.load(r)
     except Exception:  # noqa: BLE001 — nothing there, or something else is
         return False
+    if not isinstance(data, dict) or data.get("app") != "Ninaivu Lite":
+        return False
+    theirs = data.get("instance")
+    return instance is None or theirs is None or theirs == instance

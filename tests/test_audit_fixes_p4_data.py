@@ -241,7 +241,7 @@ def test_a44_folders_named_while_running_are_not_saved_behind_its_back(tmp_path,
     data, photos = tmp_path / "data", tmp_path / "Photos"
     photos.mkdir()
     Config(data_dir=str(data), folders=[]).save()
-    monkeypatch.setattr(net, "already_running", lambda port: True)
+    monkeypatch.setattr(net, "already_running", lambda port, instance=None: True)
     code = cli.main([str(photos), "--data", str(data), "--no-browser"])
     assert code == 2
     assert "not added" in capsys.readouterr().err
@@ -304,7 +304,7 @@ def test_a46_a_dry_run_does_not_erase_an_earlier_import(tmp_path):
     after = rows(data)["IMG_0001.JPG"]
     assert after["status"] == "verified"
     assert after["destination"] == before["destination"] and after["size"] == before["size"]
-    assert "1 files would be archived" in engine.job["message"]
+    assert "1 files would be archived" in engine.job["message"]["text"]
     run(data, [card], dest)                                        # the real run still copies it
     assert sha(photo) in {sha(p) for p in dest.rglob("*.JPG")}
 

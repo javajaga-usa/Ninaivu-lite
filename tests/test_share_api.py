@@ -14,7 +14,7 @@ from ninaivu_lite import auth, db
 
 from test_gallery_api import jpeg_with_gps, rescan, set_vis
 
-SHARED_KEYS = {"id", "name", "ext", "kind", "width", "height", "duration", "blurhash", "color",
+SHARED_KEYS = {"id", "ext", "kind", "width", "height", "duration", "blurhash", "color",
                "rotation", "has_thumb", "playable", "src", "thumb", "view"}
 
 
@@ -159,9 +159,9 @@ def test_album_share_never_shows_hidden(app, admin):
     assert {it["id"] for it in r["items"]} == {i["beach.jpg"], i["portrait.jpg"]}
     assert all(set(it) == SHARED_KEYS for it in r["items"])
     assert stranger.get(f"/api/share/{token}/thumb/{i['sunset.jpg']}").status_code == 404
-    # An admin may still share one hidden photograph on purpose.
-    one = share(admin, "asset", i["sunset.jpg"])
-    assert stranger.get(f"/api/share/{one}").status_code == 200
+    # Hidden means admins only: not even an admin's own link shows one (A68).
+    r = admin.post("/api/shares", json={"scope": "asset", "target_id": i["sunset.jpg"]})
+    assert r.status_code == 400
 
 
 def test_password_and_unlock(app, family):

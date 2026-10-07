@@ -25,8 +25,9 @@ releases page, right-click it, choose *Properties*, tick *Unblock*, then *Extrac
 folder that stays put (or a pendrive). Double-click **`Ninaivu Lite Control Panel.vbs`** in it.
 Everything stays in that folder: the program, and the family's settings, people and index
 in the `data` folder that appears beside it the first time. To upgrade, extract the new
-version to a new folder and copy the old `data` folder into it. Its `README-PORTABLE.txt`
-says how to move or remove it.
+version to a new folder and copy the old `data` folder into it; if the old copy starts when
+you sign in, untick that in its Control Panel first and tick it in the new one. Its
+`README-PORTABLE.txt` says how to move or remove it.
 
 **Without an installer, from the source:**
 
@@ -126,7 +127,8 @@ profile (top right) and choose *Sign out* (the door symbol).
 use a photograph instead, open it in the gallery and choose *Use as my profile picture* from
 its ⋯ menu: the middle of it becomes a small square beside your name. *Remove picture* in your
 profile puts the initials back; an administrator can remove anyone's from *People*. The
-picture is shown to whoever reaches the sign-in screen, so choose one you are happy to show.
+picture is shown to whoever reaches the sign-in screen, so it must come from a Family or
+Public photograph; choose one you are happy to show.
 
 ## 5. Using the gallery
 
@@ -202,7 +204,9 @@ without location or camera details. A video is sent with its location removed to
 needs ffmpeg on the computer; without it, a guest or someone with a link is told the video
 cannot be shared, unless an administrator turns on *Send videos to guests and share links as
 they are when their location cannot be removed* in Settings. Your list of links is in your
-profile; you can turn a link off at any time.
+profile; you can turn a link off at any time. A Hidden photograph cannot be shared (make it
+Family or Public first), and a link to a photo stops working if the photo is set to Hidden
+later. The visitor does not see the file's name.
 
 > Links work only on your home network. Ninaivu Lite is not meant to be reached from the internet.
 
@@ -210,11 +214,16 @@ profile; you can turn a link off at any time.
 
 - **Backups** — every day Ninaivu Lite makes a full recovery zip (the index with people,
   albums, favourites, share links and visibility, the settings, and profile pictures) in
-  `backups/` in its data folder, and keeps the last seven. *Settings → Download a backup*
-  gives you one to keep elsewhere. To put one back, stop Ninaivu Lite and run the command
-  below with `--restore <zip>`; what was there is kept in a `before-restore-…` folder inside
-  the data folder, never deleted. Your photos are not in the zip: they are your own files,
-  so back them up as you always do.
+  `backups/` in its data folder. It keeps the last seven days, then one a week for four
+  weeks and one a month for three months, plus a copy taken just before a library folder or
+  a person is removed; *Settings* lists them and says if the last one failed. *Settings →
+  Download a backup* gives you one to keep elsewhere; keep it private, as it holds everyone's
+  password and PIN checks and the share links. To put one back, stop Ninaivu Lite and run the
+  command below with `--restore <zip>`; what was there is kept in a `before-restore-…` folder
+  inside the data folder, never deleted, and everyone signs in again afterwards. On a new
+  computer, where the photo folders are somewhere else, use **Moved?** beside each folder
+  under *Library settings*. Your photos are not in the zip: they are your own files, so back
+  them up as you always do.
 - **Data folder** — `%LOCALAPPDATA%\Ninaivu-lite` on Windows, `~/Library/Application
   Support/Ninaivu-lite` on macOS, `~/.local/share/ninaivu-lite` on Linux; the `data` folder
   beside the program for the portable zip; `/var/lib/ninaivu-lite` for Linux installed with
@@ -235,11 +244,15 @@ profile; you can turn a link off at any time.
   - **Docker:** `docker compose -f installers/docker/docker-compose.yml run --rm ninaivu-lite
     python -m ninaivu_lite --data /data --reset-password <username>`.
 - **A drive unplugged?** Its photos show as unavailable and come back when it returns.
-  Nothing is lost.
+  Nothing is lost. Unplugged during an import, the import ends as not finished: plug it back
+  in and press *Start* to finish. After copying to a pendrive, eject it before unplugging it.
+- **A library folder moved, or not needed?** *Library settings* → **Moved?** points the folder
+  at its new place and keeps everything. *Remove* takes it out of the gallery; who sees what,
+  favourites, albums and share links come back if the same folder is added again.
 - **Updating** — with an installer, run the new installer (the Control Panel's
   **Download** button opens its page); on Linux, run the newer `.sh` the same way as the first.
   For the portable zip, extract the new version to a new folder and copy the old `data`
-  folder into it. For a copy of the source, replace the program files and start it again.
+  folder into it (untick start-at-sign-in in the old copy first). For a copy of the source, replace the program files and start it again.
   Your data folder stays as it is.
 - **Linux, installed with `sudo`** — Ninaivu Lite runs as a service under its own
   `ninaivu-lite` account, never as root, with its data in `/var/lib/ninaivu-lite`. That

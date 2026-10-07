@@ -155,9 +155,9 @@ class Panel:
         self.start_button = ttk.Button(actions, text="▶  Start" if SYMBOL else "Start", style="Start.TButton",
                                        command=lambda: self.run(controller.start, "Starting…"))
         self.stop_button = ttk.Button(actions, text="■  Stop" if SYMBOL else "Stop", style="Stop.TButton",
-                                      command=lambda: self.run(controller.stop, "Stopping…"))
+                                      command=lambda: self.stop_asking(controller.stop, "Stopping…"))
         self.restart_button = ttk.Button(actions, text="↻  Restart" if SYMBOL else "Restart", style="Accent.TButton",
-                                         command=lambda: self.run(controller.restart, "Restarting…"))
+                                         command=lambda: self.stop_asking(controller.restart, "Restarting…"))
         for button in (self.start_button, self.stop_button, self.restart_button):
             button.pack(side="left", padx=(0, 6))
         tk.Frame(actions, bg="#cbd5e1", width=1).pack(side="left", fill="y", padx=8, pady=2)
@@ -187,6 +187,11 @@ class Panel:
             ttk.Checkbutton(row, text="Start Ninaivu Lite when I sign in",
                             variable=self.at_sign_in,
                             command=self.toggle_autostart).pack(side="left")
+            if controller.autostart_elsewhere():
+                tk.Label(body, text="Another copy of Ninaivu Lite (an older folder?) starts when "
+                         "you sign in. Tick the box to start this one instead.",
+                         font=(FONT, 9), bg=SURFACE, fg=MUTED, justify="left", anchor="w",
+                         wraplength=620).pack(fill="x", pady=(4, 0))
         ttk.Button(row, text="Open the log",
                    command=lambda: self.reveal(controller.log_file)).pack(side="right")
         ttk.Button(row, text="Open the data folder",
@@ -529,6 +534,17 @@ class Panel:
                             "then close this panel, before running the installer.")
         else:
             self.close()
+
+    def stop_asking(self, action, doing: str) -> None:
+        """Stop or Restart, asking first when it would cut a copy short (it
+        carries on at the next Start, but nobody should be surprised)."""
+        from .control import BUSY_WORDS
+        busy = self.controller.busy()
+        if busy and not self.ask(f"Ninaivu Lite is in the middle of {BUSY_WORDS.get(busy, busy)}. "
+                                 "Stopping now cuts it short; it carries on, without copying "
+                                 "anything twice, the next time it starts.\n\nStop anyway?"):
+            return
+        self.run(action, doing)
 
     def ask(self, question: str) -> bool:
         """A yes/no box over the window; a test replaces it."""

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import ipaddress
 import logging
 import os
@@ -39,7 +40,9 @@ SECURITY_HEADERS = {
 MAX_REQUEST_BYTES = 100 * 1024 * 1024
 
 #: Answered for someone not signed in even when guest browsing is off.
-OPEN_PREFIXES = ("/static/", "/api/auth/", "/api/share/", "/share/")
+OPEN_PREFIXES = ("/static/", "/api/auth/", "/api/share/", "/share/",
+                 # The sign-in screen shows people's pictures before anyone signs in.
+                 "/api/avatar/")
 OPEN_PATHS = {"/", "/admin", "/admin/", "/sw.js", "/healthz", "/readyz", "/api/health",
               "/manifest.webmanifest", "/admin/manifest.webmanifest", "/favicon.ico",
               "/api/local/stop"}
@@ -49,6 +52,41 @@ MUST_CHANGE_PATHS = {"/api/me", "/api/me/password"}
 
 #: Endings a home network's own names use for this computer (its name plus one of these).
 LOCAL_SUFFIXES = ("", ".local", ".lan", ".home", ".home.arpa", ".internal", ".localdomain")
+
+
+_hosts_refused: set[str] = set()
+
+
+def refuse_host(host: str):
+    """A name this computer does not know (a bookmark with a router's or a
+    NAS's name, after 1.6.0 started checking): said once in the log, with the
+    name to add, and as a page a person can read, not raw JSON."""
+    name = host.rsplit(":", 1)[0] if not host.endswith("]") else host
+    if name not in _hosts_refused and len(_hosts_refused) < 100:
+        _hosts_refused.add(name)
+        log.warning("refused a request for %r: add it to allowed_hosts in settings.json "
+                    "(or NINAIVU_ALLOWED_HOSTS) if it is a name of this computer", name)
+    if request.path.startswith("/api/"):
+        raise ApiError(400, "This address is not one Ninaivu Lite answers to. Open it "
+                            "with this computer's address instead.")
+    safe = html.escape(name)
+    page = (
+        "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'>"
+        "<title>Ninaivu Lite</title><div style='font:16px/1.5 system-ui;margin:3rem auto;"
+        "max-width:34rem;padding:0 1rem'>"
+        f"<h1 style='font-size:1.3rem'>Ninaivu Lite does not answer to “{safe}”</h1>"
+        "<p>Open it with this computer's address instead (shown in the Control Panel, for "
+        "example http://192.168.1.20:8080). If this name is meant to work, the person who looks "
+        f"after Ninaivu Lite adds <code>{safe}</code> to <code>allowed_hosts</code> in "
+        "settings.json in its data folder (or <code>NINAIVU_ALLOWED_HOSTS</code>, in Docker) "
+        "and restarts it.</p><hr>"
+        f"<h1 style='font-size:1.3rem'>நினைவு லைட் “{safe}” என்ற பெயருக்குப் பதில் தராது</h1>"
+        "<p>இந்தக் கணினியின் முகவரியுடன் திறக்கவும் (கட்டுப்பாட்டுப் பலகத்தில் காட்டப்படும், "
+        "எ.கா. http://192.168.1.20:8080). இந்தப் பெயர் வேலை செய்ய வேண்டுமெனில், தரவுக் "
+        f"கோப்புறையில் உள்ள settings.json இல் <code>allowed_hosts</code> இல் <code>{safe}</code> "
+        "ஐச் சேர்த்து மறுதொடக்கம் செய்யவும்.</p></div>")
+    from flask import Response
+    return Response(page, 400, mimetype="text/html")
 
 
 def host_allowed(host: str, extra: list[str] | tuple[str, ...] = ()) -> bool:
@@ -108,6 +146,16 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
     app.config["SCANNER"] = scanner or Scanner(cfg.data_dir, cfg.folders)
     app.config["SCANNER"].auto = cfg.watch
     app.config["IMPORTER"] = Importer(cfg.data_dir)
+
+    def imported(destination: str) -> None:
+        # Files the importer (or a phone) put inside a library folder show in
+        # the gallery now, not at the next half-hourly look (or never, with
+        # watching off).
+        from .importer import is_within
+        if any(is_within(destination, root) for root in cfg.folders):
+            app.config["SCANNER"].rescan()
+
+    app.config["IMPORTER"].on_files = imported
     app.config["DRIVES"] = drives.Watcher()
     app.config["EXPORTER"] = drives.Exporter()
     app.config["PHONE_IMPORT"] = phones.PhoneImport()
@@ -144,8 +192,7 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
     def guard():
         # Only for this computer's own names: never a stranger's name pointed here.
         if not host_allowed(request.host, cfg.allowed_hosts):
-            raise ApiError(400, "This address is not one Ninaivu Lite answers to. Open it "
-                                "with this computer's address instead.")
+            return refuse_host(request.host)
         # Writes only from this site's own pages.
         if request.method in UNSAFE:
             site = request.headers.get("Sec-Fetch-Site")
@@ -166,7 +213,7 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
         if path in OPEN_PATHS or path.startswith(OPEN_PREFIXES):
             return None
         if not cfg.open_browsing and common.user().anonymous:
-            raise ApiError(401, "This library is private. Please sign in.")
+            raise ApiError(401, "This library is private. Please sign in.", private=True)
         # A password an administrator set is only for getting in: nothing is
         # changed with it until its owner has chosen their own.
         if request.method in UNSAFE and path.startswith("/api/") \
@@ -181,6 +228,15 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
         if request.path.startswith("/api/"):
             response.headers.add("Vary", "Cookie")
             response.headers.setdefault("Cache-Control", "no-store")
+        signing_in = any(c.startswith(f"{auth.SESSION_COOKIE}=")
+                         for c in response.headers.getlist("Set-Cookie"))
+        if g.get("session_ended") and not signing_in:
+            response.headers["X-Ninaivu-Session"] = "ended"
+            if request.path.startswith("/api/"):
+                # Pages read this header; a picture never does, so the cookie
+                # is ended only where the page will hear why.
+                response.headers["Clear-Site-Data"] = '"cache"'
+                response.delete_cookie(auth.SESSION_COOKIE, path="/")
         return response
 
     # Registered after `headers`, so it runs first (Flask runs the hooks in

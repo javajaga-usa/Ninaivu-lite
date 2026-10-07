@@ -301,12 +301,29 @@ class PhoneImport:
                 except OSError:
                     pass
             self._set(phase="importing", done=0, total=0)
-            engine.start([mirror], destination, ["image", "video"], "copy")
+            try:
+                engine.start([mirror], destination, ["image", "video"], "copy")
+            except ValueError:
+                # The Import page started a run while the phone was copying.
+                self._set(phase="failed", message=_say(
+                    "The photos came across from the phone, but another import is running. "
+                    "Wait for it to finish, then import from the phone again: nothing is "
+                    "copied twice."))
+                return
             while engine.running:
                 engine.wait(0.5)
             if self.cancel.is_set():
                 self._set(phase="stopped", message=_say(
                     "Stopped. Nothing on the phone was changed."))
+                return
+            ended = engine.progress()
+            if ended.get("phase") != "done":
+                # The archive step did not finish (no room, stopped from the
+                # Import page): say what it said, not "done".
+                self._set(phase="failed" if ended.get("phase") == "failed" else "stopped",
+                          message=ended.get("job_said") or _say(
+                              "The archive step stopped before the end. Import from the phone "
+                              "again to finish: nothing is copied twice."))
                 return
             added, already = self._tidy(mirror, data_dir, imported_list(data_dir, drive),
                                         _read_list(imported_list(data_dir, drive, "unsure")))
@@ -319,6 +336,9 @@ class PhoneImport:
             else:
                 key = ("{added} new photos and videos from the phone are in the archive. "
                        "{already} were there already.")
+            # Where they went, so nobody has to guess which folder to open.
+            key += " They are in {folder}."
+            counts["folder"] = destination
             self._set(phase="done", message=_say(key, **counts))
         except Exception:  # noqa: BLE001 — said, not raised
             log.exception("phone import failed")

@@ -45,8 +45,14 @@ def conn() -> sqlite3.Connection:
 def user() -> auth.User:
     """The person asking: signed in, or the anonymous guest."""
     if "user" not in g:
-        g.user = auth.session_user(conn(), request.cookies.get(auth.SESSION_COOKIE)) \
-            or auth.ANONYMOUS
+        cookie = request.cookies.get(auth.SESSION_COOKIE)
+        found = auth.session_user(conn(), cookie)
+        # A device whose session was ended from the console (a PIN changed,
+        # Sign out everywhere, a profile switched off) is told so, rather
+        # than quietly answered as somebody "just looking" while it keeps
+        # the last person's albums and photographs on screen.
+        g.session_ended = bool(cookie) and found is None
+        g.user = found or auth.ANONYMOUS
     return g.user
 
 
@@ -152,7 +158,8 @@ def drop_avatar(user_id: int) -> None:
 
 
 def folder_ids() -> dict[str, int]:
-    return {r["path"]: r["id"] for r in conn().execute("SELECT id, path FROM folders")}
+    return {r["path"]: r["id"] for r in conn().execute(
+        "SELECT id, path FROM folders WHERE detached_at IS NULL")}
 
 
 def split_library(path: str | None) -> tuple[int, str] | None:

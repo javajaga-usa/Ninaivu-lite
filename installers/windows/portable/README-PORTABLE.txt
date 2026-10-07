@@ -19,8 +19,11 @@ Panel (that adds one small file to your Startup folder; untick it before
 moving or deleting this folder).
 
 Moving it: close the Control Panel after pressing Stop, then move or copy
-the whole folder. Upgrading: extract the new version to a new folder, then
-copy the old "data" folder into it. Removing it: press Stop, untick
+the whole folder. Upgrading: in the old folder's Control Panel press Stop and
+untick "Start Ninaivu Lite when I sign in", then extract the new version to a
+new folder, copy the old "data" folder into it, and tick the box again in the
+new Control Panel (otherwise the old copy keeps starting, and changes go into
+its data). Removing it: press Stop, untick
 "Start Ninaivu Lite when I sign in", and delete the folder.
 
 Setting up from a phone asks for a setup code: the Control Panel shows it,
@@ -57,8 +60,11 @@ Startup கோப்புறையில் ஒரு சிறு கோப்
 நீக்கும் முன் அந்தத் தேர்வை நீக்கவும்.
 
 நகர்த்த: Stop அழுத்தி Control Panel ஐ மூடி, முழுக் கோப்புறையையும் நகர்த்தவும்
-அல்லது நகலெடுக்கவும். புதுப்பிக்க: புதிய பதிப்பை ஒரு புதிய கோப்புறையில்
-விரித்து, பழைய "data" கோப்புறையை அதற்குள் நகலெடுக்கவும். நீக்க: Stop அழுத்தி,
+அல்லது நகலெடுக்கவும். புதுப்பிக்க: பழைய கோப்புறையின் Control Panel இல் Stop
+அழுத்தி "Start Ninaivu Lite when I sign in" தேர்வை நீக்கவும்; பின் புதிய
+பதிப்பை ஒரு புதிய கோப்புறையில் விரித்து, பழைய "data" கோப்புறையை அதற்குள்
+நகலெடுத்து, புதிய Control Panel இல் அந்தத் தேர்வை மீண்டும் இடவும் (இல்லையெனில்
+பழைய நகலே தொடங்கும், மாற்றங்கள் அதன் தரவில் சேரும்). நீக்க: Stop அழுத்தி,
 "Start Ninaivu Lite when I sign in" தேர்வை நீக்கி, கோப்புறையை அழிக்கவும்.
 
 கைப்பேசியிலிருந்து அமைத்தால் ஓர் அமைப்புக் குறியீடு கேட்கப்படும்: Control Panel

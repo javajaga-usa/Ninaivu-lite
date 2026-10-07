@@ -90,6 +90,15 @@ export class FirstDay {
     // Somebody typed in but not yet added is added now, not thrown away; if
     // that is refused (a PIN too easy to guess, say), stay here and say why.
     if (STEPS[this.step] === 'people' && this.pending?.filled() && !(await this.pending.add())) return;
+    // Folders added as sources but never started: Next used to drop them
+    // without a word (the Start button can be below the fold in Tamil).
+    if (STEPS[this.step] === 'import' && this.sources.length && this.destination
+        && !this.state.import?.running && !this.importStarted) {
+      if (confirm(i18n.t('Start the import of the folders you added now? Cancel goes on without importing; Import, under Library, can do it later.'))) {
+        const start = $('#fd-start-import');
+        if (start) await this.startImport(start);
+      }
+    }
     if (this.step >= STEPS.length - 1) { await this.finish(false); return; }
     this.step += 1;
     await this.reload();
@@ -224,12 +233,19 @@ export class FirstDay {
     });
     where.append(chosen, change);
     body.append(where);
-    body.append(el('p', 'hint', this.state.library.chosen
+    const inside = (this.state.library.roots || [this.state.library.root]).some((root) => root
+      && this.destination && (this.destination === root
+        || this.destination.startsWith(`${root.replace(/[\\/]+$/, '')}/`)
+        || this.destination.startsWith(`${root.replace(/[\\/]+$/, '')}\\`)));
+    body.append(el('p', 'hint', inside
       ? i18n.t('Inside your library folder, so the family sees the archive as soon as it is indexed. Nothing already in the library is touched.')
-      : i18n.t('Choose a folder on a drive with room for everything. It is added to the library when the import starts.')));
+      : (this.state.library.chosen
+        ? i18n.t('Outside your library folder: it is added to the library as a folder of its own when the import starts.')
+        : i18n.t('Choose a folder on a drive with room for everything. It is added to the library when the import starts.'))));
 
     const run = el('div', 'row');
     const start = el('button', 'btn primary', i18n.t('Start the import'));
+    start.id = 'fd-start-import';
     start.type = 'button';
     start.disabled = !this.sources.length || !this.destination || !!this.state.import?.running;
     start.onclick = () => this.startImport(start);
@@ -263,8 +279,14 @@ export class FirstDay {
       if (started.destination) this.destination = started.destination;
       // The archive joins the library now, so what the import brings in is
       // indexed as it lands rather than waiting for somebody to add it.
-      try { await this.json('/api/archive/adopt', { method: 'POST', body: { path: this.destination } }); } catch { /* said on Import */ }
-      this.toast(i18n.t('Import started. Watch it on Import, under Library.'));
+      this.importStarted = true;
+      try {
+        await this.json('/api/archive/adopt', { method: 'POST', body: { path: this.destination } });
+        this.toast(i18n.t('Import started. Watch it on Import, under Library.'));
+      } catch (exc) {
+        // Said here: the family would otherwise wait for photos that never show.
+        this.toast(i18n.t('The import started, but its folder could not be added to the library: {why} Add it on Library settings.', { why: exc.message }), true);
+      }
       await this.reload();
       this.render();
     } catch (exc) {

@@ -105,7 +105,22 @@ def _manifest(name: str, start: str, icons: str) -> str:
 @bp.get("/api/health")
 @bp.get("/healthz")
 def health():
-    return jsonify(ok=True, app="Ninaivu Lite", version=__version__)
+    # Which data folder: two copies of Ninaivu Lite on one computer (an
+    # installed one and a portable one) are told apart by this.
+    return jsonify(ok=True, app="Ninaivu Lite", version=__version__,
+                   instance=current_app.config.get("INSTANCE"), busy=busy())
+
+
+def busy() -> str | None:
+    """What a Stop would cut short: a copy into the archive, to a drive, or
+    from a phone. The Control Panel asks before stopping it."""
+    config = current_app.config
+    for name, key in (("phone", "PHONE_IMPORT"), ("import", "IMPORTER"),
+                      ("export", "EXPORTER")):
+        job = config.get(key)
+        if job is not None and getattr(job, "running", False):
+            return name
+    return None
 
 
 @bp.post("/api/local/stop")

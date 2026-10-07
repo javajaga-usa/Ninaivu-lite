@@ -1383,7 +1383,8 @@ function visLabel(visibility) {
 // has loaded, so i18n.t() here would freeze the English (see i18n.key).
 const VIS_REASONS = {
   hidden: i18n.key('Hidden because it was in a hidden file or folder on disk'),
-  folder: i18n.key('Follows the rule set on its folder'),
+  // The server calls a folder rule's choice "rule".
+  rule: i18n.key('Follows the rule set on its folder'),
   item: i18n.key('Set on this item'),
   screen: i18n.key('Hidden because it looks like a screenshot, a document or a photo of a screen'),
   default: '',

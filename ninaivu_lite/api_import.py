@@ -13,7 +13,7 @@ import re
 import time
 from typing import Any
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, current_app, jsonify, request
 
 from . import folders, importer, takeout
 from .common import body, cfg, conn, fail, importer as engine, require_admin, scanner
@@ -51,8 +51,17 @@ def _status_payload() -> dict[str, Any]:
         or cfg().import_destination
     if not out["is_scanning"] and last is not None and not out["phase"]:
         out["phase"] = last["phase"]
-        out["job_message"] = last["message"] or ""
+        out["job_said"] = importer.stored_said(last["message"])
+        out["job_message"] = importer.said_text(out["job_said"])
         out["job_mode"] = last["mode"]
+        if last["state"] == "running":
+            # Nothing is running, yet the last run never ended: the computer
+            # went off, or Ninaivu Lite was stopped, in the middle of it.
+            out["phase"] = "interrupted"
+            out["job_said"] = importer._say(
+                "The last import was interrupted (the computer went off, or Ninaivu Lite was "
+                "stopped). Press Start to finish it; what was copied is kept.")
+            out["job_message"] = out["job_said"]["text"]
     verified = c.execute("SELECT COUNT(*) FROM import_files WHERE status = 'verified'").fetchone()[0]
     in_library = any(importer.is_within(destination, root) for root in cfg().folders) \
         if destination else False
@@ -142,8 +151,19 @@ def start():
             problems.append(importer._say("Pick at least one kind of file: photos or video."))
     if problems:
         fail(409, problems[0]["text"], problems=problems, resolution=resolution)
+    phone = current_app.config.get("PHONE_IMPORT")
+    if phone is not None and phone.running:
+        fail(409, "A phone is being imported. Wait for it to finish first.")
+    if mode == "copy":
+        # Made now, not after counting: the first-day wizard adds the archive
+        # to the library straight after Start, and a folder that is not there
+        # yet was refused, leaving the library empty without a word.
+        try:
+            os.makedirs(destination, exist_ok=True)
+        except OSError as exc:
+            fail(409, f"The destination folder cannot be made: {exc}")
     try:
-        engine().start(sources, destination, kinds, mode)
+        engine().start(sources, destination, kinds, mode, library=list(cfg().folders))
     except ValueError as exc:
         fail(409, str(exc))
     c = cfg()
@@ -244,10 +264,9 @@ def adopt():
         problem = folders.problem(path, c.data_dir, c.folders)
         if problem:
             fail(400, problem)
-        c.folders.append(path)
-        if not c.active:
-            c.active = path
-        _folders_changed()
+        _folders_changed(folders=[*c.folders, path], active=c.active or path)
+    else:
+        scanner().rescan()        # what was imported since the last scan shows now
     return jsonify({"ok": True, "already": already, "path": path, "folders": list(c.folders),
                     "message": "That folder is already in the library." if already
                     else "Added to the library. Indexing it now."})

@@ -135,8 +135,14 @@ export function avatarNode(person, size = 32) {
   wrap.style.fontSize = `${Math.round(size * 0.38)}px`;
   if (person.avatar) {
     const img = el('img');
-    img.src = person.avatar;
     img.alt = '';
+    // A picture that cannot be fetched shows the initials, not a broken image.
+    img.onerror = () => {
+      img.remove();
+      wrap.style.background = avatarColour(person);
+      wrap.appendChild(el('span', null, person.initials || '?'));
+    };
+    img.src = person.avatar;
     wrap.appendChild(img);
   } else {
     wrap.style.background = avatarColour(person);
@@ -738,9 +744,11 @@ export class ProfileSheet {
     const line = el('div', 'person-name');
     const isAlbum = share.scope === 'album';
     const named = isAlbum ? this.albumName(share.target_id) : '';
-    line.appendChild(el('strong', null, named
-      ? `${i18n.t('Album')}: ${named}`
-      : (isAlbum ? i18n.t('Album') : i18n.t('Photo'))));
+    // Which photograph, not just "Photo": the server sends its file name.
+    const label = isAlbum
+      ? (named ? `${i18n.t('Album')}: ${named}` : i18n.t('Album'))
+      : (share.name ? `${i18n.t('Photo')}: ${share.name}` : i18n.t('Photo'));
+    line.appendChild(el('strong', null, label));
     if (share.expired) line.appendChild(el('span', 'off-tag', i18n.t('Expired')));
     identity.appendChild(line);
 

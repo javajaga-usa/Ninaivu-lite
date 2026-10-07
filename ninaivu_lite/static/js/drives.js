@@ -89,6 +89,19 @@ export class DrivePrompt {
       data = await this.json('/api/admin/drives');
     } catch { return; /* the console's own error handling covers a dead server */ }
     if (this.job) return;
+    // A copy to a drive, or a phone import, still going after the console
+    // was reloaded or closed: shown again, so nobody pulls the drive mid-copy.
+    const going = ['export', 'phone'].find((job) => data[job]?.running);
+    if (going && !this.jobTimer) {
+      this.drive = { id: '', label: data[going].drive || data[going].phone || '' };
+      this.job = going;
+      this.lastJob = data[going];
+      this.redraw();
+      this.modal.hidden = false;
+      this.showJob(data[going]);
+      this.follow(going);
+      return;
+    }
     if (this.modal && !this.modal.hidden) {
       // Taken out, or answered on another screen (the Control Panel, another
       // tab): nothing left to ask here.

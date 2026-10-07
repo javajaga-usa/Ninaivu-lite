@@ -128,7 +128,7 @@ def test_a13_restore_refuses_what_it_cannot_trust(tmp_path):
 def test_a13_the_command_will_not_restore_under_a_running_server(tmp_path, monkeypatch):
     from ninaivu_lite import __main__ as cli
     from ninaivu_lite import net
-    monkeypatch.setattr(net, "already_running", lambda port: True)
+    monkeypatch.setattr(net, "already_running", lambda port, instance=None: True)
     assert cli.main(["--data", str(tmp_path / "data"), "--restore", str(tmp_path / "x.zip")]) == 2
 
 

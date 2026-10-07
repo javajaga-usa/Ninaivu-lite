@@ -22,6 +22,7 @@ import tempfile
 import threading
 import time
 import zipfile
+import zlib
 from datetime import datetime
 from pathlib import Path
 
@@ -32,7 +33,11 @@ SETTINGS_FILE = "settings.json"
 
 log = logging.getLogger(__name__)
 
-KEEP = 7
+KEEP = 7            # daily copies
+KEEP_WEEKLY = 4     # and, beyond those, the newest of each of the last four weeks
+KEEP_MONTHLY = 3    # and of each of the last three months
+KEEP_BEFORE = 5     # copies taken just before a folder or a person is removed
+FAILURE_FILE = "last-failure.txt"
 RESTORE_NOTE = """Ninaivu Lite backup
 ===================
 
@@ -102,30 +107,89 @@ def restore(data_dir: str | Path, bundle: str | Path) -> Path:
     """Put a recovery zip back into *data_dir* (Ninaivu Lite must be stopped).
 
     The index in it is checked before anything is touched: it must be a
-    whole SQLite file from this version or an older one. The index, its
-    ``-wal`` and ``-shm`` companions (which SQLite would otherwise replay
+    whole Ninaivu Lite index from this version or an older one. The index,
+    its ``-wal`` and ``-shm`` companions (which SQLite would otherwise replay
     over the restored file), the settings and the profile pictures that
     were there are moved aside into ``before-restore-<time>/``, never
-    deleted. Returns that folder."""
-    from .db import MIGRATIONS
+    deleted. A bare index (the daily ``.db`` copies older versions made) is
+    accepted too. Returns that folder.
+
+    Sessions are not brought back: a phone signed out after the backup was
+    taken stays signed out. Thumbnails and viewing copies are made again,
+    since the restored index may give their ids to other photographs."""
     data = Path(data_dir)
     data.mkdir(parents=True, exist_ok=True)
+    if _is_sqlite(bundle):
+        return _restore_staged(data, bundle, lambda staged: shutil.copyfile(bundle, staged),
+                               names=set(), archive=None)
     try:
         archive = zipfile.ZipFile(bundle)
     except (OSError, zipfile.BadZipFile) as exc:
         raise RestoreError(f"{bundle} is not a Ninaivu Lite backup zip ({exc}).") from exc
-    with archive, tempfile.TemporaryDirectory(dir=data) as tmp:
+    with archive:
         names = set(archive.namelist())
         if DB_FILE not in names:
             raise RestoreError(f"{bundle} has no {DB_FILE} in it.")
+        wanted = [DB_FILE, SETTINGS_FILE, *(n for n in names if _AVATAR_NAME.match(n))]
+        size = sum(archive.getinfo(n).file_size for n in wanted if n in names)
+        free = shutil.disk_usage(data).free
+        if size > free - 64 * 1024 ** 2:
+            raise RestoreError(f"{bundle} needs {size // 1024 ** 2} MB to unpack and the data "
+                               f"folder's disk has {free // 1024 ** 2} MB free. Nothing was changed.")
+
+        def extract(staged: Path) -> None:
+            with archive.open(DB_FILE) as src, open(staged, "wb") as out:
+                shutil.copyfileobj(src, out)
+        return _restore_staged(data, bundle, extract, names=names, archive=archive)
+
+
+def _is_sqlite(path: str | Path) -> bool:
+    try:
+        with open(path, "rb") as f:
+            return f.read(16) == b"SQLite format 3\x00"
+    except OSError:
+        return False
+
+
+#: Tables every Ninaivu Lite index has; a file without them is something else.
+_REQUIRED_TABLES = {"folders", "assets", "users", "sessions", "shares"}
+
+
+def _restore_staged(data: Path, bundle, extract, *, names: set[str], archive) -> Path:
+    from .db import MIGRATIONS
+    with tempfile.TemporaryDirectory(dir=data) as tmp:
         staged = Path(tmp) / DB_FILE
-        with archive.open(DB_FILE) as src, open(staged, "wb") as out:
-            shutil.copyfileobj(src, out)
+        settings = Path(tmp) / SETTINGS_FILE
+        avatars = Path(tmp) / AVATARS_DIR
+        avatars.mkdir()
+        try:
+            extract(staged)
+            if SETTINGS_FILE in names:
+                with archive.open(SETTINGS_FILE) as src, open(settings, "wb") as out:
+                    shutil.copyfileobj(src, out)
+            for name in sorted(n for n in names if _AVATAR_NAME.match(n)):
+                with archive.open(name) as src, \
+                        open(avatars / name.split("/", 1)[1], "wb") as out:
+                    shutil.copyfileobj(src, out)
+        except (zipfile.BadZipFile, zlib.error, EOFError) as exc:
+            raise RestoreError(f"{bundle} is damaged and cannot be unpacked ({exc}). "
+                               "Nothing was changed.") from exc
         try:
             check = sqlite3.connect(str(staged))
             try:
                 ok = check.execute("PRAGMA integrity_check").fetchone()[0]
                 version = check.execute("PRAGMA user_version").fetchone()[0]
+                tables = {r[0] for r in check.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'")}
+                if ok == "ok" and version >= 1 and _REQUIRED_TABLES <= tables \
+                        and version <= len(MIGRATIONS):
+                    # Who was signed in when the copy was taken is not
+                    # brought back; nor are thumbnails, whose files on disk
+                    # may now belong to other photographs with the same ids.
+                    check.execute("DELETE FROM sessions")
+                    check.execute("UPDATE assets SET thumb = 0, large = 0, "
+                                  "thumb_v = thumb_v + 1 WHERE thumb != 2 OR large != 0")
+                    check.commit()
             finally:
                 check.close()
         except sqlite3.Error as exc:
@@ -135,22 +199,17 @@ def restore(data_dir: str | Path, bundle: str | Path) -> Path:
         if version > len(MIGRATIONS):
             raise RestoreError(f"{bundle} was made by a newer Ninaivu Lite; update this one "
                                "first.")
-        settings = Path(tmp) / SETTINGS_FILE
-        if SETTINGS_FILE in names:
-            with archive.open(SETTINGS_FILE) as src, open(settings, "wb") as out:
-                shutil.copyfileobj(src, out)
-        avatars = Path(tmp) / AVATARS_DIR
-        avatars.mkdir()
-        for name in sorted(n for n in names if _AVATAR_NAME.match(n)):
-            with archive.open(name) as src, open(avatars / name.split("/", 1)[1], "wb") as out:
-                shutil.copyfileobj(src, out)
+        if version < 1 or not _REQUIRED_TABLES <= tables:
+            raise RestoreError(f"The index in {bundle} is empty or is not a Ninaivu Lite index. "
+                               "Nothing was changed.")
 
         aside = data / f"before-restore-{datetime.now():%Y-%m-%d-%H%M%S}"
         aside.mkdir()
-        moving = [DB_FILE, f"{DB_FILE}-wal", f"{DB_FILE}-shm", f"{DB_FILE}-journal"]
-        if settings.is_file():
-            moving.append(SETTINGS_FILE)
-        moving.append(AVATARS_DIR)
+        # Without settings in the backup the folders are taken from the
+        # restored index (Config recovers them), not from the settings here,
+        # which may list other folders and would drop the restored ones.
+        moving = [DB_FILE, f"{DB_FILE}-wal", f"{DB_FILE}-shm", f"{DB_FILE}-journal",
+                  SETTINGS_FILE, AVATARS_DIR]
         for name in moving:
             if (data / name).exists():
                 (data / name).replace(aside / name)
@@ -158,6 +217,10 @@ def restore(data_dir: str | Path, bundle: str | Path) -> Path:
         if settings.is_file():
             settings.replace(data / SETTINGS_FILE)
         avatars.replace(data / AVATARS_DIR)
+        for cache in ("thumbs", "views"):
+            if (data / cache).exists():
+                gone = Path(tmp) / f"old-{cache}"
+                (data / cache).replace(gone)
     log.info("restored %s into %s; what was there is in %s", bundle, data, aside)
     return aside
 
@@ -173,7 +236,7 @@ def daily(data_dir: str | Path) -> Path | None:
     tmp = today.with_name(today.name + ".tmp")
     write_bundle(data_dir, tmp)
     tmp.replace(today)
-    for old in _kept(folder)[KEEP:]:
+    for old in _to_prune(_kept(folder)):
         try:
             old.unlink()
         except OSError:
@@ -182,16 +245,92 @@ def daily(data_dir: str | Path) -> Path | None:
     return today
 
 
+def _to_prune(kept: list[Path]) -> list[Path]:
+    """Beyond the last :data:`KEEP` days, one copy a week for
+    :data:`KEEP_WEEKLY` weeks and one a month for :data:`KEEP_MONTHLY`
+    months is kept: a week of copies taken after something went wrong (a
+    folder removed, a library emptied) must not push out every good one."""
+    keep: set[Path] = set(kept[:KEEP])
+    # The newest copy of each week and month, counting the daily ones: a
+    # week the daily copies already cover needs nothing older from it.
+    weeks: dict[tuple, Path] = {}
+    months: dict[str, Path] = {}
+    for path in kept:
+        try:
+            day = datetime.strptime(path.stem[len("ninaivu-lite-"):][:10], "%Y-%m-%d")
+        except ValueError:
+            continue
+        weeks.setdefault(day.isocalendar()[:2], path)
+        months.setdefault(f"{day:%Y-%m}", path)
+    keep.update(list(weeks.values())[:KEEP_WEEKLY])
+    keep.update(list(months.values())[:KEEP_MONTHLY])
+    return [p for p in kept if p not in keep]
+
+
 def _kept(folder: Path) -> list[Path]:
     """The daily copies, newest first (by the date in the name)."""
     found = [*folder.glob("ninaivu-lite-*.zip"), *folder.glob("ninaivu-lite-*.db")]
     return sorted(found, key=lambda p: (p.stem, p.suffix == ".zip"), reverse=True)
 
 
-def listing(data_dir: str | Path) -> list[dict]:
+def before_change(data_dir: str | Path, what: str) -> Path | None:
+    """A copy taken just before something that forgets what the household
+    decided (a library folder or a person removed), kept beside the daily
+    ones as ``before-<what>-<time>.zip``. None, after logging why, if it
+    could not be made: the change itself is not held up."""
     folder = Path(data_dir) / "backups"
-    return [{"name": p.name, "size": p.stat().st_size, "at": p.stat().st_mtime}
-            for p in _kept(folder)]
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        target = folder / f"before-{what}-{datetime.now():%Y-%m-%d-%H%M%S}.zip"
+        tmp = target.with_name(target.name + ".tmp")
+        write_bundle(data_dir, tmp)
+        tmp.replace(target)
+    except Exception:  # noqa: BLE001 — a missing copy must not stop the admin
+        log.exception("could not take a backup before %s", what)
+        return None
+    for old in sorted(folder.glob("before-*.zip"), reverse=True)[KEEP_BEFORE:]:
+        try:
+            old.unlink()
+        except OSError:
+            pass
+    return target
+
+
+def listing(data_dir: str | Path) -> list[dict]:
+    """Every copy kept in ``backups/``, newest first, for the console."""
+    folder = Path(data_dir) / "backups"
+    found = [*_kept(folder), *folder.glob("before-*.zip")] if folder.is_dir() else []
+    out = []
+    for p in found:
+        try:
+            st = p.stat()
+        except OSError:
+            continue
+        out.append({"name": p.name, "size": st.st_size, "at": st.st_mtime,
+                    "before": p.name.startswith("before-")})
+    return sorted(out, key=lambda item: item["at"], reverse=True)
+
+
+def last_failure(data_dir: str | Path) -> dict | None:
+    """When and why the last daily copy failed, while no copy has been made since."""
+    path = Path(data_dir) / "backups" / FAILURE_FILE
+    try:
+        st = path.stat()
+        return {"at": st.st_mtime, "why": path.read_text(encoding="utf-8")[:300]}
+    except (OSError, ValueError):
+        return None
+
+
+def _note_failure(data_dir: str | Path, exc: BaseException | None) -> None:
+    path = Path(data_dir) / "backups" / FAILURE_FILE
+    try:
+        if exc is None:
+            path.unlink(missing_ok=True)
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"{type(exc).__name__}: {exc}", encoding="utf-8")
+    except OSError:
+        pass
 
 
 def download(data_dir: str | Path) -> bytes:
@@ -244,8 +383,10 @@ class Keeper:
         while True:
             try:
                 daily(self.data_dir)
-            except Exception:  # noqa: BLE001 — a failed copy must not stop anything
+                _note_failure(self.data_dir, None)
+            except Exception as exc:  # noqa: BLE001 — a failed copy must not stop anything
                 log.exception("daily backup failed")
+                _note_failure(self.data_dir, exc)    # shown on the console
             try:
                 prune_views(self.data_dir)
             except Exception:  # noqa: BLE001

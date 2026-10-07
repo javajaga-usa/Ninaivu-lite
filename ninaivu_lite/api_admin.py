@@ -328,11 +328,12 @@ def browse():
     })
 
 
-def _folders_changed() -> None:
-    """Save, bring the index's folder list in line now (so the screens update
-    straight away), and let the scanner look."""
+def _folders_changed(**changes: Any) -> None:
+    """Save *changes*, bring the index's folder list in line now (so the
+    screens update straight away), and let the scanner look. Nothing changes
+    unless the settings were written."""
     c = cfg()
-    c.save()
+    c.update(**changes)
     s = scanner()
     s.folders = list(c.folders)          # before the sync: a scan starting now reads this
     db.sync_folders(conn(), list(c.folders))
@@ -355,11 +356,11 @@ def add_root():
         if problem:
             refused = problem.startswith(("That is a system folder", "That is Ninaivu Lite's own"))
             fail(403 if refused else 400, problem)
-        c.folders.append(path)
+        new = [*c.folders, path]
     else:
         path = existing
-    c.active = path
-    _folders_changed()
+        new = list(c.folders)
+    _folders_changed(folders=new, active=path)
     return jsonify({"ok": True, "root": c.active_folder, "added": added,
                     "folders": list(c.folders)})
 
@@ -382,14 +383,52 @@ def remove_library():
         names = ", ".join(assigned[:5])
         fail(409, f"{names} {'is' if len(assigned) == 1 else 'are'} assigned to that "
                   f"folder. Reassign them first, or confirm to remove it anyway: they "
-                  f"will see nothing until they are reassigned. Removing a folder also "
-                  f"forgets its photographs' favourites, album places and per-photo "
-                  f"visibility.", assigned=assigned)
+                  f"will see nothing until they are reassigned.", assigned=assigned)
+    # A copy first: removing is undone by adding the folder back, but a
+    # restore is there too if that is not enough.
+    backups.before_change(c.data_dir, "removing-folder")
     # Assignments are left as they are: one that matches no library folder
     # sees nothing, where clearing it would mean "everything".
-    c.folders.remove(path)
-    if c.active == path:
-        c.active = c.folders[0] if c.folders else ""
+    left = [f for f in c.folders if f != path]
+    _folders_changed(folders=left,
+                     active=c.active if c.active != path else (left[0] if left else ""))
+    return jsonify({"ok": True, "folders": _library_summaries()})
+
+
+@bp.post("/api/admin/libraries/move")
+def move_library():
+    """A library folder's photographs are somewhere else now (a new drive
+    letter, a new computer after a restore): point the folder there. The
+    index keeps its rows, so who sees what, favourites, albums and share
+    links carry over; the people assigned inside it follow it."""
+    require_admin()
+    c = cfg()
+    data = body()
+    old = _find_library(str(data.get("path") or "").strip())
+    if old is None:
+        fail(404, "That folder is not in the library.")
+    raw = str(data.get("to") or "").strip()
+    if not raw:
+        fail(400, "Where are the photographs now?")
+    new = os.path.normpath(os.path.expanduser(raw))
+    if new == old:
+        return jsonify({"ok": True, "folders": _library_summaries()})
+    others = [f for f in c.folders if f != old]
+    problem = folders.problem(new, c.data_dir, others)
+    if problem:
+        refused = problem.startswith(("That is a system folder", "That is Ninaivu Lite's own"))
+        fail(403 if refused else 400, problem)
+    c.update(folders=[new if f == old else f for f in c.folders],
+             active=new if c.active == old else c.active)
+    scanner().folders = list(c.folders)     # a scan starting now must not set *new* aside
+    db.move_folder(conn(), old, new)
+    with conn():
+        for row in conn().execute(
+                "SELECT id, library FROM users WHERE library IS NOT NULL").fetchall():
+            if _inside(row["library"], old):
+                rel = os.path.relpath(os.path.normpath(row["library"]), os.path.normpath(old))
+                moved = new if rel == "." else os.path.join(new, rel)
+                conn().execute("UPDATE users SET library = ? WHERE id = ?", (moved, row["id"]))
     _folders_changed()
     return jsonify({"ok": True, "folders": _library_summaries()})
 
@@ -401,8 +440,7 @@ def set_active_library():
     path = _find_library(str(body().get("path") or "").strip())
     if path is None:
         fail(404, "That folder is not in the library.")
-    c.active = path
-    c.save()
+    c.update(active=path)
     return jsonify({"ok": True, "root": c.active_folder})
 
 
@@ -410,6 +448,12 @@ def set_active_library():
 def rescan():
     require_admin()
     full = bool(body().get("full"))
+    if full:
+        # Read every file again (dates, sizes, which way up) and make every
+        # thumbnail again; who sees what, favourites and turns set by hand
+        # are kept. The thumbnail version changes so browsers fetch new ones.
+        with conn():
+            conn().execute("UPDATE assets SET mtime = -1, thumb_v = thumb_v + 1")
     s = scanner()
     s.folders = list(cfg().folders)
     s.rescan()
@@ -476,11 +520,9 @@ def settings():
             if data[key] not in ("en", "ta"):
                 fail(400, "The language must be en or ta.")
             updates["language"] = data[key]
-    for key, value in updates.items():
-        setattr(c, key, value)
     changed = list(updates)
     if changed:
-        c.save()
+        c.update(**updates)
     if "watch" in updates:
         scanner().auto = c.watch
         if c.watch:
@@ -497,7 +539,8 @@ def first_day():
     # The import step suggests building the archive inside the library folder,
     # so what it brings in is indexed and shown to the family straight away.
     return jsonify({"done": bool(c.first_day_done),
-                    "library": {"chosen": bool(c.folders), "root": c.active_folder},
+                    "library": {"chosen": bool(c.folders), "root": c.active_folder,
+                                "roots": list(c.folders)},
                     "import": {"sources": list(c.import_sources),
                                "destination": c.import_destination
                                or importer_rules.default_destination(c.active_folder),
@@ -694,6 +737,7 @@ def delete_person(user_id: int):
         favourites = c.execute(
             "SELECT COUNT(*) FROM user_assets WHERE user_id = ? AND favorite = 1",
             (user_id,)).fetchone()[0]
+        backups.before_change(cfg().data_dir, "deleting-person")
         with c:
             # Albums are the household's photographs, arranged: they pass to
             # the administrator rather than becoming nobody's.
@@ -844,11 +888,18 @@ def set_folder_visibility():
     })
 
 
+_IN_LIBRARY = ("(b.folder_id IS NULL OR b.folder_id IN "
+               "(SELECT id FROM folders WHERE detached_at IS NULL))")
+
+
 def _history(limit: int) -> list[dict[str, Any]]:
     rows = conn().execute(
         "SELECT b.*, f.path AS root, (SELECT COUNT(*) FROM visibility_undo u "
         "WHERE u.batch_id = b.id) AS restorable FROM visibility_batches b "
-        "LEFT JOIN folders f ON f.id = b.folder_id ORDER BY b.id DESC LIMIT ?",
+        "LEFT JOIN folders f ON f.id = b.folder_id "
+        # A folder taken out of the library keeps its history for when it
+        # comes back, but it is not offered for undoing meanwhile.
+        f"WHERE {_IN_LIBRARY} ORDER BY b.id DESC LIMIT ?",
         (limit,)).fetchall()
     return [{
         "id": r["id"], "created_at": r["created_at"], "created_by": r["created_by"],
@@ -880,8 +931,8 @@ def undo_visibility():
             fail(400, "batch_id must be a number.")
     c = conn()
     if batch_id is None:
-        row = c.execute("SELECT id FROM visibility_batches WHERE undone_at IS NULL "
-                        "ORDER BY id DESC LIMIT 1").fetchone()
+        row = c.execute("SELECT id FROM visibility_batches b WHERE undone_at IS NULL "
+                        f"AND {_IN_LIBRARY} ORDER BY id DESC LIMIT 1").fetchone()
         if row is None:
             fail(409, "There is nothing to undo.", ok=False)
         batch_id = int(row["id"])
@@ -890,6 +941,11 @@ def undo_visibility():
         fail(409, "That change is no longer in the history.", ok=False)
     if batch["undone_at"]:
         fail(409, "That change has already been undone.", ok=False)
+    if batch["folder_id"] is not None and c.execute(
+            "SELECT 1 FROM folders WHERE id = ? AND detached_at IS NULL",
+            (batch["folder_id"],)).fetchone() is None:
+        fail(409, "That change was made in a folder that is no longer in the library.",
+             ok=False)
 
     with c:
         cur = c.execute(
@@ -928,6 +984,15 @@ def undo_visibility():
 
 
 # --- the two downloads -----------------------------------------------------------------
+
+
+@bp.get("/api/admin/backups")
+def backup_list():
+    """The copies kept in the data folder, and the last daily one that failed."""
+    require_admin()
+    return jsonify({"backups": backups.listing(cfg().data_dir)[:20],
+                    "failure": backups.last_failure(cfg().data_dir),
+                    "folder": os.path.join(cfg().data_dir, "backups")})
 
 
 @bp.get("/admin/backup")

@@ -52,7 +52,8 @@ def listed():
         home = _holds_library(d)
         out.append({**d.to_json(), "holds_library": home, "pending": d.id in pending and not home})
     return jsonify({"drives": out,
-                    "export": exporter().progress()})
+                    "export": exporter().progress(),
+                    "phone": phone_import_job().progress(engine())})
 
 
 @bp.post("/api/admin/drives/answer")

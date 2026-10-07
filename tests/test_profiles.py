@@ -85,7 +85,8 @@ def test_a_picture_must_be_one_the_person_may_see(app, admin, family):
     target = ids(app)["beach.jpg"]
     assert admin.post("/api/visibility", json={"ids": [target], "visibility": "hidden"}).status_code == 200
     assert family.post("/api/me/avatar", json={"asset_id": target}).status_code == 404
-    assert admin.post("/api/me/avatar", json={"asset_id": target}).status_code == 200
+    # Not even an admin's: the sign-in screen shows a profile picture to anyone.
+    assert admin.post("/api/me/avatar", json={"asset_id": target}).status_code == 400
 
 
 def test_nobody_anonymous_sets_a_picture(app):
