@@ -154,7 +154,7 @@ def test_start_resumes_without_copying_again(drive, tmp_path):
     after = snapshot(dest)
     assert {k: v for k, v in after.items() if k in archived} == archived
     assert (dest / "2021" / "02" / "03" / "new.jpg").is_file()
-    assert "already done" in second.job["message"]
+    assert "already done" in second.job["message"]["text"]
 
 
 def test_takeout_sidecar_gives_the_date_and_travels_along(tmp_path):
@@ -184,7 +184,7 @@ def test_audit_finds_a_copy_that_changed(drive, tmp_path):
     got = rows(tmp_path / "data")
     assert got["sunset.jpg"]["status"] == "error" and "match" in got["sunset.jpg"]["error"]
     assert got["beach.jpg"]["status"] == "error" and "missing" in got["beach.jpg"]["error"]
-    assert "2 archived files" in engine.job["message"]
+    assert "2 archived files" in engine.job["message"]["text"]
     # Start copies the two again; the rest is stepped over.
     again = run(tmp_path / "data", [drive], dest)
     assert again.job["stepped_over"] == 5

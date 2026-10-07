@@ -26,9 +26,17 @@ if not exist "%ROOT%\.venv\Scripts\pythonw.exe" (
   exit /b 1
 )
 
-> "%LINK%" echo Set shell = CreateObject("WScript.Shell")
->> "%LINK%" echo shell.CurrentDirectory = "%ROOT%"
->> "%LINK%" echo shell.Run """%ROOT%\.venv\Scripts\pythonw.exe"" -m ninaivu_lite --no-browser", 0, False
+rem Written by Ninaivu Lite itself: in UTF-16, which Windows Script Host reads
+rem whatever letters the folder names hold (echo here wrote UTF-8, read as ANSI).
+pushd "%ROOT%"
+"%ROOT%\.venv\Scripts\python.exe" -m ninaivu_lite.control --autostart on
+set "RESULT=%ERRORLEVEL%"
+popd
+if not "%RESULT%"=="0" (
+  echo   Could not set it up. See the message above.
+  pause
+  exit /b 1
+)
 
 echo   Done: Ninaivu Lite will start by itself when you sign in.
 pause

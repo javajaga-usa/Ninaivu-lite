@@ -5,8 +5,8 @@ A share link is the one thing that answers somebody with no account at all,
 so everything it reaches is resolved from the token, never from the caller,
 and is worked out afresh on every request from what the link's CREATOR may
 see today: a photograph hidden since, or a maker who has been made a guest or
-switched off, shrinks what the link shows at once. Album links never show a
-hidden photograph, even when an administrator made them. Pictures always go
+switched off, shrinks what the link shows at once. No link ever shows a
+Hidden photograph, even one an administrator made: Hidden means admins only. Pictures always go
 out as the metadata-free viewing copy, because the person holding the link is
 a stranger and a photograph's EXIF says where it was taken.
 """
@@ -45,7 +45,9 @@ UNLOCK_SECONDS = 12 * 3600
 throttle_short = auth.Throttle(limit=8, window=300)
 throttle_long = auth.Throttle(limit=20, window=1800)
 
-SHARED_FIELDS = ("id", "name", "ext", "kind", "width", "height", "duration")
+#: Not the file name: "Chennai_home_2021.jpg" can say where a photograph was
+#: taken, which a link promises to leave out.
+SHARED_FIELDS = ("id", "ext", "kind", "width", "height", "duration")
 
 
 def _expired(row: sqlite3.Row) -> bool:
@@ -113,8 +115,8 @@ def create_share():
     # theirs to share only if they may edit it, a photograph only if visible.
     if scope == "album":
         own_album(target_id, who)
-    else:
-        visible_asset(target_id, who)
+    elif visible_asset(target_id, who)["visibility"] > db.VIS_FAMILY:
+        fail(400, "A Hidden photograph cannot be shared. Make it Family or Public first.")
 
     token = secrets.token_urlsafe(16)
     c = conn()
@@ -231,7 +233,8 @@ def share_rows(share: sqlite3.Row, only: int | None = None) -> list[sqlite3.Row]
         return c.execute(sql + " ORDER BY a.captured_at DESC, a.id DESC", args).fetchall()
     if only is not None and only != share["target_id"]:
         return []
-    return c.execute(f"{base} AND a.id = ?", [*params, share["target_id"]]).fetchall()
+    return c.execute(f"{base} AND a.visibility <= ? AND a.id = ?",
+                     [*params, db.VIS_FAMILY, share["target_id"]]).fetchall()
 
 
 def shared_item(row: sqlite3.Row, token: str) -> dict[str, Any]:

@@ -354,7 +354,7 @@ def test_a38_the_server_logs_the_setup_code_and_hands_it_to_the_panel(tmp_path, 
         seen["state"] = json.loads((tmp_path / "data" / control.STATE_FILE).read_text())
 
     monkeypatch.setattr(entry, "serve", serve)
-    monkeypatch.setattr(net, "already_running", lambda port: False)
+    monkeypatch.setattr(net, "already_running", lambda port, instance=None: False)
     root = logging.getLogger()
     before = list(root.handlers)
     try:
@@ -437,6 +437,6 @@ def test_a58_a_portable_copy_moves_its_old_startup_file_to_its_own_name(tmp_path
     assert c.autostart_enabled()
     c.set_autostart(True)
     assert own.is_file() and not old.exists()
-    assert f'"{portable}"' in own.read_text(encoding="utf-8")
+    assert f'"{portable}"' in own.read_text(encoding="utf-16")
     c.set_autostart(False)
     assert not own.exists() and not c.autostart_enabled()

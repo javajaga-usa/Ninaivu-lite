@@ -468,6 +468,12 @@
         </div>
         <a class="btn" id="backup-download" href="/admin/backup" download data-i18n="Download a backup">Download a backup</a>
       </div>
+      <p class="hint" data-i18n="Keep it private: it holds everyone's password and PIN checks and the share links.">Keep it private: it holds everyone's password and PIN checks and the share links.</p>
+      <p class="gate-error" id="backup-failure" hidden></p>
+      <p class="hint" id="backup-kept"></p>
+      <p class="hint subtle" data-i18n="To put one back: press Stop in the Control Panel, then run ninaivu-lite --restore with the zip (the guide has the steps). Everyone signs in again afterwards.">To put one back: press Stop in the Control Panel, then run
+        ninaivu-lite --restore with the zip (the guide has the steps). Everyone
+        signs in again afterwards.</p>
     </div>
 
     <div class="block" id="export-block">
@@ -531,11 +537,13 @@
     <p class="hint">
       <strong id="delete-who"></strong> <span data-i18n="will be removed permanently.">will be removed permanently.</span>
       <span id="delete-loses"></span>
+      <span data-i18n="Share links they made stop working for good, and albums they made pass to you.">Share links they made stop working for good, and albums they made pass to you.</span>
       <span data-i18n="No photos or videos are deleted — the library itself is untouched.">No photos or videos are deleted — the library itself is untouched.</span>
     </p>
-    <p class="hint subtle" data-i18n="To keep their favourites and let them back in later, disable the profile instead.">
+    <p class="hint subtle" data-i18n="To keep their favourites and let them back in later, disable the profile instead. A disabled profile's share links pause, and work again when it is enabled.">
       To keep their favourites and let them back in later, disable the
-      profile instead.
+      profile instead. A disabled profile's share links pause, and work again
+      when it is enabled.
     </p>
     <div class="modal-foot">
       <div class="spacer"></div>

@@ -9,7 +9,7 @@ import time
 
 from flask import Blueprint, jsonify, request, send_file
 
-from . import auth, media
+from . import auth, db, media
 from .common import (asset_path, avatar_file, avatar_path, body, cfg, conn, drop_avatar,
                      fail, require_signed_in, sweep_avatars, user, visible_asset)
 from .dates import long_path
@@ -255,6 +255,9 @@ def me_avatar():
     row = visible_asset(asset_id, who)
     if row["kind"] != "picture":
         fail(400, "Choose a photograph, not a video.")
+    if row["visibility"] > db.VIS_FAMILY:
+        # A profile picture is on the sign-in screen, for anyone who opens it.
+        fail(400, "A Hidden photograph cannot be a profile picture: the sign-in screen shows it to everyone.")
     source = asset_path(row)
     if not os.path.isfile(long_path(source)):
         fail(404, "This file is not available right now.")

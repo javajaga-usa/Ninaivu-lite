@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import errno
 import os
 import shutil
 import sys
@@ -458,8 +459,12 @@ class Exporter:
             need = sum(size for _, _, size in todo)
             self._set(phase="copying", total=len(plan), skipped=skipped,
                       done=len(plan) - len(todo), bytes_total=need)
-            free = _usage(os.path.dirname(root) or root)[1]
-            if need and free and need > free:
+            try:
+                free = shutil.disk_usage(os.path.dirname(root) or root).free
+            except OSError:
+                free = None
+            # A drive with nothing free (0) is the fullest of all, not unknown.
+            if need and free is not None and need > free:
                 self._set(phase="failed", message=_say(
                     "Not enough room on the drive: {need} needed, {free} free.",
                     need=_size(need), free=_size(free)))
@@ -475,6 +480,11 @@ class Exporter:
                     raise
                 except OSError as exc:
                     log.warning("export: could not copy %s: %s", src, exc)
+                    if exc.errno == errno.ENOSPC:
+                        self._set(phase="failed", message=_say(
+                            "The drive is full. What was copied stays on it; make room and "
+                            "copy again to finish."))
+                        return
                     with self.lock:
                         self.state["errors"] += 1
                 with self.lock:
@@ -490,6 +500,8 @@ class Exporter:
                 key = "Copied {copied} photos and videos to the drive. {skipped} were there already."
             else:
                 key = "Copied {copied} photos and videos to the drive."
+            # Taken out without ejecting, a drive can lose what was written last.
+            key += " Eject the drive before you unplug it."
             self._set(phase="done", message=_say(key, **counts))
         except InterruptedError:
             self._set(phase="stopped", message=_say("Stopped. What was copied stays on the drive."))
@@ -542,6 +554,11 @@ def _copy(src: str, dest: str, cancel: threading.Event) -> None:
                 if not chunk:
                     break
                 fout.write(chunk)
+            # On the drive itself, not in the computer's write cache: a drive
+            # pulled out after "Copied" must not hold a damaged photo that
+            # the next copy takes as already there.
+            fout.flush()
+            os.fsync(fout.fileno())
         shutil.copystat(long_path(src), long_path(tmp))
         os.replace(long_path(tmp), long_path(dest))
     except BaseException:

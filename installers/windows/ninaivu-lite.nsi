@@ -48,6 +48,10 @@
   VIAddVersionKey "LegalCopyright" "(c) 2026 Jagadeesh Rajendran. MIT licence."
   ; "1" once the install folder is found to hold a Ninaivu Lite already: an upgrade.
   Var nl_ours
+  ; "1" when the earlier version was running when the upgrade began: it is
+  ; started again at the end, so phones do not lose the library until
+  ; somebody presses Start (with /S nobody would).
+  Var nl_was_running
   ; A components page, so "Start Ninaivu Lite at sign-in" can be unticked; on
   ; an upgrade it starts as the person left it (RememberStartAtSignIn).
   !define MUI_PAGE_CUSTOMFUNCTION_PRE RememberStartAtSignIn
@@ -76,6 +80,12 @@
   StrCpy $nl_ours ""
   IfFileExists "$INSTDIR\pkgs\ninaivu_lite\__init__.py" 0 nl_first_install
   StrCpy $nl_ours "1"
+  StrCpy $nl_was_running ""
+  IfFileExists "$INSTDIR\Python\pythonw.exe" 0 nl_not_running
+    ExecWait '"$INSTDIR\Python\pythonw.exe" -m ninaivu_lite.control --running' $0
+    StrCmp $0 "0" 0 nl_not_running
+    StrCpy $nl_was_running "1"
+  nl_not_running:
   !insertmacro WaitUntilNotInUse
   DetailPrint "Removing the previous Ninaivu Lite program files..."
   RMDir /r "$INSTDIR\Python"
@@ -160,6 +170,20 @@
     nl_autostart_on:
     ExecWait '"$INSTDIR\Python\pythonw.exe" -m ninaivu_lite.control --autostart on'
     nl_autostart_done:
+  SectionEnd
+
+  Section "-Start again after an upgrade"
+    StrCmp $nl_was_running "1" 0 nl_restart_done
+    DetailPrint "Starting Ninaivu Lite again, as it was running before the upgrade..."
+    Exec '"$INSTDIR\Python\pythonw.exe" -m ninaivu_lite.control --start'
+    nl_restart_done:
+  SectionEnd
+
+  ; Last of the uninstaller: what was kept, and where.
+  Section "un.Say what was kept"
+    DetailPrint "Your library's settings, people and index are kept in $LOCALAPPDATA\Ninaivu-lite. Delete that folder to remove them. Your photographs were not touched."
+    IfSilent +2
+    MessageBox MB_OK|MB_ICONINFORMATION "Ninaivu Lite was removed. Your photographs were not touched.$\r$\n$\r$\nIts settings, people and index are kept in $LOCALAPPDATA\Ninaivu-lite, for a later install. Delete that folder to remove them too."
   SectionEnd
 
   ; Before the components page: over an earlier install whose sign-in

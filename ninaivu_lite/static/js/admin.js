@@ -81,8 +81,40 @@ const adminApi = {
       { method: 'DELETE' }),
   setActiveLibrary: (path) =>
     json('/api/admin/libraries/active', { method: 'POST', body: { path } }),
+  moveLibrary: (path, to) =>
+    json('/api/admin/libraries/move', { method: 'POST', body: { path, to } }),
   assignable: () => json('/api/admin/assignable'),
+  backups: () => json('/api/admin/backups'),
 };
+
+/* The copies Ninaivu Lite keeps by itself: how many, the newest, and a
+   daily copy that failed, which used to go only to the log. */
+async function renderBackups() {
+  const kept = $('#backup-kept');
+  const failure = $('#backup-failure');
+  if (!kept || !failure) return;
+  let data;
+  try { data = await adminApi.backups(); } catch { return; }
+  const list = data.backups || [];
+  const newest = list.length ? new Date(list[0].at * 1000).toLocaleString(i18n.locale()) : '';
+  if (list.length > 1) {
+    kept.textContent = i18n.t('{count} copies are kept in {folder}. The newest is from {when}.', {
+      count: list.length, folder: data.folder, when: newest,
+    });
+  } else if (list.length === 1) {
+    kept.textContent = i18n.t('One copy is kept in {folder}, from {when}.', {
+      folder: data.folder, when: newest,
+    });
+  } else {
+    kept.textContent = i18n.t('No copy has been kept yet: one is made each day while Ninaivu Lite runs.');
+  }
+  failure.hidden = !data.failure;
+  if (data.failure) {
+    failure.textContent = i18n.t('The last daily copy failed ({when}): {why}', {
+      when: new Date(data.failure.at * 1000).toLocaleString(i18n.locale()), why: data.failure.why,
+    });
+  }
+}
 
 /* One port serves the family app and this console, so the server cannot tell
    from the address which of the two is asking. The console says so itself:
@@ -682,6 +714,27 @@ function renderLibraryFolders() {
       };
       actions.appendChild(makeDefault);
     }
+    if (!folder.exists) {
+      // Photos on another drive letter, or a new computer after a restore:
+      // point the folder there, keeping everything decided about them.
+      const moved = el('button', 'btn small', i18n.t('Moved?'));
+      moved.type = 'button';
+      moved.title = i18n.t('The photographs are somewhere else now: choose where');
+      moved.onclick = () => openFolderPicker({
+        title: i18n.t('Where is {name} now?', { name: folder.name }),
+        cta: i18n.t('It is here'),
+        start: '',
+        pick: async (to) => {
+          try {
+            await adminApi.moveLibrary(folder.path, to);
+            toast(i18n.t('{name} now points to {path}. Everything set for its photos is kept.',
+              { name: folder.name, path: to }));
+            await refresh();
+          } catch (exc) { toast(exc.message, true); }
+        },
+      });
+      actions.appendChild(moved);
+    }
     const remove = el('button', 'btn small ghost', i18n.t('Remove'));
     remove.type = 'button';
     remove.title = i18n.t('Stop indexing this folder. Your files are not touched.');
@@ -694,6 +747,10 @@ function renderLibraryFolders() {
 }
 
 async function removeLibrary(folder) {
+  const ask = folder.exists
+    ? i18n.t('Take {name} out of the library? Its photos leave the gallery. Your files are not touched, and who sees what, favourites, albums and share links come back if you add the same folder again.', { name: folder.name })
+    : i18n.t('{name} cannot be found. If its photos are somewhere else now, use "Moved?" instead. Take it out of the library anyway?', { name: folder.name });
+  if (!confirm(ask)) return;
   try {
     await adminApi.removeLibrary(folder.path, false);
     toast(i18n.t('{name} is no longer indexed. Your files were not touched.', { name: folder.name }));
@@ -701,10 +758,10 @@ async function removeLibrary(folder) {
   } catch (exc) {
     if (exc.status === 409) {
       // Someone is assigned to it — say who, and let the admin decide.
-      if (!confirm(`${exc.message}\n\n${i18n.t('Remove it anyway and clear those assignments?')}`)) return;
+      if (!confirm(`${exc.message}\n\n${i18n.t('Remove it anyway? They will see nothing until you assign them another folder.')}`)) return;
       try {
         await adminApi.removeLibrary(folder.path, true);
-        toast(i18n.t('{name} removed; assignments cleared.', { name: folder.name }));
+        toast(i18n.t('{name} removed. The people assigned to it see nothing until you reassign them.', { name: folder.name }));
         await refresh();
       } catch (inner) { toast(inner.message, true); }
       return;
@@ -716,6 +773,7 @@ async function removeLibrary(folder) {
 function renderLibrary() {
   const data = state.overview;
   renderLibraryFolders();
+  renderBackups();
   // The family app is at "/" on this same address.
   const box = $('#overview-library');
   box.innerHTML = '';
@@ -1836,7 +1894,9 @@ async function refreshUndo() {
   try {
     const { changes } = await adminApi.visibilityHistory();
     const last = (changes || []).find((c) => !c.undone_at && c.restorable > 0);
-    if (!last) { strip.hidden = true; return; }
+    if (!last) { strip.hidden = true; delete strip.dataset.batch; return; }
+    // The button undoes the change the strip names, not whatever is newest.
+    strip.dataset.batch = String(last.id);
     const where = last.scope === 'folder'
       ? (last.folder ? `“${last.folder}”` : i18n.t('the whole library'))
       : i18n.items(last.affected);
@@ -1857,7 +1917,8 @@ const VIS_NAMES_BY_VALUE = { 0: 'public', 1: 'family', 2: 'hidden' };
 
 async function undoLastVisibility() {
   try {
-    const result = await adminApi.undoVisibility(null);
+    const named = Number($('#vis-undo')?.dataset.batch) || null;
+    const result = await adminApi.undoVisibility(named);
     toast(plural(result.restored, i18n.key('Put 1 file back as it was.'),
       i18n.key('Put {count} files back as they were.')));
     state.overview = await adminApi.overview();

@@ -62,9 +62,14 @@ def test_a01_asset_link_does_not_follow_a_reused_id(app, admin):
 def test_a01_removing_a_library_folder_ends_its_links(app, admin):
     token = make_share(admin, "asset", ids(app)["beach.jpg"])
     c = conn_of(app)
+    folders = [r[0] for r in c.execute("SELECT path FROM folders")]
     db.sync_folders(c, [])            # the folder taken out of the library
-    assert c.execute("SELECT COUNT(*) FROM shares").fetchone()[0] == 0
     assert app.test_client().get(f"/api/share/{token}").status_code == 404
+    # Set aside, not deleted (index version 9): the same folder added again
+    # and scanned brings the link back to the same photograph.
+    db.sync_folders(c, folders)
+    app.config["SCANNER"].scan_once(c)
+    assert app.test_client().get(f"/api/share/{token}").status_code == 200
 
 
 def test_a01_album_link_does_not_follow_a_reused_id(app, family):
@@ -149,8 +154,9 @@ def test_a02_an_explicitly_empty_library_is_still_honoured(library):
     cfg = Config.load(data)
     cfg.folders = []
     cfg.save()
-    _cfg, after = _scan_with_loaded_settings(data)
-    assert after == 0
+    _cfg, _after = _scan_with_loaded_settings(data)
+    c = db.connect(data)
+    assert c.execute("SELECT COUNT(*) FROM assets WHERE missing = 0").fetchone()[0] == 0
 
 
 # --- A03: resuming checks the source and the archived copy -------------------------------------

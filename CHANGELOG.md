@@ -1,5 +1,46 @@
 # Changelog
 
+## Unreleased
+
+Fixes for the 51 findings of the safety, flows and hand-offs audit of 2026-10-07 (A65-A115).
+What you may notice:
+
+- **Removing a library folder keeps what was decided for its photos.** Who sees what,
+  favourites, albums and share links come back when the same folder is added again, and a
+  copy of the index is taken just before (`backups/before-removing-folder-*.zip`). The
+  console now asks before removing. (A65; `db.py`, index version 9)
+- **Moved?** beside each library folder points it at its new place (a new drive letter, a new
+  computer) and keeps everything. `--restore` lists restored folders that are not there. (A66)
+- **A Hidden photograph cannot be shared or made a profile picture**, and an administrator's
+  one-photo link stops when its photo is set to Hidden. Share pages no longer show the file
+  name. (A78, A82, A86)
+- **A Hidden photo renamed or moved on disk stays Hidden**, with its favourites, albums, links
+  and rotation. (A79)
+- **Restoring a backup signs everyone out and remakes the thumbnails**, so no photo is shown
+  with another's thumbnail. An empty, foreign or damaged backup is refused with a reason, a
+  bare `.db` backup from before 1.6.0 is accepted, and `--restore` refuses while any server
+  holds the data folder. (A67-A69, A71, A74)
+- **Daily backups keep 7 days, one a week for 4 weeks and one a month for 3 months.** The
+  console lists them and says when the last one failed. (A73)
+- **An import that loses its drive or fills its destination ends as "Not finished"**, not
+  "Finished", and says how to finish it. Imported photos appear in the gallery as they are
+  copied. Import messages are in Tamil too. (A87, A88, A98)
+- **A copy to a pendrive is flushed and ends with "Eject the drive before you unplug it."**
+  Reloading the console shows a copy or phone import that is still running. (A95, A96)
+- **"Already running" now means a server on the same data folder.** A second copy (installed
+  beside a portable one) takes the next free port instead of opening the other library, and
+  two servers on one data folder are refused. (A103, A105)
+- **Start at sign-in works with non-English folder names on Windows** (the script is written
+  in UTF-16). (A104)
+- **Upgrades start Ninaivu Lite again** if it was running, and a failed Linux upgrade puts the
+  old copy back. Uninstallers say what was kept. (A110, A115)
+- **The Control Panel asks before stopping an import or a copy**, and says why a start failed.
+  (A70, A111)
+- A folder named on the command line or in the Linux service is no longer added back after the
+  administrator removed it. (A107)
+
+Going back to 1.6.0 after this version means restoring a backup: 1.6.0 refuses the newer index.
+
 ## 1.6.0 — 2026-10-06
 
 Fixes for all ten findings of the project audit of 2026-10-05 (A01-A10). Three of them change

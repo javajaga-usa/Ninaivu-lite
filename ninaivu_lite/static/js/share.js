@@ -56,7 +56,7 @@ function renderAlbum(data) {
     const link = document.createElement('a');
     link.href = item.view || item.src; link.target = '_blank'; link.rel = 'noopener';
     const img = document.createElement('img');
-    img.src = item.thumb; img.alt = item.filename || item.name || ''; img.loading = 'lazy';
+    img.src = item.thumb; img.alt = ''; img.loading = 'lazy';
     // Fades in when it arrives; a photograph that fails stays a quiet tile.
     img.onload = () => img.classList.add('ready');
     link.appendChild(img);
@@ -66,7 +66,7 @@ function renderAlbum(data) {
 }
 
 function renderOne(item) {
-  document.getElementById('title').textContent = item.filename || item.name || i18n.t('Shared photograph');
+  document.getElementById('title').textContent = i18n.t('Shared photograph');
   const stage = el('div', 'single');
   const isVideo = (item.kind === 'video');
   const node = document.createElement(isVideo ? 'video' : 'img');
@@ -82,7 +82,7 @@ function renderOne(item) {
     }
   };
   if (isVideo) { node.controls = true; node.playsInline = true; }
-  else { node.alt = item.filename || item.name || i18n.t('Shared photograph'); }
+  else { node.alt = i18n.t('Shared photograph'); }
   stage.appendChild(node);
   main.replaceChildren(stage);
 }

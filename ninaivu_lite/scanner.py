@@ -117,13 +117,16 @@ class Scanner:
         self._set(state="walking", found=0, new=0, added=0, removed=0, unreachable=[],
                   unreadable=0, started=time.time())
         unreachable = []
+        started = int(time.time()) - 1
+        self._gone_now: list[int] = []
         for path, folder_id in ids.items():
             if self._stop.is_set():
                 return
-            if not os.path.isdir(long_path(path)):
+            if not os.path.isdir(long_path(path)) or self._emptied(conn, folder_id, path):
                 unreachable.append(path)
                 continue
             self._walk_folder(conn, folder_id, path)
+        self._carry_over(conn, started)
         self._set(unreachable=unreachable)
         self._make_thumbnails(conn)
         if self._straighten(conn):
@@ -249,6 +252,77 @@ class Scanner:
                 conn.executemany("UPDATE assets SET missing = 1 WHERE id = ?",
                                  [(i,) for i in gone])
             self.generation += 1
+            self._gone_now.extend(gone)
+
+    @staticmethod
+    def _emptied(conn: sqlite3.Connection, folder_id: int, root: str) -> bool:
+        """A library folder that held photographs and is now empty: a drive
+        unplugged whose mount point stays behind as an empty folder, far more
+        often than every photograph deleted. Treated as unreachable, so they
+        are not counted as removed."""
+        try:
+            with os.scandir(long_path(root)) as entries:
+                if next(entries, None) is not None:
+                    return False
+        except OSError:
+            return False
+        return conn.execute("SELECT 1 FROM assets WHERE folder_id = ? AND missing = 0 LIMIT 1",
+                            (folder_id,)).fetchone() is not None
+
+    def _carry_over(self, conn: sqlite3.Connection, started: int) -> None:
+        """A photograph moved or renamed in Explorer is gone from one place
+        and new in another in the same scan. What was decided about it goes
+        with it: who may see it (a photograph Hidden on its own stays
+        Hidden), favourites, album places and share links. A file matches
+        when its size and moment taken are the same, and only one new file
+        does."""
+        gone_ids = getattr(self, "_gone_now", [])
+        if not gone_ids:
+            return
+        new = conn.execute(
+            "SELECT id, name, kind, size, captured_at, visibility FROM assets "
+            "WHERE added_at >= ? AND missing = 0", (started,)).fetchall()
+        if not new:
+            return
+        by_key: dict[tuple, list] = {}
+        for row in new:
+            by_key.setdefault((row["kind"], row["size"], row["captured_at"]), []).append(row)
+        used: set[int] = set()
+        moves = []
+        for start in range(0, len(gone_ids), 500):
+            chunk = gone_ids[start:start + 500]
+            for old in conn.execute(
+                    "SELECT id, name, kind, size, captured_at, visibility, vis_source, rotation, "
+                    "rot_source FROM assets WHERE id IN (" + ",".join("?" * len(chunk)) + ")",
+                    chunk):
+                found = [r for r in by_key.get((old["kind"], old["size"], old["captured_at"]), [])
+                         if r["id"] not in used]
+                same_name = [r for r in found if r["name"] == old["name"]]
+                pick = same_name if len(same_name) == 1 else found
+                if len(pick) != 1:
+                    continue
+                used.add(pick[0]["id"])
+                moves.append((old, pick[0]))
+        if not moves:
+            return
+        with conn:
+            for old, row in moves:
+                to, frm = row["id"], old["id"]
+                if old["vis_source"] == "item" or old["visibility"] > row["visibility"]:
+                    conn.execute("UPDATE assets SET visibility = ?, vis_source = 'item' "
+                                 "WHERE id = ?", (old["visibility"], to))
+                conn.execute("UPDATE OR IGNORE user_assets SET asset_id = ? WHERE asset_id = ?",
+                             (to, frm))
+                conn.execute("UPDATE OR IGNORE album_items SET asset_id = ? WHERE asset_id = ?",
+                             (to, frm))
+                conn.execute("UPDATE albums SET cover_id = ? WHERE cover_id = ?", (to, frm))
+                conn.execute("UPDATE shares SET target_id = ? WHERE scope = 'asset' "
+                             "AND target_id = ?", (to, frm))
+        for old, row in moves:
+            if old["rot_source"] == "manual":
+                self.set_rotation(conn, row["id"], old["rotation"], "manual", remake=False)
+        log.info("%d moved or renamed photographs kept what was set for them", len(moves))
+        self.generation += 1
 
     def add_file(self, conn: sqlite3.Connection, folder_id: int, root: str, rel_dir: str,
                  name: str, visibility: int | None = None) -> int:

@@ -275,6 +275,13 @@ MIGRATIONS: list[str] = [
         DELETE FROM visibility_batches WHERE folder_id = OLD.id;
     END;
     """,
+    # 9 — a library folder taken out of the library is set aside, not
+    # deleted: its photographs' visibility, favourites, album places, folder
+    # rules and share links wait, unseen (every photograph counts as
+    # missing), and come back as they were when the folder is added again.
+    """
+    ALTER TABLE folders ADD COLUMN detached_at REAL;
+    """,
 ]
 
 
@@ -350,7 +357,14 @@ def migrate(conn: sqlite3.Connection) -> int:
                     log.info("updating the index to version %d", number)
                     # One transaction per step: a power cut leaves the old version, whole.
                     for statement in _statements(MIGRATIONS[version]):
-                        conn.execute(statement)
+                        try:
+                            conn.execute(statement)
+                        except sqlite3.OperationalError as exc:
+                            # A column another process (or an interrupted
+                            # earlier start) already added is there: fine.
+                            if not ("duplicate column" in str(exc)
+                                    and "ADD COLUMN" in statement.upper()):
+                                raise
                     conn.execute(f"PRAGMA user_version={number}")
                 conn.commit()
             except BaseException:
@@ -365,27 +379,47 @@ def _statements(script: str):
     for piece in script.split(";"):
         buffer += piece + ";"
         if sqlite3.complete_statement(buffer):
-            yield buffer
+            if buffer.strip(" \t\r\n;"):
+                yield buffer
             buffer = ""
 
 
 def sync_folders(conn: sqlite3.Connection, paths: list[str]) -> dict[str, int]:
-    """Make the folders table match the settings; returns path → id.
+    """Make the folders table match the settings; returns path → id of the
+    folders in the library.
 
-    A folder removed from the settings takes its index entries with it (the
-    photos themselves are never touched).
+    A folder removed from the settings is set aside with everything decided
+    about its photographs (see migration 9); added again, it is brought
+    back, and the next scan finds its photographs where they were. The
+    photographs themselves are never touched.
     """
     with conn:
-        have = {r["path"]: r["id"] for r in conn.execute("SELECT id, path FROM folders")}
+        rows = conn.execute("SELECT id, path, detached_at FROM folders").fetchall()
+        have = {r["path"]: r["id"] for r in rows}
+        detached = {r["path"] for r in rows if r["detached_at"] is not None}
         for path in paths:
             if path not in have:
                 cur = conn.execute("INSERT INTO folders (path) VALUES (?)", (path,))
                 have[path] = int(cur.lastrowid)
+            elif path in detached:
+                conn.execute("UPDATE folders SET detached_at = NULL WHERE id = ?", (have[path],))
         for path, fid in list(have.items()):
             if path not in paths:
-                conn.execute("DELETE FROM folders WHERE id = ?", (fid,))
+                if path not in detached:
+                    conn.execute("UPDATE folders SET detached_at = strftime('%s','now') "
+                                 "WHERE id = ?", (fid,))
+                    conn.execute("UPDATE assets SET missing = 1 WHERE folder_id = ?", (fid,))
                 del have[path]
     return have
+
+
+def move_folder(conn: sqlite3.Connection, old: str, new: str) -> None:
+    """A library folder's photographs are now at *new* (another drive, a new
+    computer): the same rows, so everything decided about them is kept. A
+    set-aside folder that was at *new* gives way."""
+    with conn:
+        conn.execute("DELETE FROM folders WHERE path = ? AND detached_at IS NOT NULL", (new,))
+        conn.execute("UPDATE folders SET path = ? WHERE path = ?", (new, old))
 
 
 def rule_for(conn: sqlite3.Connection, folder_id: int, rel_dir: str) -> int | None:

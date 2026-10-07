@@ -90,12 +90,15 @@ def test_a21_undo_does_not_reach_the_folder_that_got_the_id(app, admin, library,
     other = tmp_path / "Other"
     make_jpeg(other / "2019" / "old.jpg", "2019:01:01 00:00:00")
     assert admin.post("/api/library/root", json={"path": str(other)}).status_code == 200
-    assert c.execute("SELECT id FROM folders WHERE path = ?",
-                     (str(other),)).fetchone()[0] == old_id                # the same id
-    assert c.execute("SELECT COUNT(*) FROM visibility_batches").fetchone()[0] == 0
+    # The removed folder is set aside (index version 9), so its id is not
+    # handed out again, and its history is not offered for undoing.
+    new_id = c.execute("SELECT id FROM folders WHERE path = ?", (str(other),)).fetchone()[0]
+    assert new_id != old_id
+    assert admin.get("/api/visibility/history").get_json()["changes"] == []
     r = admin.post("/api/visibility/undo", json={})
     assert r.status_code == 409
-    assert c.execute("SELECT COUNT(*) FROM folder_rules").fetchone()[0] == 0
+    assert c.execute("SELECT COUNT(*) FROM folder_rules WHERE folder_id = ?",
+                     (new_id,)).fetchone()[0] == 0
 
 
 def test_a21_upgrade_drops_history_of_removed_folders(tmp_path):

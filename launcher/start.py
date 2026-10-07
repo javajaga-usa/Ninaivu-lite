@@ -84,8 +84,26 @@ def data_argument(argv: list[str]) -> list[str]:
     return []
 
 
+def has_tk(python: Path) -> bool:
+    """Whether this Python can draw a window: Debian, Ubuntu and Raspberry Pi
+    OS leave Tk out (python3-tk) unless asked."""
+    try:
+        return subprocess.call([str(python), "-c", "import tkinter"], stdin=subprocess.DEVNULL,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               timeout=30) == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def open_panel(python: Path, argv: list[str]) -> bool:
-    """Open the Control Panel beside this window, without a console of its own."""
+    """Open the Control Panel beside this window, without a console of its own.
+    False, after saying how to get it, when this Python has no Tk."""
+    if not has_tk(python):
+        say("The Control Panel needs Tk, which this Python does not have. On Debian, Ubuntu "
+            "or Raspberry Pi OS: sudo apt install python3-tk",
+            "கட்டுப்பாட்டுப் பலகத்துக்கு Tk தேவை; இந்த Python இல் அது இல்லை. Debian, Ubuntu, "
+            "Raspberry Pi OS இல்: sudo apt install python3-tk")
+        return False
     if os.name == "nt" and python.with_name("pythonw.exe").exists():
         python = python.with_name("pythonw.exe")
     kwargs: dict = {"cwd": HERE, "stdin": subprocess.DEVNULL,

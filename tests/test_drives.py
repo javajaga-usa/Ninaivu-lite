@@ -241,7 +241,7 @@ def test_a_phone_windows_shows_only_in_explorer_is_fetched_imported_and_tidied(
 
     state = run()
     assert state["phase"] == "done", state
-    assert state["message"]["vars"] == {"added": "2", "already": "0"}
+    assert state["message"]["vars"] == {"added": "2", "already": "0", "folder": state["destination"]}
     archive = Path(state["destination"])
     assert len(list(archive.rglob("IMG_*.jpg"))) == 2
     mirror = Path(phones.mirror_for(app.config["LITE"].data_dir, phone))
@@ -252,7 +252,7 @@ def test_a_phone_windows_shows_only_in_explorer_is_fetched_imported_and_tidied(
     # Next time: only the new photograph crosses the cable.
     noisy_jpeg(camera / "IMG_20240103_101010.jpg", "2024:01:03 10:10:10", seed=3)
     state = run()
-    assert state["message"]["vars"] == {"added": "1", "already": "0"}
+    assert state["message"]["vars"] == {"added": "1", "already": "0", "folder": state["destination"]}
     assert len(list(archive.rglob("IMG_*.jpg"))) == 3
 
 

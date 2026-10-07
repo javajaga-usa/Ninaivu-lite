@@ -24,6 +24,7 @@ drive-health sampling, no classifiers: those stay in Ninaivu.
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import logging
@@ -71,6 +72,24 @@ ESTIMATE_CAP = 200_000
 
 class Cancelled(Exception):
     """Stop was pressed."""
+
+
+class Problem(Exception):
+    """The run cannot go on, with a sentence for the console (see :func:`_say`)."""
+
+    def __init__(self, said: dict[str, Any]) -> None:
+        super().__init__(said["text"])
+        self.said = said
+
+
+class Incomplete(Problem):
+    """The run went through what it could reach, but not everything it
+    counted: a drive unplugged, a folder gone."""
+
+
+#: Archives a source may hold that are left alone: a Google Takeout export
+#: arrives as these and must be unpacked before its photographs can be found.
+PACKED_EXTS = {".zip", ".tgz", ".tar", ".gz", ".7z", ".rar"}
 
 
 # --- what a file is -----------------------------------------------------------------
@@ -363,6 +382,33 @@ def notices(sources: list[str], destination: str) -> list[dict[str, Any]]:
     return out
 
 
+def said_text(message: Any) -> str:
+    """The English of a sentence made by :func:`_say` (or a plain string)."""
+    if isinstance(message, dict):
+        return str(message.get("text", ""))
+    return str(message or "")
+
+
+def stored_said(message: str | None) -> Any:
+    """A job's message as stored in import_jobs: a sentence from :func:`_say`
+    as JSON, or plain English from before 1.6.1."""
+    if message and message.startswith("{"):
+        try:
+            found = json.loads(message)
+            if isinstance(found, dict) and "key" in found:
+                return found
+        except ValueError:
+            pass
+    return message or ""
+
+
+def human_size(n: int) -> str:
+    """'3.6 MB' below a gigabyte, '1.2 GB' above: '0.0 GB' says nothing."""
+    if n >= 2 ** 30:
+        return f"{n / 2 ** 30:.1f} GB"
+    return f"{max(n, 0) / 2 ** 20:.1f} MB"
+
+
 def free_space(destination: str) -> int | None:
     probe = destination
     while probe and not os.path.exists(probe):
@@ -422,6 +468,9 @@ class Importer:
         self.gate = Gate()
         self.job: dict[str, Any] = {}
         self._estimates: dict[str, dict[str, Any]] = {}
+        #: Called with the destination as files land and when a run ends, so
+        #: the library can look at them (set by the app).
+        self.on_files = None
 
     # -- lifecycle --------------------------------------------------------------
 
@@ -429,8 +478,11 @@ class Importer:
     def running(self) -> bool:
         return bool(self._thread and self._thread.is_alive())
 
-    def start(self, sources: list[str], destination: str, kinds: list[str], mode: str) -> None:
-        """Begin a run. Raises ValueError with a sentence when it cannot."""
+    def start(self, sources: list[str], destination: str, kinds: list[str], mode: str,
+              library: list[str] = ()) -> None:
+        """Begin a run. Raises ValueError with a sentence when it cannot.
+        *library* is the library's folders: never walked as a source (their
+        photographs are in the gallery already)."""
         with self._lock:
             if self.running:
                 raise ValueError("A run is already going. Stop it first.")
@@ -441,6 +493,7 @@ class Importer:
                 "processed": 0, "stepped_over": 0, "total_files": 0, "total_bytes": 0,
                 "bytes_copied": 0, "started_at": time.time(), "ended_at": None,
                 "fresh_started": None, "unreadable": 0, "job_id": None, "plan_aside": {},
+                "library": [f for f in library if f], "packed": 0,
             }
             self._thread = threading.Thread(target=self._run, name="importer", daemon=True)
             self._thread.start()
@@ -479,7 +532,8 @@ class Importer:
             "is_paused": running and self.gate.paused,
             "job_mode": j.get("mode"),
             "phase": j.get("phase"),
-            "job_message": j.get("message", ""),
+            "job_message": said_text(j.get("message")),
+            "job_said": j.get("message") or None,
             "destination": j.get("destination", ""),
             "processed": j.get("processed", 0),
             "stepped_over": j.get("stepped_over", 0),
@@ -490,6 +544,30 @@ class Importer:
             "is_resume": bool(j.get("stepped_over")),
         }
 
+    def _done_bytes(self, sources: list[str], destination: str) -> int:
+        """Bytes of these sources already archived in *destination* and still
+        the same file: the room a run (or a resumed run) does not need again."""
+        done = 0
+        try:
+            conn = db.connect(self.data_dir)
+        except Exception:  # noqa: BLE001 — no estimate is better than no run
+            return 0
+        try:
+            for row in conn.execute("SELECT source, destination, size, mtime FROM import_files "
+                                    "WHERE status = 'verified' AND destination IS NOT NULL"):
+                if not is_within(row["destination"], destination) \
+                        or not any(is_within(row["source"], s) for s in sources):
+                    continue
+                try:
+                    st = os.stat(long_path(row["source"]))
+                except OSError:
+                    continue
+                if st.st_size == row["size"] and abs(st.st_mtime - (row["mtime"] or 0)) < 2:
+                    done += row["size"]
+        finally:
+            conn.close()
+        return done
+
     # -- walking the sources ------------------------------------------------------
 
     def _walk(self, sources: list[str], kinds: list[str], destination: str,
@@ -499,6 +577,9 @@ class Importer:
         fixed order, so a dry run predicts the real run."""
         counters = counters if counters is not None else {}
         avoid = {norm(destination), norm(self.data_dir)} if destination else {norm(self.data_dir)}
+        # A source holding the library (a whole drive, Pictures) must not copy
+        # the library into the archive: every photograph would show twice.
+        avoid |= {norm(root) for root in self.job.get("library", ())}
         for source in sources:
             stack = [os.path.abspath(source)]
             visited: set[str] = set()
@@ -544,6 +625,9 @@ class Importer:
                 counters: dict[str, int]) -> str | None:
         kind = kind_by_extension(name)
         if kind is None:
+            if _ext(name) in PACKED_EXTS and not name.startswith("."):
+                counters["packed"] = counters.get("packed", 0) + 1
+                return None
             if is_sidecar(name) or name == MARKER or _ext(name) in NEVER_MEDIA_EXTS \
                     or name.startswith("."):
                 return None
@@ -565,9 +649,11 @@ class Importer:
 
     def estimate(self, sources: list[str], destination: str, kinds: list[str],
                  token: str) -> dict[str, Any]:
-        snapshot = {"running": True, "finished": False, "cancelled": False,
-                    "files": 0, "bytes": 0, "folder": "", "started": time.time()}
         stop = threading.Event()
+        # Cancelling stops the walk at the next folder, not after the next
+        # 200 photographs: a drive of many folders and few photos never got there.
+        snapshot = {"running": True, "finished": False, "cancelled": False, "stop": stop,
+                    "files": 0, "bytes": 0, "folder": "", "started": time.time()}
         with self._lock:
             self._estimates[token] = snapshot
             self._estimates = {k: v for k, v in self._estimates.items()
@@ -598,12 +684,12 @@ class Importer:
         if snapshot["cancelled"]:
             return {"ok": False, "cancelled": True}
         free = free_space(destination)
-        needed = int(size * 1.1)
+        needed = int(max(0, size - self._done_bytes(sources, destination)) * 1.1)
         return {
             "ok": True, "files": files, "bytes": size, "by_kind": by_kind,
             "bytes_by_kind": bytes_by_kind, "too_small": counters.get("too_small", 0),
             "left_out": counters.get("left_out", 0), "unreadable": counters.get("unreadable", 0),
-            "truncated": truncated, "needed": needed, "free": free,
+            "packed": counters.get("packed", 0), "truncated": truncated, "needed": needed, "free": free,
             "fits": free is None or free >= needed,
         }
 
@@ -621,6 +707,7 @@ class Importer:
             s = self._estimates.get(token)
             if s:
                 s["cancelled"] = True
+                s["stop"].set()
 
     # -- one run --------------------------------------------------------------------
 
@@ -629,8 +716,8 @@ class Importer:
             conn = db.connect(self.data_dir)
         except Exception as exc:  # noqa: BLE001 — said on the console, not left "counting"
             log.exception("import could not open the index")
-            self._set(phase="failed", message=f"{type(exc).__name__}: {exc}",
-                      ended_at=time.time())
+            self._set(phase="failed", ended_at=time.time(),
+                      message=_say("The run stopped with an error: {why}", why=str(exc)))
             return
         job_id = None
         try:
@@ -642,9 +729,15 @@ class Importer:
             self._finish(conn, job_id, "completed")
         except Cancelled:
             self._finish(conn, job_id, "stopped")
+        except Incomplete as exc:
+            self._set(message=exc.said)
+            self._finish(conn, job_id, "incomplete")
+        except Problem as exc:
+            self._set(message=exc.said)
+            self._finish(conn, job_id, "failed")
         except Exception as exc:  # noqa: BLE001 — the thread must end tidily
             log.exception("import failed")
-            self._set(message=f"{type(exc).__name__}: {exc}")
+            self._set(message=_say("The run stopped with an error: {why}", why=str(exc)))
             self._finish(conn, job_id, "failed")
         finally:
             conn.close()
@@ -667,13 +760,14 @@ class Importer:
 
     def _finish(self, conn: sqlite3.Connection, job_id: int | None, state: str) -> None:
         j = self.job
-        phase = {"completed": "done", "stopped": "stopped", "failed": "failed"}[state]
+        phase = {"completed": "done", "stopped": "stopped", "failed": "failed",
+                 "incomplete": "incomplete"}[state]
         if state == "completed":
             message = self._summary(conn)
         elif state == "stopped":
-            message = "Stopped. Press Start to carry on where it left off."
+            message = _say("Stopped. Press Start to carry on where it left off.")
         else:
-            message = j.get("message") or "The run failed."
+            message = j.get("message") or _say("The run failed.")
         self._set(phase=phase, message=message, ended_at=time.time())
         self._sweep_partials()
         if job_id is not None:
@@ -681,36 +775,57 @@ class Importer:
                 conn.execute(
                     "UPDATE import_jobs SET state = ?, phase = ?, ended_at = ?, message = ?, "
                     "total_files = ?, total_bytes = ?, bytes_copied = ? WHERE id = ?",
-                    (state, phase, time.time(), message, j["total_files"], j["total_bytes"],
-                     j["bytes_copied"], job_id))
-        log.info("import %s: %s", state, message)
+                    ("stopped" if state == "incomplete" else state, phase, time.time(),
+                     json.dumps(message, ensure_ascii=False), j["total_files"],
+                     j["total_bytes"], j["bytes_copied"], job_id))
+        log.info("import %s: %s", state, message["text"])
+        if j["mode"] != "verify" and self.on_files is not None:
+            self.on_files(j["destination"])
 
-    def _summary(self, conn: sqlite3.Connection) -> str:
+    def _summary(self, conn: sqlite3.Connection) -> dict[str, Any]:
+        """How the run went, as a sentence the console can translate: a key
+        made of the parts that apply, and their numbers."""
         j = self.job
         if j["mode"] == "verify":
             errors = conn.execute("SELECT COUNT(*) FROM import_files WHERE status = 'error' "
                                   "AND job_id = ?", (j["job_id"],)).fetchone()[0]
-            return ("Audit finished: every archived file matches its hash." if not errors
-                    else f"Audit finished: {errors:,} archived files did not match or are missing.")
+            return (_say("Audit finished: every archived file matches its hash.") if not errors
+                    else _say("Audit finished: {errors} archived files did not match or are "
+                              "missing.", errors=f"{errors:,}"))
         counts = {r[0]: r[1] for r in conn.execute(
             "SELECT status, COUNT(*) FROM import_files WHERE job_id = ? GROUP BY status",
             (j["job_id"],))}
+        parts: list[str] = []
+        values: dict[str, Any] = {}
         if j["mode"] == "dry-run":
             for status, n in j.get("plan_aside", {}).items():
                 counts[status] = counts.get(status, 0) + n
-            text = (f"Dry run finished: {counts.get('planned', 0):,} files would be archived, "
-                    f"{counts.get('plan-duplicate', 0):,} are duplicates. Nothing was written.")
+            parts.append("Dry run finished: {planned} files would be archived, {duplicates} are "
+                         "duplicates. Nothing was written.")
+            values.update(planned=f"{counts.get('planned', 0):,}",
+                          duplicates=f"{counts.get('plan-duplicate', 0):,}")
         else:
-            text = (f"Finished: {counts.get('verified', 0):,} files archived and verified, "
-                    f"{counts.get('duplicate', 0):,} duplicates left in place")
-            if j["stepped_over"]:
-                text += f", {j['stepped_over']:,} already done"
-            text += "."
+            parts.append("Finished: {verified} files archived and verified, {duplicates} "
+                         "duplicates left in place." if not j["stepped_over"] else
+                         "Finished: {verified} files archived and verified, {duplicates} "
+                         "duplicates left in place, {done} already done.")
+            values.update(verified=f"{counts.get('verified', 0):,}",
+                          duplicates=f"{counts.get('duplicate', 0):,}",
+                          done=f"{j['stepped_over']:,}")
         if counts.get("error"):
-            text += f" {counts['error']:,} could not be archived."
+            parts.append("{errors} could not be archived.")
+            values["errors"] = f"{counts['error']:,}"
         if j.get("unreadable"):
-            text += f" {j['unreadable']:,} folders could not be read."
-        return text
+            parts.append("{unreadable} folders could not be read.")
+            values["unreadable"] = f"{j['unreadable']:,}"
+        if j.get("packed"):
+            parts.append("{packed} zip or other packed files were left alone: unpack them (a "
+                         "Google Takeout export, say) and import the folder.")
+            values["packed"] = f"{j['packed']:,}"
+        said = [_say(part, **{k: v for k, v in values.items() if "{" + k + "}" in part})
+                for part in parts]
+        return {"key": said[0]["key"], "vars": said[0]["vars"],
+                "text": " ".join(x["text"] for x in said), "more": said[1:]}
 
     # -- copying ---------------------------------------------------------------------
 
@@ -739,16 +854,18 @@ class Importer:
             size += st.st_size
             if total % 500 == 0:
                 self._set(total_files=total, total_bytes=size)
-        self._set(total_files=total, total_bytes=size, unreadable=counters.get("unreadable", 0))
+        self._set(total_files=total, total_bytes=size, unreadable=counters.get("unreadable", 0),
+                  packed=counters.get("packed", 0))
         if not dry:
-            done = conn.execute("SELECT COALESCE(SUM(size), 0) FROM import_files "
-                                "WHERE status = 'verified'").fetchone()[0]
+            # Only what this run's sources already put in this archive is
+            # room not needed again: every earlier import, to anywhere, is not.
+            done = self._done_bytes(j["sources"], j["destination"])
             free = free_space(j["destination"])
             needed = int(max(0, size - done) * 1.1)
             if free is not None and free < needed:
-                raise RuntimeError(
-                    f"Not enough room: the archive needs about {needed / 2**30:.1f} GB free "
-                    f"and the destination has {free / 2**30:.1f} GB.")
+                raise Problem(_say("Not enough room: the archive needs about {needed} free and "
+                                   "the destination has {free}.",
+                                   needed=human_size(needed), free=human_size(free)))
             os.makedirs(long_path(j["destination"]), exist_ok=True)
             self._write_marker()
             self._sweep_partials()
@@ -760,8 +877,23 @@ class Importer:
             self._one(conn, path, st, kind)
             with self._lock:
                 self.job["processed"] += 1
+                processed = self.job["processed"]
+            if not dry and processed % 500 == 0 and self.on_files is not None:
+                self.on_files(j["destination"])     # the gallery shows them as they come
         if not dry:
             self._sweep_partials()
+        # A source that went away during the copy (a card pulled out) is not
+        # a finished import, whatever was copied before it went.
+        unreadable = max(j.get("unreadable", 0), counters.get("unreadable", 0))
+        self._set(unreadable=unreadable)
+        gone = [src for src in j["sources"] if not os.path.isdir(long_path(src))]
+        missed = total - j["processed"]
+        if gone or (unreadable > j.get("unreadable", 0) and missed > 0) \
+                or missed > max(5, total // 100):
+            raise Incomplete(_say(
+                "Not finished: {missed} of {total} files were not reached. The drive may "
+                "have been unplugged. Plug it back in and press Start to finish; what was "
+                "copied is kept.", missed=f"{max(missed, 0):,}", total=f"{total:,}"))
 
     def _write_marker(self) -> None:
         path = os.path.join(self.job["destination"], MARKER)
@@ -778,8 +910,8 @@ class Importer:
         j = self.job
         dry = j["mode"] == "dry-run"
         name = os.path.basename(src)
-        row = conn.execute("SELECT status, destination, dest_hash, duplicate_of, size, mtime "
-                           "FROM import_files WHERE source = ?", (src,)).fetchone()
+        row = conn.execute("SELECT status, destination, hash, dest_hash, duplicate_of, size, "
+                           "mtime FROM import_files WHERE source = ?", (src,)).fetchone()
         if row is not None and row["status"] in TERMINAL and (
                 not row["destination"] or is_within(row["destination"], j["destination"])) \
                 and still_done(row, st):
@@ -848,7 +980,10 @@ class Importer:
                          duplicate_of=dup)
                     return
             os.makedirs(long_path(folder), exist_ok=True)
-            if self._damaged_copy(row, j["destination"]):
+            # Only the same photograph as the one filed there (the fresh copy
+            # has its recorded hash) replaces it: a new photograph at a reused
+            # card path must never write over an archived one, edited or not.
+            if row is not None and row["hash"] == digest and self._damaged_copy(row, j["destination"]):
                 # The audit found this source's earlier copy damaged: the
                 # fresh copy takes its place rather than a _1 beside it.
                 prior = row["destination"]
@@ -877,6 +1012,15 @@ class Importer:
             self._copy_sidecars(src, final)
         except Cancelled:
             raise
+        except OSError as exc:
+            if exc.errno == errno.ENOSPC:
+                # A full disk fails every file after this one, and the index
+                # is usually on the same disk: stop now, Start carries on.
+                mark("error", error="The destination is full.")
+                raise Problem(_say("The destination is full. Make room on it, then press Start "
+                                   "to carry on.")) from exc
+            log.info("import: %s: %s", src, exc)
+            mark("error", error=f"{exc}"[:300])
         except Exception as exc:  # noqa: BLE001 — recorded against the file, run goes on
             log.info("import: %s: %s", src, exc)
             mark("error", error=f"{exc}"[:300])
@@ -1000,12 +1144,21 @@ class Importer:
             if stem != final_stem:
                 out_name = out_name.replace(stem, final_stem, 1)
             target = os.path.join(final_dir, out_name)
-            if os.path.exists(long_path(target)):
-                continue
             try:
-                shutil.copy2(long_path(companion), long_path(target))
+                if os.path.exists(long_path(target)) and \
+                        os.path.getsize(long_path(target)) == os.path.getsize(long_path(companion)):
+                    continue
+                # Through a temporary name: one cut short (a full disk) is
+                # never left under the real name to be skipped for good.
+                partial = target + ".partial"
+                shutil.copy2(long_path(companion), long_path(partial))
+                os.replace(long_path(partial), long_path(target))
             except OSError as exc:
                 log.info("import: sidecar not copied %s: %s", companion, exc)
+                try:
+                    os.remove(long_path(target + ".partial"))
+                except OSError:
+                    pass
 
     # -- the audit ------------------------------------------------------------------
 

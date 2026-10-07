@@ -46,7 +46,20 @@ say "Ninaivu Lite $version → $prefix"
 
 # An upgrade: stop the one that is running before its files are replaced. Its
 # service first (asked through the server, the service would only start it
-# again), then one started any other way.
+# again), then one started any other way. Whether it was running is
+# remembered: it is started again afterwards, and again if the upgrade fails.
+was_running=0
+if [ -x "$prefix/python/bin/python3" ] && \
+        "$prefix/python/bin/python3" -m ninaivu_lite.control --data "$data" --running >/dev/null 2>&1; then
+    was_running=1
+fi
+start_old() {
+    [ "$was_running" = 1 ] || return 0
+    if command -v systemctl >/dev/null 2>&1 && { [ "$(id -u)" = 0 ] && systemctl start ninaivu-lite >/dev/null 2>&1 \
+            || systemctl --user start ninaivu-lite >/dev/null 2>&1; }; then return 0; fi
+    [ -x "$prefix/python/bin/python3" ] && \
+        "$prefix/python/bin/python3" -m ninaivu_lite.control --data "$data" --start >/dev/null 2>&1 || true
+}
 if command -v systemctl >/dev/null 2>&1; then
     if [ "$(id -u)" = 0 ]; then systemctl stop ninaivu-lite >/dev/null 2>&1 || true
     else systemctl --user stop ninaivu-lite >/dev/null 2>&1 || true; fi
@@ -61,9 +74,20 @@ mkdir -p "$prefix" "$bindir" "$data"
 # previews of hidden photos: no one else's to read.
 chmod 0700 "$data"
 rm -rf "$prefix/python.new"
+# A failure from here until the swap (a damaged download, a full disk) leaves
+# the earlier version as it was: its half-made replacement goes, and it is
+# started again if it was running.
+failed_upgrade() {
+    rm -rf "$prefix/python.new"
+    start_old
+    echo "The upgrade did not finish. The earlier version is still installed$( [ "$was_running" = 1 ] && echo ' and was started again')." >&2
+    exit 1
+}
+trap failed_upgrade EXIT
 cp -R "$payload/python" "$prefix/python.new"
 "$prefix/python.new/bin/python3" -m pip install --quiet --no-index --no-deps \
     --no-warn-script-location --disable-pip-version-check "$payload"/wheels/*.whl
+trap - EXIT
 # Only now is the old one replaced, so a failure above leaves a working install.
 rm -rf "$prefix/python"
 mv "$prefix/python.new" "$prefix/python"
@@ -145,7 +169,13 @@ rm -rf "$prefix/python" "$prefix/python.new"
 rm -f "$prefix/ninaivu-lite" "$prefix/ninaivu-lite-panel" "$prefix/VERSION" \
       "$prefix/LICENSE" "$prefix/README.md" "$prefix/uninstall"
 rmdir "$prefix" 2>/dev/null || true
-echo "Ninaivu Lite removed."
+if [ "\$1" = "--purge" ]; then
+    echo "Ninaivu Lite removed, with its settings, people and index. Your photographs were not touched."
+else
+    echo "Ninaivu Lite removed. Your photographs were not touched."
+    echo "Its settings, people and index are kept in $data, for a later install."
+    echo "To remove them too: delete that folder (or uninstall with --purge next time)."
+fi
 WRAP
 chmod +x "$prefix/ninaivu-lite" "$prefix/uninstall"
 ln -sf "$prefix/ninaivu-lite" "$bindir/ninaivu-lite"
@@ -283,15 +313,34 @@ if [ "$started" != 1 ]; then
     else say "Start it with: ninaivu-lite$folder_arg     (or from the Control Panel)"; fi
 fi
 
+if [ "$started" != 1 ] && [ "$was_running" = 1 ]; then
+    # Stopped for the upgrade, and nothing above started it again.
+    if "$py" -m ninaivu_lite.control --data "$data" --start >/dev/null 2>&1; then
+        started=1; say "It was running before the upgrade, so it was started again."
+    else
+        say "It was running before the upgrade and is stopped now."
+    fi
+fi
 address=$(hostname -I 2>/dev/null | awk '{print $1}')
+# The port it really listens on (the next free one when 8080 was taken).
+port=8080
+if [ "$started" = 1 ]; then
+    sleep 2
+    found=$(sed -n 's/.*"port": *\([0-9][0-9]*\).*/\1/p' "$data/server.json" 2>/dev/null | head -n 1)
+    [ -n "$found" ] && port=$found
+fi
 say ""
 say "Ninaivu Lite $version is installed."
-say "  Open it:        http://${address:-localhost}:8080   (the first visit makes the administrator)"
-[ "$started" = 1 ] && [ "$(id -u)" = 0 ] && say "  Setup code:     journalctl -u ninaivu-lite | grep code    (asked for when setting up from another device)"
-[ "$started" = 1 ] && [ "$(id -u)" != 0 ] && say "  Setup code:     journalctl --user -u ninaivu-lite | grep code    (asked for when setting up from another device)"
-if [ "$started" != 1 ]; then
-    if [ "$(id -u)" = 0 ]; then say "  Setup code:     in $data/logs/ninaivu-lite.log    (asked for when setting up from another device)"
-    else say "  Setup code:     in the Control Panel, and in $data/logs/ninaivu-lite.log    (asked for when setting up from another device)"; fi
+if "$py" -m ninaivu_lite.control --data "$data" --needs-setup >/dev/null 2>&1; then
+    say "  Open it:        http://${address:-localhost}:$port   (the first visit makes the administrator)"
+    [ "$started" = 1 ] && [ "$(id -u)" = 0 ] && say "  Setup code:     journalctl -u ninaivu-lite | grep code    (asked for when setting up from another device)"
+    [ "$started" = 1 ] && [ "$(id -u)" != 0 ] && say "  Setup code:     journalctl --user -u ninaivu-lite | grep code    (asked for when setting up from another device)"
+    if [ "$started" != 1 ]; then
+        if [ "$(id -u)" = 0 ]; then say "  Setup code:     in $data/logs/ninaivu-lite.log    (asked for when setting up from another device)"
+        else say "  Setup code:     in the Control Panel, and in $data/logs/ninaivu-lite.log    (asked for when setting up from another device)"; fi
+    fi
+else
+    say "  Open it:        http://${address:-localhost}:$port   (your library, people and settings are as they were)"
 fi
 if [ "$(id -u)" = 0 ]; then
     [ "$started" = 1 ] && say "  Start, stop:    systemctl start|stop|restart ninaivu-lite"

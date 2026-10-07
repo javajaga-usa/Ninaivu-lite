@@ -12,9 +12,12 @@ import webbrowser
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from . import APP_NAME, COPYRIGHT, __version__, backups, create_app, net
+from . import APP_NAME, COPYRIGHT, __version__, backups, create_app, lock, net
 from .config import DEFAULT_PORT, Config, make_private
 from .scanner import Scanner
+
+
+REFUSED = "ninaivu_lite.refused"
 
 
 def use_utf8_output() -> None:
@@ -46,6 +49,7 @@ def setup_logging(data_dir: str) -> None:
         console = logging.StreamHandler()
         console.setLevel(logging.WARNING)
         console.setFormatter(logging.Formatter("  %(levelname)s: %(message)s"))
+        console.addFilter(lambda record: record.name != REFUSED)   # printed already
         root.addHandler(console)
     try:
         folder = Path(data_dir) / "logs"
@@ -63,11 +67,25 @@ def setup_logging(data_dir: str) -> None:
 def add_folders(cfg: Config, paths: list[str]) -> list[str] | None:
     """Add folders named on the command line to the saved ones (the admin page
     can do the same). None, after saying why, if any of them cannot be used."""
-    from . import folders
+    from . import db, folders
     added = []
+    # A folder an administrator took out of the library stays out: a service
+    # or container that names it at every start (install.sh --photos,
+    # Docker's /photos) must not bring it back with its photographs open to
+    # the family again.
+    conn = db.connect(cfg.data_dir)
+    try:
+        removed = {r[0] for r in conn.execute(
+            "SELECT path FROM folders WHERE detached_at IS NOT NULL")}
+    finally:
+        conn.close()
     for raw in paths:
         path = str(Path(raw).resolve())
         if path in cfg.folders:
+            continue
+        if path in removed:
+            print(f"  {raw} was taken out of the library on the Admin page, so it is not\n"
+                  "  added again. Add it there if it should come back.", file=sys.stderr)
             continue
         problem = folders.problem(path, cfg.data_dir, cfg.folders + added)
         if problem:
@@ -121,7 +139,11 @@ def restore_backup(data_dir: str | None, bundle: str) -> int:
     """Put a backup zip back, but never under a running server."""
     from .config import default_data_dir
     folder = Path(data_dir) if data_dir else default_data_dir()
-    if net.already_running(state_port(folder, DEFAULT_PORT)):
+    # The lock catches a server on any address (or in a container); the
+    # question over the network, one started before servers took the lock.
+    if (lock.held_elsewhere(folder)
+            or net.already_running(state_port(folder, DEFAULT_PORT), lock.known_instance(folder))
+            or not lock.acquire(folder)):
         print(f"  {APP_NAME} is running. Stop it (Control Panel, Stop) and run this again.",
               file=sys.stderr)
         return 2
@@ -130,9 +152,32 @@ def restore_backup(data_dir: str | None, bundle: str) -> int:
     except backups.RestoreError as exc:
         print(f"  {exc}", file=sys.stderr)
         return 2
+    finally:
+        lock.release(folder)
     print(f"  Restored from {bundle}.")
     print(f"  What was there before is kept in {aside}.")
+    print("  Everyone signs in again: passwords and PINs are as they were in the backup.")
+    for missing in restored_folders_missing(folder):
+        print(f"  Not found on this computer: {missing}\n"
+              "    If the photos are somewhere else now, start Ninaivu Lite and, in the Admin\n"
+              "    page under Library folders, use \"Moved?\" on that folder to point it there.")
     return 0
+
+
+def restored_folders_missing(data_dir: Path) -> list[str]:
+    """Library folders the restored settings (or index) name that this
+    computer does not have: photos on another drive, or not plugged in."""
+    try:
+        cfg = Config.load(data_dir)
+    except Exception:  # noqa: BLE001 — only advice; the restore is done
+        return []
+    return [f for f in cfg.folders if not Path(f).is_dir()]
+
+
+def refuse(message: str) -> None:
+    """Why the server will not start: on the console and in the log."""
+    print(f"  {message}", file=sys.stderr)
+    logging.getLogger(REFUSED).error("not starting: %s", " ".join(message.split()))
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -176,20 +221,22 @@ def main(argv: list[str] | None = None) -> int:
     if args.restore:
         # Before anything opens the index: a restore must not be mixed with it.
         return restore_backup(args.data, args.restore)
+    from .config import default_data_dir
+    # The log first: a start that is refused says why there too, where the
+    # Control Panel (which has no console) sends people to look.
+    setup_logging(str(Path(args.data) if args.data else default_data_dir()))
     cfg = Config.load(args.data)
     make_private(cfg.data_dir)
-    setup_logging(cfg.data_dir)
     if cfg.folders_unknown:
-        print(f"  The settings in {cfg.data_dir} are missing or damaged, and the index there\n"
-              "  cannot be read to recover the library folders. Nothing was changed.\n"
-              "  Restore a backup (--restore), or look at the log in the logs folder.",
-              file=sys.stderr)
+        refuse(f"The settings in {cfg.data_dir} are missing or damaged, and the index there\n"
+               "  cannot be read to recover the library folders. Nothing was changed.\n"
+               "  Restore a backup (--restore), or look at the log in the logs folder.")
         return 2
     from . import db
     try:
         db.connect(cfg.data_dir).close()
     except db.NewerIndex as exc:
-        print(f"  {exc}", file=sys.stderr)
+        refuse(str(exc))
         return 2
     if args.reset_password:
         return reset_password(cfg, args.reset_password)
@@ -198,8 +245,12 @@ def main(argv: list[str] | None = None) -> int:
         Path(args.export).write_bytes(export.dumps(db.connect(cfg.data_dir), cfg))
         print(f"  Written: {args.export}")
         return 0
+    # Only a server on this same data folder counts: another copy of Ninaivu
+    # Lite (installed beside a portable one) on the port is left alone, and
+    # this one takes the next free port.
+    mine = lock.known_instance(cfg.data_dir)
     running = next((p for p in dict.fromkeys((args.port, state_port(cfg.data_dir, args.port)))
-                    if net.already_running(p)), None)
+                    if net.already_running(p, mine)), None)
     if running:
         # Started at sign-in, or a second double-click: open the one that is
         # running instead of starting another on a different port.
@@ -214,6 +265,10 @@ def main(argv: list[str] | None = None) -> int:
         if not args.no_browser:
             webbrowser.open(local)
         return 2 if new else 0
+    if not lock.acquire(cfg.data_dir):
+        refuse(f"{APP_NAME} is already running on {cfg.data_dir} (on another address, or\n"
+               "  in another window). Stop that one first, or give this one its own --data.")
+        return 2
     if args.folders:
         added = add_folders(cfg, args.folders)
         if added is None:
@@ -224,6 +279,7 @@ def main(argv: list[str] | None = None) -> int:
     addresses = net.lan_addresses() if args.host in ("0.0.0.0", "") else []
     scanner = Scanner(cfg.data_dir, cfg.folders)
     app = create_app(cfg, addresses=addresses, scanner=scanner)
+    app.config["INSTANCE"] = lock.instance_id(cfg.data_dir)
     scanner.start()
     keeper = backups.Keeper(cfg.data_dir)
     keeper.start()
@@ -254,6 +310,7 @@ def main(argv: list[str] | None = None) -> int:
         keeper.stop()
         scanner.stop()
         control.clear_state(cfg.data_dir)
+        lock.release(cfg.data_dir)
 
     def stop_when_asked() -> None:
         # Asked by the Control Panel: let the answer go out, tidy up, and end
@@ -271,6 +328,11 @@ def main(argv: list[str] | None = None) -> int:
         serve(app, args.host, cfg.port)
     except KeyboardInterrupt:
         pass
+    except Exception:
+        # Into the log too, where the Control Panel's "see the log" points:
+        # a window that closed takes its last words with it.
+        logging.getLogger(__name__).exception("the web server stopped with an error")
+        raise
     finally:
         finish()
     return 0

@@ -7,6 +7,7 @@ ever read.
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import os
@@ -151,6 +152,17 @@ class Config:
             log.warning("could not write the recovered settings", exc_info=True)
         return self
 
+    def update(self, **changes) -> None:
+        """Change settings only once they are written: a save that fails (a
+        full disk) leaves both the file and what the server does as they
+        were, instead of a choice that holds until the next restart."""
+        trial = copy.deepcopy(self)
+        for key, value in changes.items():
+            setattr(trial, key, value)
+        trial.save()
+        for key, value in changes.items():
+            setattr(self, key, copy.deepcopy(value))
+
     def save(self) -> None:
         """Write atomically: a power cut mid-save leaves the old file, never half a file."""
         if self.folders_unknown:
@@ -192,7 +204,12 @@ def index_folders(data_dir: str | os.PathLike) -> list[str]:
         # (file://server/...), and a read-only query changes nothing.
         conn = sqlite3.connect(str(path), timeout=30)
         try:
-            rows = conn.execute("SELECT path FROM folders ORDER BY id").fetchall()
+            columns = {r[1] for r in conn.execute("PRAGMA table_info(folders)")}
+            # Folders taken out of the library (index version 9) stay out.
+            rows = conn.execute(
+                "SELECT path FROM folders "
+                + ("WHERE detached_at IS NULL " if "detached_at" in columns else "")
+                + "ORDER BY id").fetchall()
         finally:
             conn.close()
     except sqlite3.Error as exc:

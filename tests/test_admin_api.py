@@ -213,9 +213,10 @@ def test_remove_library_with_assigned_people(app, admin, library, tmp_path):
     assert [f["path"] for f in r.get_json()["folders"]] == [str(root)]
     saved = Config.load(data_dir)
     assert saved.folders == [str(root)] and saved.active_folder == str(root)
-    # The index rows went at once; the assignment stays (and now sees nothing).
+    # Its photographs left the gallery at once (set aside, not deleted: see
+    # test_audit_fixes_2026_10_07); the assignment stays (and now sees nothing).
     c = conn_of(app)
-    assert c.execute("SELECT COUNT(*) FROM assets").fetchone()[0] == 6
+    assert c.execute("SELECT COUNT(*) FROM assets WHERE missing = 0").fetchone()[0] == 6
     assert auth.get_user_by_name(c, "kutti").library == str(more)
     assert (more / "a.jpg").exists()
 
@@ -264,7 +265,7 @@ def test_first_day(app, admin, library):
     root, data_dir = library
     data = admin.get("/api/admin/first-day").get_json()
     assert data["done"] is False and data["people"] == 0
-    assert data["library"] == {"chosen": True, "root": str(root)}
+    assert data["library"] == {"chosen": True, "root": str(root), "roots": [str(root)]}
     assert data["import"]["destination"] == os.path.join(str(root), "Ninaivu Archive")
     assert admin.post("/api/admin/first-day", json={}).get_json() == {"done": True}
     assert admin.get("/api/admin/first-day").get_json()["done"] is True

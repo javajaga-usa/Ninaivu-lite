@@ -576,7 +576,7 @@ export class ArchivePanel {
     const status = $('#ar-status-text').parentElement;
     status.classList.toggle('busy', running);
     status.classList.toggle('done', !running && data.phase === 'done');
-    status.classList.toggle('bad', !running && data.phase === 'failed');
+    status.classList.toggle('bad', !running && ['failed', 'incomplete', 'interrupted'].includes(data.phase));
     $('#ar-status-text').textContent = statusLine(data);
 
     // Controls
@@ -833,9 +833,14 @@ function statusLine(data) {
     if (data.phase === 'counting') return `${what} — ${i18n.t('Looking through the folder…')}`;
     return `${what}…`;
   }
-  if (data.phase === 'done') return i18n.t(data.job_message) || i18n.t('Finished');
-  if (data.phase === 'failed') return i18n.t(data.job_message) || i18n.t('Stopped with errors');
-  if (data.phase === 'stopped') return i18n.t(data.job_message) || i18n.t('Ready — Start also resumes');
+  // The server's sentence, translated: {key, vars} (and more sentences after it).
+  const message = data.job_said
+    ? [data.job_said, ...(data.job_said.more || [])].map((part) => said(part)).join(' ')
+    : (data.job_message ? i18n.t(data.job_message) : '');
+  if (data.phase === 'done') return message || i18n.t('Finished');
+  if (data.phase === 'failed') return message || i18n.t('Stopped with errors');
+  if (data.phase === 'stopped') return message || i18n.t('Ready — Start also resumes');
+  if (data.phase === 'incomplete' || data.phase === 'interrupted') return message;
   if (data.total_scanned) return i18n.t('Ready — Start also resumes');
   return i18n.t('Ready');
 }

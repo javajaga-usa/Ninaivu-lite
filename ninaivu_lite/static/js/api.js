@@ -51,9 +51,11 @@ export function onUnauthorized(handler) {
 }
 
 /** Call from any fetch helper that sees a 401. Safe to call repeatedly. */
-export function reportUnauthorized(url = '') {
+export function reportUnauthorized(url = '', closed = false) {
   if (String(url).includes('/api/auth/')) return false;
-  if (viewerIsAnonymous) return false;      // expected for a guest; not a lost session
+  // A guest's 401 is expected, except when the library has just been made
+  // private under them: then the sign-in screen is the way on.
+  if (viewerIsAnonymous && !closed) return false;
   if (sessionAlreadyLost) return true;      // one sign-in screen, not twelve
   sessionAlreadyLost = true;
   for (const handler of unauthorizedHandlers) {
@@ -64,6 +66,38 @@ export function reportUnauthorized(url = '') {
     }
   }
   return true;
+}
+
+/* The server marks every answer to a device whose session was ended from the
+   console (a PIN changed, Sign out everywhere, a profile switched off). That
+   device is answered as somebody just looking, so no 401 comes; without this
+   it kept the last person's albums, names and open photograph on screen.
+   Every fetch on the page is watched, whichever helper made it. */
+if (typeof window !== 'undefined' && window.fetch && !window.fetch.ninaivuWatched) {
+  const nativeFetch = window.fetch.bind(window);
+  const watched = async (input, init) => {
+    const response = await nativeFetch(input, init);
+    const url = typeof input === 'string' ? input : (input?.url || '');
+    if (response.headers.get('X-Ninaivu-Session') === 'ended' && !url.includes('/api/auth/')) {
+      sessionEnded();
+    }
+    return response;
+  };
+  watched.ninaivuWatched = true;
+  window.fetch = watched;
+}
+
+function sessionEnded() {
+  if (sessionAlreadyLost) return;
+  sessionAlreadyLost = true;
+  viewerIsAnonymous = false;
+  for (const handler of unauthorizedHandlers) {
+    try {
+      handler();
+    } catch {
+      /* a broken listener must not swallow the original error */
+    }
+  }
 }
 
 /** Called once the viewer is back in, so a later expiry is noticed again. */
@@ -89,7 +123,7 @@ async function request(url, options = {}) {
     // has ended. Raising the sign-in screen for it put the gate on top of the
     // dialog doing the asking, and signed somebody out of their own gallery
     // for mistyping a password into a delete box.
-    if (response.status === 401 && !data?.needs_password) reportUnauthorized(url);
+    if (response.status === 401 && !data?.needs_password) reportUnauthorized(url, !!data?.private);
     throw Object.assign(new Error(i18n.t(data?.error || response.statusText)), {
       status: response.status,
       data,
