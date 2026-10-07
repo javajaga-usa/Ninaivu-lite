@@ -121,7 +121,8 @@ On the gallery page everyone picks their own picture:
 
 An administrator's tile is locked and asks for their password. The console,
 `http://<computer>:8080/admin`, takes the username and password. To leave the gallery, open your
-profile (top right) and choose *Sign out* (the door symbol).
+profile (top right) and choose *Sign out* (the door symbol). On a tablet the family shares,
+signing in as someone else signs the previous person out of it.
 
 **Your picture on the sign-in screen.** Every tile starts as your initials on your colour. To
 use a photograph instead, open it in the gallery and choose *Use as my profile picture* from
@@ -198,7 +199,8 @@ add their folders under *Import* yourself.
 
 ## 6. Sharing with someone outside the family
 
-Choose **Share link** in the viewer, or **Share album** on an album. You can add a password and an expiry date.
+Choose **Share link** in the viewer, or **Share album** on an album. You can add a password and an expiry date;
+whoever has the link can try the password 60 times a day at most.
 Send the link to someone on your home network. They see only that photo or album, as a copy
 without location or camera details. A video is sent with its location removed too, which
 needs ffmpeg on the computer; without it, a guest or someone with a link is told the video
@@ -253,7 +255,8 @@ later. The visitor does not see the file's name.
   **Download** button opens its page); on Linux, run the newer `.sh` the same way as the first.
   For the portable zip, extract the new version to a new folder and copy the old `data`
   folder into it (untick start-at-sign-in in the old copy first). For a copy of the source, replace the program files and start it again.
-  Your data folder stays as it is.
+  Your data folder stays as it is. Going back to an older version afterwards means restoring a
+  backup made before the update: 1.6.0 cannot open the index of 1.7.0.
 - **Linux, installed with `sudo`** — Ninaivu Lite runs as a service under its own
   `ninaivu-lite` account, never as root, with its data in `/var/lib/ninaivu-lite`. That
   account must be able to read your photo folders and pass through every folder above them.
