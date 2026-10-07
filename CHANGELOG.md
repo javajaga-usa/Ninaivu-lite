@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.7.0 — 2026-10-07
 
 Fixes for the external attack surface review of 2026-10-07 (A116-A119):
 
