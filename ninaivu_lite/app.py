@@ -7,7 +7,9 @@ import html
 import ipaddress
 import logging
 import os
+import re
 import socket
+import threading
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -123,6 +125,136 @@ def host_allowed(host: str, extra: list[str] | tuple[str, ...] = ()) -> bool:
     return name in {h.strip().lower().rstrip(".") for h in named if isinstance(h, str)}
 
 
+#: Carrier-grade NAT, the range Tailscale gives its devices: not "private"
+#: to Python, but never a stranger on the internet.
+SHARED_RANGE = ipaddress.ip_network("100.64.0.0/10")
+_ADDRESS_PART = re.compile(r"^[0-9A-Fa-f:.]+$")
+_same_network_seen: dict[str, bool] = {}
+_same_network_lock = threading.Lock()
+_internet_refused: set[str] = set()
+
+
+def _same_network(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Whether *ip* is on the same network as this computer (the same /24, or
+    /64 for IPv6, as the address this computer would answer it from): a
+    phone's global IPv6 address at home, or a campus network that hands out
+    public addresses. No packet is sent: connecting a UDP socket only picks
+    the route."""
+    key = str(ip)
+    with _same_network_lock:
+        if key in _same_network_seen:
+            return _same_network_seen[key]
+    family = socket.AF_INET6 if ip.version == 6 else socket.AF_INET
+    own = None
+    try:
+        with socket.socket(family, socket.SOCK_DGRAM) as probe:
+            probe.connect((key, 9))
+            own = ipaddress.ip_address(probe.getsockname()[0].split("%", 1)[0])
+    except (OSError, ValueError):
+        pass
+    prefix = 64 if ip.version == 6 else 24
+    same = own is not None and own.version == ip.version and \
+        ip in ipaddress.ip_network(f"{own}/{prefix}", strict=False)
+    with _same_network_lock:
+        if len(_same_network_seen) > 4096:
+            _same_network_seen.clear()
+        _same_network_seen[key] = same
+    return same
+
+
+def home_address(address: str | None) -> bool | None:
+    """Whether *address* is in this household's reach: this computer, the
+    home network (private, link-local, the same network as this computer) or
+    a private VPN such as Tailscale. None when it is not an address at all
+    (a proxy's "unknown"), which says nothing either way."""
+    text = (address or "").strip().strip('"')
+    if text.startswith("["):                          # [2001:db8::1]:4711
+        text = text[1:text.find("]")] if "]" in text else text[1:]
+    elif text.count(":") == 1:                       # 203.0.113.9:51000
+        text = text.split(":", 1)[0]
+    text = text.split("%", 1)[0]
+    if not text or not _ADDRESS_PART.match(text):
+        return None
+    try:
+        ip = ipaddress.ip_address(text)
+    except ValueError:
+        return None
+    if ip.version == 6 and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    if ip.is_loopback or ip.is_private or ip.is_link_local:
+        return True
+    if ip.version == 4 and ip in SHARED_RANGE:
+        return True
+    if ip.is_multicast or ip.is_unspecified or ip.is_reserved:
+        return False
+    return _same_network(ip)
+
+
+def forwarded_for(headers) -> list[str]:
+    """The addresses a proxy says a request came from (any of the usual
+    headers), client first. Only ever used to refuse, never to let in: a
+    made-up header can only shut its own sender out."""
+    found: list[str] = []
+    for name in auth.FORWARDING_HEADERS:
+        if name == "X-Forwarded-Host":
+            continue
+        value = headers.get(name)
+        if not value:
+            continue
+        for part in value.split(","):
+            if name == "Forwarded":
+                for pair in part.split(";"):
+                    key, _, item = pair.strip().partition("=")
+                    if key.strip().lower() == "for":
+                        found.append(item.strip())
+            else:
+                found.append(part.strip())
+    return found
+
+
+def internet_allowed(cfg: Config) -> bool:
+    """Off unless the household turned it on: ``allow_internet`` in
+    settings.json, or ``NINAIVU_ALLOW_INTERNET=1``."""
+    if cfg.allow_internet:
+        return True
+    return os.environ.get("NINAIVU_ALLOW_INTERNET", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def from_outside(remote_addr: str | None, headers) -> str | None:
+    """The internet address a request came from, directly or through a
+    proxy or tunnel on this computer, or None for a request from home."""
+    if home_address(remote_addr) is not True:
+        return remote_addr or "?"
+    for address in forwarded_for(headers):
+        if home_address(address) is False:
+            return address
+    return None
+
+
+def refuse_outside(address: str):
+    """A request from the internet (a forwarded port, a router's UPnP, a
+    tunnel): Ninaivu Lite is for the home network, so it is refused, and
+    said once in the log with how to allow it on purpose."""
+    if address not in _internet_refused and len(_internet_refused) < 100:
+        _internet_refused.add(address)
+        log.warning("refused a request from %s, which is outside the home network: set "
+                    "allow_internet to true in settings.json (or NINAIVU_ALLOW_INTERNET=1) "
+                    "only if Ninaivu Lite is meant to be reached from the internet", address)
+    if request.path.startswith("/api/"):
+        raise ApiError(403, "Ninaivu Lite answers only the home network.")
+    page = (
+        "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'>"
+        "<title>Ninaivu Lite</title><div style='font:16px/1.5 system-ui;margin:3rem auto;"
+        "max-width:34rem;padding:0 1rem'>"
+        "<h1 style='font-size:1.3rem'>Ninaivu Lite answers only the home network</h1>"
+        "<p>Open it from a phone or computer on the same Wi-Fi as the computer it runs on.</p><hr>"
+        "<h1 style='font-size:1.3rem'>நினைவு லைட் வீட்டு வலையமைப்புக்கு மட்டுமே பதில் தரும்</h1>"
+        "<p>அது இயங்கும் கணினியின் அதே Wi-Fi இல் உள்ள தொலைபேசி அல்லது கணினியிலிருந்து திறக்கவும்.</p>"
+        "</div>")
+    from flask import Response
+    return Response(page, 403, mimetype="text/html")
+
+
 #: Body types a page on another site may send without asking first (CORS's
 #: "simple" requests); anything else, or the header below, needs the
 #: browser's permission, which Ninaivu Lite never gives.
@@ -193,6 +325,12 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
         # Only for this computer's own names: never a stranger's name pointed here.
         if not host_allowed(request.host, cfg.allowed_hosts):
             return refuse_host(request.host)
+        # Only from home: a port forwarded on the router, or a tunnel, must
+        # not put the family's photographs on the internet by accident.
+        if not internet_allowed(cfg):
+            outside = from_outside(request.remote_addr, request.headers)
+            if outside is not None:
+                return refuse_outside(outside)
         # Writes only from this site's own pages.
         if request.method in UNSAFE:
             site = request.headers.get("Sec-Fetch-Site")

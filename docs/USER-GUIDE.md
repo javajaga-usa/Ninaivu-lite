@@ -287,6 +287,13 @@ data folder, for example `"allowed_hosts": ["photos.home"]`, or to the `NINAIVU_
 environment variable (names separated by commas; with Docker, `ALLOWED_HOSTS`), then start
 it again.
 
+**"Ninaivu Lite answers only the home network."** The phone or computer is reaching Ninaivu
+Lite from the internet (mobile data through a forwarded port, or a tunnel), which it refuses so
+that the family's photographs are not on the internet by accident. Connect to the home Wi-Fi,
+or use a private VPN such as Tailscale. Only if it is meant to be reached from the internet
+(behind HTTPS of your own), stop it and set `"allow_internet": true` in `settings.json`, or
+`NINAIVU_ALLOW_INTERNET=1`.
+
 **A guest or a share link says a video cannot be shared.** Install `ffmpeg` on the computer:
 Ninaivu Lite needs it to remove a video's location before sending it. Or, as the
 administrator, turn on *Send videos to guests and share links as they are when their

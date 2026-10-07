@@ -60,6 +60,9 @@ class Config:
     #: Extra names this computer is reached by (a reverse proxy, a name of the
     #: household's own); its addresses and network name always work.
     allowed_hosts: list[str] = field(default_factory=list)
+    #: Requests from outside the home network (a forwarded port, a tunnel)
+    #: are refused unless this is set on purpose.
+    allow_internet: bool = False
     first_day_done: bool = False
     # The importer's last job, so the console's Import page opens as it was left.
     import_sources: list[str] = field(default_factory=list)
@@ -76,7 +79,7 @@ class Config:
     folders_unknown: bool = False
 
     SAVED = ("folders", "active", "house_name", "open_browsing", "language", "watch",
-             "video_originals", "allowed_hosts",
+             "video_originals", "allowed_hosts", "allow_internet",
              "first_day_done", "import_sources", "import_destination", "import_kinds")
 
     @property

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+Fixes for the external attack surface review of 2026-10-07 (A116-A119):
+
+- **Ninaivu Lite answers only the home network.** A request from an internet address, through
+  a port forwarded on the router or a tunnel (ngrok, Cloudflare Tunnel, Tailscale Funnel), is
+  refused with "Ninaivu Lite answers only the home network." The same network, private VPNs
+  such as Tailscale and this computer are answered as before. `"allow_internet": true` in
+  `settings.json` (or `NINAIVU_ALLOW_INTERNET=1`; Docker `ALLOW_INTERNET=1`) allows it on
+  purpose. (A116)
+- **A share link's password can be tried 60 times a day at most**, as a PIN can, not nearly a
+  thousand. (A117)
+- **Signing in on a browser ends the session it had before** (another profile), instead of
+  leaving it valid for 30 days. (A118)
+- **The health check tells other devices only that the server is up**; the version and data
+  folder are told to this computer only. (A119)
+
 Fixes for the 51 findings of the safety, flows and hand-offs audit of 2026-10-07 (A65-A115).
 What you may notice:
 
