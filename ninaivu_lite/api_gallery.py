@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-from flask import Blueprint, Response, jsonify, request, send_file
+from flask import Blueprint, Response, current_app, jsonify, request, send_file
 from PIL import Image
 
 from . import auth, db, media
@@ -40,9 +40,11 @@ from .common import (
     body,
     cfg,
     conn,
+    counted,
     fail,
     importer as engine,
     library_exists,
+    remembered_page,
     require_admin,
     require_family,
     scan_snapshot,
@@ -198,9 +200,14 @@ def root_label(who: auth.User) -> str:
     return Path(folders[0]).name or "Library"
 
 
+#: library_stats' columns, in the order its query reads them.
+STATS_COLUMNS = ("count", "bytes", "favorites", "pictures", "videos", "hidden", "public",
+                 "first_date", "last_date")
+
+
 def library_stats(who: auth.User) -> dict[str, Any]:
     where, params = visible(who)
-    row = conn().execute(
+    row = counted(
         f"""SELECT COUNT(*) AS count, COALESCE(SUM(a.size), 0) AS bytes,
                    COALESCE(SUM(ua.favorite = 1), 0) AS favorites,
                    COALESCE(SUM(a.kind = 'picture'), 0) AS pictures,
@@ -211,8 +218,8 @@ def library_stats(who: auth.User) -> dict[str, Any]:
                    MAX(NULLIF(a.date_key, '')) AS last_date
             FROM assets a
             LEFT JOIN user_assets ua ON ua.asset_id = a.id AND ua.user_id = ?
-            WHERE {where}""", [who.id, *params]).fetchone()
-    out = {key: row[key] for key in row.keys()}
+            WHERE {where}""", [who.id, *params])[0]
+    out = dict(zip(STATS_COLUMNS, row, strict=True))
     out["first_date"] = out["first_date"] or ""
     out["last_date"] = out["last_date"] or ""
     out.update(live=0, audio=0, duplicate_groups=0, nsfw=0, embedded=0)
@@ -403,6 +410,21 @@ def segments():
         # A random order cannot be continued: one piece, as large as it was.
         offset, limit = 0, max(limit, DEFAULT_LIMIT)
 
+    if not pageable:
+        return jsonify(grid_page(who, where, args, sort, limit, offset))
+    # The same page for the same person is the same answer until the index
+    # changes: a gallery opened again (or on another of their devices) is
+    # sent the last one instead of reading 25,000 rows again.
+    body = remembered_page(
+        (who.id, where, tuple(args), sort, limit, offset),
+        lambda: current_app.json.dumps(grid_page(who, where, args, sort, limit, offset),
+                                       separators=(",", ":")))
+    return current_app.response_class(body, mimetype="application/json")
+
+
+def grid_page(who: auth.User, where: str, args: list[Any], sort: str, limit: int,
+              offset: int) -> dict[str, Any]:
+    pageable = sort != "random"
     c = conn()
     # Plain tuples, and no join: the columns read here are all in the
     # assets_grid index, so the date-ordered page never touches the table.
@@ -434,7 +456,7 @@ def segments():
                       thumb_v or 0, swatch(color) if has_thumb else ""])
 
     reached = offset + len(rows)
-    return jsonify({
+    return {
         "total": total,
         "offset": offset,
         "returned": len(rows),
@@ -443,14 +465,14 @@ def segments():
         "semantic": False,
         "segments": out,
         "thumb_sizes": sorted(media.THUMB_SIZES.values()),
-    })
+    }
 
 
 # --- facets and suggestions --------------------------------------------------------------------
 
 
 def _folder_counts(where: str, params: list[Any], limit: int) -> list[dict[str, Any]]:
-    return [{"name": r[0], "count": r[1]} for r in conn().execute(
+    return [{"name": r[0], "count": r[1]} for r in counted(
         f"""SELECT a.dir, COUNT(*) AS n FROM assets a WHERE {where} AND a.dir != ''
             GROUP BY a.dir ORDER BY n DESC, a.dir LIMIT ?""", [*params, limit])]
 
@@ -458,7 +480,7 @@ def _folder_counts(where: str, params: list[Any], limit: int) -> list[dict[str, 
 def _camera_counts(where: str, params: list[Any], limit: int) -> list[dict[str, Any]]:
     if not user().family_or_more:
         return []     # as for one photo's details: cameras are for the family
-    return [{"name": r[0], "count": r[1]} for r in conn().execute(
+    return [{"name": r[0], "count": r[1]} for r in counted(
         f"""SELECT a.camera, COUNT(*) AS n FROM assets a
             WHERE {where} AND a.camera IS NOT NULL AND a.camera != ''
             GROUP BY a.camera ORDER BY n DESC, a.camera LIMIT ?""", [*params, limit])]
@@ -467,7 +489,7 @@ def _camera_counts(where: str, params: list[Any], limit: int) -> list[dict[str, 
 @bp.get("/api/facets")
 def facets():
     where, params = visible()
-    years = [{"year": r[0], "count": r[1]} for r in conn().execute(
+    years = [{"year": r[0], "count": r[1]} for r in counted(
         f"""SELECT substr(a.date_key, 1, 4) AS y, COUNT(*) FROM assets a
             WHERE {where} AND a.date_key != '' GROUP BY y ORDER BY y DESC""", params)]
     return jsonify({

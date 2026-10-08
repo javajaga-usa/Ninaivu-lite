@@ -2,21 +2,25 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import html
 import ipaddress
+import json
 import logging
 import os
 import re
 import socket
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
 from flask import Flask, g, request
+from markupsafe import Markup
 
-from . import auth, common, compress, drives, phones
+from . import auth, common, compress, db, drives, phones
 from .common import ApiError
 from .config import Config
 from .importer import Importer
@@ -267,6 +271,33 @@ def script_sent() -> bool:
     return bool(request.headers.get(SCRIPT_HEADER)) or request.mimetype not in SIMPLE_TYPES
 
 
+def module_map(static: str, asset: Callable[[str], str]) -> str:
+    """An import map giving every script module, and the translations, the
+    address with its content's hash (see ``asset``).
+
+    The pages name their first script that way already, but the dozen it
+    imports were asked for by their plain names, which cannot be cached for
+    long: an upgrade would leave old scripts beside new ones. So every visit
+    asked for each of them again, a round trip apiece (and a request for the
+    server) before the gallery could start, on a phone, which has no offline
+    copy over plain http. Mapped, each is asked for once per version and kept.
+    A browser without import maps (before 2023 on an iPhone) asks by the
+    plain names, as before."""
+    root = Path(static)
+    imports = {}
+    for path in sorted([*root.glob("js/**/*.js"), *root.glob("js/**/*.mjs"),
+                        *root.glob("i18n/*.json")]):
+        url = "/static/" + path.relative_to(root).as_posix()
+        imports[url] = asset(url)
+    return json.dumps({"imports": imports}, separators=(",", ":"))
+
+
+def inline_hash(text: str) -> str:
+    """The Content-Security-Policy source that allows this one inline script."""
+    digest = hashlib.sha256(text.encode("utf-8")).digest()
+    return "sha256-" + base64.b64encode(digest).decode("ascii")
+
+
 def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
                scanner: Scanner | None = None) -> Flask:
     """Build the application. *addresses* are the home-network addresses this
@@ -278,6 +309,8 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
     app.config["SCANNER"] = scanner or Scanner(cfg.data_dir, cfg.folders)
     app.config["SCANNER"].auto = cfg.watch
     app.config["IMPORTER"] = Importer(cfg.data_dir)
+    app.config["REMEMBERED"] = db.Remembered(cfg.data_dir)
+    app.config["REMEMBERED_PAGES"] = db.Remembered(cfg.data_dir, limit=common.PAGES_KEPT)
 
     def imported(destination: str) -> None:
         # Files the importer (or a phone) put inside a library folder show in
@@ -303,22 +336,26 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
 
     asset_cache: dict[str, str] = {}
 
+    def asset(path: str) -> str:
+        """A static URL that changes when the file does, so it can be cached."""
+        if path not in asset_cache:
+            whole = Path(app.static_folder or "") / path.removeprefix("/static/")
+            try:
+                asset_cache[path] = hashlib.sha256(whole.read_bytes()).hexdigest()[:12]
+            except OSError:
+                asset_cache[path] = __version__
+        return f"{path}?v={asset_cache[path]}"
+
+    import_map = module_map(app.static_folder or "", asset)
+    csp = CSP.replace("script-src 'self'", f"script-src 'self' '{inline_hash(import_map)}'", 1)
+
     @app.context_processor
     def template_helpers() -> dict[str, Any]:
-        def asset(path: str) -> str:
-            """A static URL that changes when the file does, so it can be cached."""
-            if path not in asset_cache:
-                whole = Path(app.static_folder or "") / path.removeprefix("/static/")
-                try:
-                    asset_cache[path] = hashlib.sha256(whole.read_bytes()).hexdigest()[:12]
-                except OSError:
-                    asset_cache[path] = __version__
-            return f"{path}?v={asset_cache[path]}"
-
         tamil_font = (Path(app.static_folder or "") / "fonts" / "NotoSansTamil.ttf").is_file()
         from .version import about
         return {"asset": asset, "tamil_font": tamil_font, "map_tiles": False,
-                "version": __version__, "about": about()}
+                "version": __version__, "about": about(),
+                "import_map": Markup(f'<script type="importmap">{import_map}</script>')}
 
     @app.before_request
     def guard():
@@ -361,6 +398,7 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
 
     @app.after_request
     def headers(response):
+        response.headers.setdefault("Content-Security-Policy", csp)
         for name, value in SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
         if request.path.startswith("/api/"):

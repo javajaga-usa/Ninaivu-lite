@@ -71,16 +71,11 @@ def test_a06_one_pass_makes_every_pending_thumbnail(tmp_path, monkeypatch):
     s, c = _seed_pending(tmp_path, 120)
     calls: list[tuple[int, tuple]] = []
 
-    def made(conn, row, sizes):
+    def made(row, sizes):
         calls.append((row["id"], sizes))
-        with conn:
-            if "s" in sizes:
-                conn.execute("UPDATE assets SET thumb = 1 WHERE id = ?", (row["id"],))
-            if "l" in sizes:
-                conn.execute("UPDATE assets SET large = 1 WHERE id = ?", (row["id"],))
-        return True
+        return sizes, True, None
 
-    monkeypatch.setattr(s, "_thumbnail", made)
+    monkeypatch.setattr(s, "_render", made)
     s._make_thumbnails(c)
     assert c.execute("SELECT COUNT(*) FROM assets WHERE thumb = 0").fetchone()[0] == 0
     assert c.execute("SELECT COUNT(*) FROM assets WHERE large = 0").fetchone()[0] == 0
@@ -91,15 +86,13 @@ def test_a06_rows_that_fail_are_tried_once_and_do_not_hide_others(tmp_path, monk
     s, c = _seed_pending(tmp_path, 130)
     tried: list[int] = []
 
-    def made(conn, row, sizes):
+    def made(row, sizes):
         tried.append(row["id"])
         if row["id"] % 3 == 0:
-            return False                    # its drive is asleep: stays in the queue
-        with conn:
-            conn.execute("UPDATE assets SET thumb = 1, large = 1 WHERE id = ?", (row["id"],))
-        return True
+            return None                     # its drive is asleep: stays in the queue
+        return ("s", "l"), True, None
 
-    monkeypatch.setattr(s, "_thumbnail", made)
+    monkeypatch.setattr(s, "_render", made)
     s._make_thumbnails(c)
     left = {r[0] for r in c.execute("SELECT id FROM assets WHERE thumb = 0")}
     assert left == {i for i in range(1, 131) if i % 3 == 0}

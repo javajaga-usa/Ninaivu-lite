@@ -15,7 +15,9 @@ import logging
 import os
 import sqlite3
 import threading
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -420,6 +422,69 @@ def move_folder(conn: sqlite3.Connection, old: str, new: str) -> None:
     with conn:
         conn.execute("DELETE FROM folders WHERE path = ? AND detached_at IS NOT NULL", (new,))
         conn.execute("UPDATE folders SET path = ? WHERE path = ?", (new, old))
+
+
+class Remembered:
+    """Answers that change only when the index does: the library's counts and
+    its years, folders and cameras. Every page load used to count the whole
+    library again (50-200 ms a count on 100,000 photographs, several times
+    that on a Raspberry Pi) for numbers that had not changed since the last
+    load.
+
+    Whether the index changed is SQLite's own answer: ``PRAGMA data_version``,
+    asked on a connection kept for nothing else, moves whenever any other
+    connection commits a change, in this process or another (the scanner,
+    the Control Panel). An answer is kept only when the index did not change
+    while it was worked out, and used only while it still has not.
+    """
+
+    def __init__(self, data_dir: str | Path, limit: int = 128) -> None:
+        self._path = Path(data_dir) / DB_FILE
+        self._limit = limit
+        self._lock = threading.Lock()
+        self._conn: sqlite3.Connection | None = None
+        self._version: int | None = None
+        self._answers: dict[Any, Any] = {}
+
+    def _current(self) -> int | None:
+        """The index's change counter now, or None when it cannot be asked
+        (nothing is then remembered). Called with the lock held."""
+        try:
+            if self._conn is None:
+                # Never creating the index, and never writing to it: it only watches.
+                self._conn = sqlite3.connect(f"{self._path.resolve().as_uri()}?mode=rw", uri=True,
+                                             timeout=5, check_same_thread=False)
+            return int(self._conn.execute("PRAGMA data_version").fetchone()[0])
+        except (sqlite3.Error, ValueError):
+            self.close()
+            return None
+
+    def get(self, key: Any, compute: Callable[[], Any],
+            keep: Callable[[Any], bool] | None = None) -> Any:
+        """The answer for *key*, worked out by *compute* unless remembered.
+        *keep* can say an answer is not worth remembering (too large)."""
+        with self._lock:
+            before = self._current()
+            if before is not None and before == self._version and key in self._answers:
+                return self._answers[key]
+        value = compute()
+        if keep is not None and not keep(value):
+            return value
+        with self._lock:
+            if before is not None and self._current() == before:
+                if self._version != before or len(self._answers) >= self._limit:
+                    self._answers = {}
+                    self._version = before
+                self._answers[key] = value
+        return value
+
+    def close(self) -> None:
+        if self._conn is not None:
+            try:
+                self._conn.close()
+            except sqlite3.Error:
+                pass
+        self._conn, self._version, self._answers = None, None, {}
 
 
 def rule_for(conn: sqlite3.Connection, folder_id: int, rel_dir: str) -> int | None:

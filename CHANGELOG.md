@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+Fixes for the performance review of 2026-10-08 (A120-A122):
+
+- **The first scan of a library is about 2.7 times faster on a computer with four cores**
+  (a Raspberry Pi, most laptops): thumbnails are made three at a time, with one core always
+  left for the gallery. A one- or two-core computer makes them one at a time as before, and
+  a very large PNG or TIFF is always made alone so memory stays low. (A120)
+- **The gallery opens faster when nothing has changed.** The library's counts, its years,
+  folders and cameras, and the grid's first page are kept until the index changes, so
+  opening the gallery again on 100,000 photos answers in milliseconds instead of a fifth of
+  a second each. Anything that changes the index (a scan, a favourite, a visibility change)
+  shows at once. (A121)
+- **Phones no longer ask for a dozen scripts again on every visit.** Each page lists every
+  script, and the Tamil translations, at an address that changes only with the file, so a
+  phone keeps them until the next upgrade. (A122)
+
 ## 1.7.0 — 2026-10-07
 
 Fixes for the external attack surface review of 2026-10-07 (A116-A119):

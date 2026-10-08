@@ -13,6 +13,7 @@ import os
 import shutil
 import subprocess
 import threading
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -370,11 +371,28 @@ def thumb_path(thumbs_dir: Path, asset_id: int, size: str) -> Path:
     return thumbs_dir / f"{asset_id % 256:02x}" / f"{asset_id}_{size}.webp"
 
 
-def _open_photo(path: str, edge: int) -> Image.Image:
+#: A picture this many pixels or more, once opened at the size it will be
+#: read at, is made one at a time. A JPEG is read at a quarter or an eighth of
+#: its size and never comes near it, but a 50 MP PNG or TIFF is read whole
+#: (150 MB), and three of those at once would not fit in a small computer.
+HEAVY_PIXELS = 16_000_000
+_HEAVY = threading.Lock()
+
+
+def _draft(path: str, edge: int) -> Image.Image:
+    """The photograph opened (its header only) to be read at about *edge*."""
     img = Image.open(dates.long_path(path))
     # A JPEG can be decoded at 1/2, 1/4 or 1/8 size directly: on a 24 MP photo
     # that is most of the work of making a thumbnail, skipped.
     img.draft("RGB", (edge, edge))
+    return img
+
+
+def _open_photo(path: str, edge: int) -> Image.Image:
+    return _upright(_draft(path, edge))
+
+
+def _upright(img: Image.Image) -> Image.Image:
     img.load()
     img = ImageOps.exif_transpose(img) or img
     if getattr(img, "n_frames", 1) > 1:
@@ -440,22 +458,31 @@ def make_thumbnails(path: str, kind: str, thumbs_dir: Path, asset_id: int,
     then shows a plain tile.
     """
     edge = max(THUMB_SIZES[s] for s in sizes)
+    gate = nullcontext()
     try:
-        img = _open_photo(path, edge) if kind == "picture" else video_frame(path)
+        if kind == "picture":
+            img = _draft(path, edge)
+            if img.width * img.height >= HEAVY_PIXELS:
+                gate = _HEAVY
+        else:
+            img = video_frame(path)
     except Exception as exc:  # noqa: BLE001
         log.debug("no thumbnail for %s: %s", path, exc)
         return False, None
     if img is None:
         return False, None
-    try:
-        colour = save_thumbnails(turn(img, rotation) if kind == "picture" else img,
-                                 thumbs_dir, asset_id, sizes)
-        return True, colour
-    except Exception as exc:  # noqa: BLE001
-        log.debug("thumbnail failed for %s: %s", path, exc)
-        return False, None
-    finally:
-        img.close()
+    with gate:
+        try:
+            if kind == "picture":
+                img = _upright(img)
+            colour = save_thumbnails(turn(img, rotation) if kind == "picture" else img,
+                                     thumbs_dir, asset_id, sizes)
+            return True, colour
+        except Exception as exc:  # noqa: BLE001
+            log.debug("thumbnail failed for %s: %s", path, exc)
+            return False, None
+        finally:
+            img.close()
 
 
 def save_thumbnails(img: Image.Image, thumbs_dir: Path, asset_id: int,
