@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.9.0 — 2026-10-08
+
+The index is unchanged (version 9), so 1.9.0, 1.8.0 and 1.7.0 can open each other's data
+folder: going back to 1.8.0 or 1.7.0 needs no backup restore. Stop Ninaivu Lite before
+installing 1.9.0 (in the Control Panel press **Stop**, or **Get ready to update**); the
+photos, people, settings, index and backups are kept.
+
 
 Updates are put in by hand, and safely:
 
