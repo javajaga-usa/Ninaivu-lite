@@ -147,3 +147,15 @@ def test_the_studio_keeps_its_promises_under_node():
     done = subprocess.run([shutil.which("node"), "--test", str(ROOT / "tests" / "sudar.mjs")],
                           capture_output=True, text=True, timeout=300, cwd=ROOT)
     assert done.returncode == 0, done.stdout[-4000:] + done.stderr[-2000:]
+
+
+def test_dragging_the_compare_divider_does_not_select():
+    """M14: on a desktop, dragging Compare's divider painted the edited half
+    blue in Safari, which reads user-select only with its -webkit- prefix."""
+    js = (ROOT / "ninaivu_lite/static/js/sudar/sudar.js").read_text(encoding="utf-8")
+    css = (ROOT / "ninaivu_lite/static/css/sudar.css").read_text(encoding="utf-8")
+    down = js[js.index("stage.onpointerdown"):js.index("stage.onpointermove")]
+    assert "e.preventDefault()" in down
+    assert "stage.ondragstart = stage.onselectstart = e => e.preventDefault()" in js
+    assert js.count('draggable="false"') == 2
+    assert "-webkit-user-select: none" in css and "-webkit-user-drag: none" in css

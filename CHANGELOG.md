@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Dragging Sudar's Compare divider no longer selects the picture on a desktop.** In Safari
+  (and any browser on an iPhone or iPad) moving the divider also started a selection that
+  painted the edited half blue; the press now belongs to the divider alone, and the
+  Before/After bar's words and both pictures can no longer be selected or dragged out. (M14)
+
 ## 1.8.0 — 2026-10-08
 
 The index is unchanged (version 9), so 1.8.0 and 1.7.0 can open each other's data folder:

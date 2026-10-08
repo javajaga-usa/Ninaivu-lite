@@ -67,8 +67,8 @@ export function openSudar({item=null, returnFocus=document.activeElement, canSav
         <div class="ap-viewport">
           <div class="ap-empty">${i18n.t('Open a photo from the gallery to begin editing.')}</div>
           <div class="ap-stage" hidden>
-            <img class="ap-edited" alt="${i18n.t('Edited preview')}">
-            <img class="ap-original" alt="${i18n.t('Original photo')}">
+            <img class="ap-edited" alt="${i18n.t('Edited preview')}" draggable="false">
+            <img class="ap-original" alt="${i18n.t('Original photo')}" draggable="false">
             <div class="ap-divider" aria-hidden="true"><span class="ap-divider-handle">↔</span></div>
             <span class="ap-before">${i18n.t('Original')}</span>
             <span class="ap-after">${i18n.t('Edited')}</span>
@@ -405,9 +405,20 @@ export function openSudar({item=null, returnFocus=document.activeElement, canSav
     $('.ap-original').style.clipPath = `inset(0 ${100-pct}% 0 0)`;
     updateCompareDivider(pct);
   }
-  stage.onpointerdown = e => { if(viewMode !== 'compare') return; stageDragging = true; stage.setPointerCapture(e.pointerId); updateStageCompare(e); };
+  // Dragging the divider must not also select: Safari ignores the CSS
+  // user-select without its -webkit- prefix, and a mouse press left to its
+  // default starts a selection that painted the edited (right) half blue as
+  // the divider moved. The press is the divider's alone (M14).
+  stage.onpointerdown = e => {
+    if(viewMode !== 'compare' || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    e.preventDefault();
+    document.getSelection()?.removeAllRanges();
+    stageDragging = true; stage.setPointerCapture(e.pointerId); updateStageCompare(e);
+  };
   stage.onpointermove = e => { if(stageDragging) updateStageCompare(e); };
   stage.onpointerup = stage.onpointercancel = e => { if(stageDragging){ stageDragging = false; try{stage.releasePointerCapture(e.pointerId);}catch{ /* already released */ } } };
+  stage.onlostpointercapture = () => { stageDragging = false; };
+  stage.ondragstart = stage.onselectstart = e => e.preventDefault();
 
   $('[data-crop]').onchange = e => apply({crop: e.target.value});
 
