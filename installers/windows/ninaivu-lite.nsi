@@ -40,9 +40,9 @@
     ask_${U}:
       StrCpy $nl_waited 0
       ; With /S nobody can answer: Cancel, rather than wait for ever.
-      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION /SD IDCANCEL \
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION \
         "Ninaivu Lite is still running, so its files cannot be replaced.$\r$\n$\r$\nIn the Ninaivu Lite Control Panel press Stop (or close the window Ninaivu Lite was started from), then close the Control Panel itself, and press Retry." \
-        IDRETRY check_${U}
+        /SD IDCANCEL IDRETRY check_${U}
       Abort "Ninaivu Lite is still running. Stop it and close the Control Panel, then run this installer again."
     not_in_use_${U}:
     !undef U
