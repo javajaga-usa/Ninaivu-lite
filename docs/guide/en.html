@@ -18,7 +18,7 @@
   <div class="hero"><img src="img/en/g20-timeline.jpg" alt=""><span class="hero-phone"><img src="img/en/h32c-timeline.jpg" alt=""></span></div>
   <div class="bottom">
     <p class="kind">Complete user guide</p>
-    <p class="meta">Version 1.8.0 &nbsp;·&nbsp; 8 October 2026 &nbsp;·&nbsp; with screenshots</p>
+    <p class="meta">Version 1.9.0 &nbsp;·&nbsp; 8 October 2026 &nbsp;·&nbsp; with screenshots</p>
     <div class="features"><div><b>Private</b>Runs on one computer at home. Nothing leaves the house.</div><div><b>Tamil and English</b>Every screen, message and this guide, in both.</div><div><b>Any computer</b>Windows 10 and 11, Mac, Linux and Raspberry Pi.</div></div>
   </div>
 </section>
@@ -26,7 +26,7 @@
 <section class="contents">
   <h2 class="toc-title">Contents</h2>
   <ol id="toc"></ol>
-  <div class="about"><b>Version</b><span>1.8.0, released 8 October 2026</span><b>Screenshots</b><span>Taken from this version in English, with a sample library of 120 drawn pictures and 3 short videos</span><b>Repository</b><span>github.com/javajaga-usa/Ninaivu-lite</span><b>In Tamil</b><span>The same guide is available in Tamil.</span></div>
+  <div class="about"><b>Version</b><span>1.9.0, released 8 October 2026</span><b>Screenshots</b><span>Taken from this version in English, with a sample library of 120 drawn pictures and 3 short videos</span><b>Repository</b><span>github.com/javajaga-usa/Ninaivu-lite</span><b>In Tamil</b><span>The same guide is available in Tamil.</span></div>
 </section>
 
 <!-- 1 ======================================================================= -->
@@ -311,7 +311,7 @@
       <li><b>Docker:</b> <code>docker compose -f installers/docker/docker-compose.yml run --rm ninaivu-lite python -m ninaivu_lite --data /data --reset-password &lt;username&gt;</code>.</li>
     </ul></li>
   <li><b>A drive unplugged?</b> Its photos show as unavailable and come back when it returns. Nothing is lost.</li>
-  <li><b>Updating:</b> Ninaivu Lite never checks for a newer version and asks nothing of GitHub; download one from the releases page when you choose to. <b>First stop Ninaivu Lite</b>: in the Control Panel press <b>Stop</b> and close it (<b>Get ready to update</b> does both); on a Linux server, <code>sudo systemctl stop ninaivu-lite</code>. If you forget, the Windows and Linux installers offer to stop it and wait. Then, with an installer, run the new installer. On Linux, run the newer <code>.sh</code> the same way as the first. On a Mac, drag the new app over the old one in Applications; if Ninaivu Lite was still running, the Control Panel says so: press <b>Restart</b>. For the portable zip, press <b>Stop</b> and untick <b>Start Ninaivu Lite when I sign in</b> in the old copy's Control Panel, extract the new version to a new folder, copy the old <code>data</code> folder into it, and tick the box in the new copy's Control Panel. For a copy of the source, replace the program files and start it again. Your settings, people, index, backups and photos are untouched. The first start after an update brings the index forward by itself, after keeping a copy of it as it was (<code>backups/before-update-…zip</code>). Going back from 1.8.0 to 1.7.0 needs nothing special. Going back to 1.6.0 or older means restoring a backup made before the update (see <em>Backups</em> above): version 1.6.0 cannot open the index of 1.7.0 or later.</li>
+  <li><b>Updating:</b> Ninaivu Lite never checks for a newer version and asks nothing of GitHub; download one from the releases page when you choose to. <b>First stop Ninaivu Lite</b>: in the Control Panel press <b>Stop</b> and close it (<b>Get ready to update</b> does both); on a Linux server, <code>sudo systemctl stop ninaivu-lite</code>. If you forget, the Windows and Linux installers offer to stop it and wait. Then, with an installer, run the new installer. On Linux, run the newer <code>.sh</code> the same way as the first. On a Mac, drag the new app over the old one in Applications; if Ninaivu Lite was still running, the Control Panel says so: press <b>Restart</b>. For the portable zip, press <b>Stop</b> and untick <b>Start Ninaivu Lite when I sign in</b> in the old copy's Control Panel, extract the new version to a new folder, copy the old <code>data</code> folder into it, and tick the box in the new copy's Control Panel. For a copy of the source, replace the program files and start it again. Your settings, people, index, backups and photos are untouched. The first start after an update brings the index forward by itself, after keeping a copy of it as it was (<code>backups/before-update-…zip</code>). Going back from 1.9.0 to 1.9.0 or 1.7.0 needs nothing special. Going back to 1.6.0 or older means restoring a backup made before the update (see <em>Backups</em> above): version 1.6.0 cannot open the index of 1.7.0 or later.</li>
   <li class="keep"><b>Linux, installed with <code>sudo</code>:</b> Ninaivu Lite runs as a service under its own <code>ninaivu-lite</code> account, never as root, with its data in <code>/var/lib/ninaivu-lite</code>, and there is no Control Panel: use <code>sudo systemctl start|stop|restart ninaivu-lite</code>. That account must be able to read your photo folders and pass through every folder above them. The installer names any it cannot read; let it in with, for example:
     <div class="cmds"><code>sudo setfacl -R -m u:ninaivu-lite:rX /home/me/Pictures</code> (what is there now)<br>
     <code>sudo setfacl -R -d -m u:ninaivu-lite:rX /home/me/Pictures</code> (what is added later)<br>
@@ -338,7 +338,7 @@
 
 <section class="backcover"><div class="inner">
   <div class="logo"><svg viewBox="0 0 32 32"><path d="M4 15 16 5l12 10v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M12 28v-7a4 4 0 0 1 8 0v7"/></svg></div>
-  <h2>Ninaivu Lite 1.8.0</h2>
+  <h2>Ninaivu Lite 1.9.0</h2>
   <p>Your family's photographs, at home.</p>
   <p>github.com/javajaga-usa/Ninaivu-lite</p>
   <p class="fine">Free and open source under the MIT licence. © 2026 Jagadeesh Rajendran.</p>
