@@ -34,12 +34,14 @@ import sqlite3
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from datetime import datetime
 from typing import Any
 
 from PIL import Image
 
-from . import db, dates, media
+from . import db, dates, media, parallel
 from .dates import long_path
 
 log = logging.getLogger(__name__)
@@ -136,13 +138,10 @@ def sniff_media(path: str) -> str | None:
 
 def hash_file(path: str, gate: Gate | None = None) -> str:
     h = hashlib.sha256()
-    with open(long_path(path), "rb") as f:
-        while True:
-            if gate:
-                gate.check()
-            chunk = f.read(CHUNK)
-            if not chunk:
-                break
+    # The next megabyte is read while this one is hashed (parallel.chunks).
+    with open(long_path(path), "rb") as f, \
+            closing(parallel.chunks(f, CHUNK, gate.check if gate else None)) as read:
+        for chunk in read:
             h.update(chunk)
     return h.hexdigest()
 
@@ -1113,15 +1112,18 @@ class Importer:
     def _copy_and_hash(self, src: str, tmp: str) -> tuple[str, int]:
         h = hashlib.sha256()
         total = 0
-        with open(long_path(src), "rb") as fi, open(long_path(tmp), "wb") as fo:
-            while True:
-                self.gate.check()
-                chunk = fi.read(CHUNK)
-                if not chunk:
-                    break
-                h.update(chunk)
+        # Three things at once on a computer with the cores: the source's
+        # next megabyte is read while this one is hashed and, beside it,
+        # written. The card, the processor and the archive disk are all kept
+        # busy, and each still sees the file in order, once.
+        with open(long_path(src), "rb") as fi, open(long_path(tmp), "wb") as fo, \
+                closing(parallel.chunks(fi, CHUNK, self.gate.check)) as read, \
+                ThreadPoolExecutor(1, thread_name_prefix="hash") as hasher:
+            for chunk in read:
+                hashed = hasher.submit(h.update, chunk)
                 fo.write(chunk)
                 total += len(chunk)
+                hashed.result()
             fo.flush()
             os.fsync(fo.fileno())
         return h.hexdigest(), total

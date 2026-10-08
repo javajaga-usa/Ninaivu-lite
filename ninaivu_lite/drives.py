@@ -28,9 +28,11 @@ import shutil
 import sys
 import threading
 import time
+from contextlib import closing
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from . import parallel
 from .dates import long_path
 
 # The Control Panel imports this module, so the importer (and with it Pillow)
@@ -546,13 +548,11 @@ def _copy(src: str, dest: str, cancel: threading.Event) -> None:
     os.makedirs(long_path(folder), exist_ok=True)
     tmp = dest + ".partial"
     try:
-        with open(long_path(src), "rb") as fin, open(long_path(tmp), "wb") as fout:
-            while True:
-                if cancel.is_set():
-                    raise InterruptedError
-                chunk = fin.read(CHUNK)
-                if not chunk:
-                    break
+        # The next megabyte is read from the library while this one is
+        # written to the drive (parallel.chunks).
+        with open(long_path(src), "rb") as fin, open(long_path(tmp), "wb") as fout, \
+                closing(parallel.chunks(fin, CHUNK, lambda: _stopped(cancel))) as read:
+            for chunk in read:
                 fout.write(chunk)
             # On the drive itself, not in the computer's write cache: a drive
             # pulled out after "Copied" must not hold a damaged photo that
@@ -567,6 +567,11 @@ def _copy(src: str, dest: str, cancel: threading.Event) -> None:
         except OSError:
             pass
         raise
+
+
+def _stopped(cancel: threading.Event) -> None:
+    if cancel.is_set():
+        raise InterruptedError
 
 
 def _size(n: int) -> str:

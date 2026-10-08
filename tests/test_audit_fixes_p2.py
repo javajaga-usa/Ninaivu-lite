@@ -71,7 +71,7 @@ def test_a06_one_pass_makes_every_pending_thumbnail(tmp_path, monkeypatch):
     s, c = _seed_pending(tmp_path, 120)
     calls: list[tuple[int, tuple]] = []
 
-    def made(row, sizes):
+    def made(row, sizes, threads=0):
         calls.append((row["id"], sizes))
         return sizes, True, None
 
@@ -86,7 +86,7 @@ def test_a06_rows_that_fail_are_tried_once_and_do_not_hide_others(tmp_path, monk
     s, c = _seed_pending(tmp_path, 130)
     tried: list[int] = []
 
-    def made(row, sizes):
+    def made(row, sizes, threads=0):
         tried.append(row["id"])
         if row["id"] % 3 == 0:
             return None                     # its drive is asleep: stays in the queue

@@ -14,7 +14,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from ninaivu_lite import db, media
+from ninaivu_lite import db, media, parallel
 from ninaivu_lite import scanner as scanner_module
 from ninaivu_lite.scanner import Scanner
 
@@ -75,11 +75,11 @@ def test_a120_a_rescan_asked_for_stops_the_workers_early(tmp_path, monkeypatch):
     started: list[int] = []
     render = s._render
 
-    def slow(row, sizes):
+    def slow(row, sizes, threads=0):
         started.append(row["id"])
         if len(started) == 5:
             s.rescan()                               # somebody pressed Rescan
-        return render(row, sizes)
+        return render(row, sizes, threads)
 
     monkeypatch.setattr(s, "_render", slow)
     s._make_thumbnails(c)
@@ -112,7 +112,8 @@ def test_a120_a_huge_picture_is_made_alone(tmp_path, monkeypatch):
 
 
 def test_a120_workers_leave_a_core_for_the_gallery():
-    assert 1 <= scanner_module.THUMB_WORKERS <= 3
+    # Since A123 no longer at most 3: see test_parallel_2026_10_08.py.
+    assert 1 <= scanner_module.THUMB_WORKERS <= max(1, parallel.cores() - 1)
 
 
 # --- A121: counts remembered until the index changes ---------------------------------------
