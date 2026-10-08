@@ -32,6 +32,13 @@ Updates are put in by hand, and safely:
 - The Windows release build now also installs over its own running copy and checks that the
   data folder is untouched and Ninaivu Lite is started again.
 
+Sudar:
+
+- **Dragging Sudar's Compare divider no longer selects the picture on a desktop.** In Safari
+  (and any browser on an iPhone or iPad) moving the divider also started a selection that
+  painted the edited half blue; the press now belongs to the divider alone, and the
+  Before/After bar's words and both pictures can no longer be selected or dragged out. (M14)
+
 ## 1.8.0 — 2026-10-08
 
 The index is unchanged (version 9), so 1.8.0 and 1.7.0 can open each other's data folder:

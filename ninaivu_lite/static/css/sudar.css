@@ -1141,3 +1141,18 @@
   .ap-export-row select { flex: 1 1 100%; }
   .ap-export-row .btn { flex: 1 1 auto; }
 }
+
+/* ==========================================================================
+   Desktop: dragging Compare's divider selected the edited half (M14, 2026-10-08)
+   ========================================================================== */
+/* Safari, and every browser on an iPhone or iPad, reads user-select only with
+   its -webkit- prefix, so the stage above was still selectable there: a drag
+   across the picture painted the edited half blue. The Before/After bar's
+   words are not for selecting either, and neither picture can be dragged
+   out as a file. */
+.ap-stage, .ap-stage img, .ap-floating-compare {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.ap-stage img { -webkit-user-drag: none; }
