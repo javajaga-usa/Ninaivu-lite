@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 1.10.0 — 2026-10-08
+
+The index is unchanged (version 9), so 1.10.0, 1.9.0, 1.8.0 and 1.7.0 can open each other's
+data folder: going back needs no backup restore. Stop Ninaivu Lite before installing 1.10.0
+(in the Control Panel press **Stop**, or **Get ready to update**); the photos, people,
+settings, index and backups are kept. The user guides' line on going back to an earlier
+version, garbled in 1.9.0, is corrected.
+
 
 - **A sharp top bar on iPhones (M15).** The console's top bar (the name, *Family app*, the
   language, search, theme, profile and sign-out buttons) could look soft and out of focus
