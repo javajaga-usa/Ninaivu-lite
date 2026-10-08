@@ -315,6 +315,12 @@ def connect(data_dir: str | Path) -> sqlite3.Connection:
         # journal is slower with many readers but always works.
         conn.execute("PRAGMA journal_mode=DELETE")
     try:
+        version = conn.execute("PRAGMA user_version").fetchone()[0]
+        if 0 < version < len(MIGRATIONS):
+            # The first start after an update: a recovery zip of the index as
+            # the earlier version left it, before anything in it is changed.
+            from . import backups
+            backups.before_change(path.parent, f"update-from-index-{version}")
         migrate(conn)
     except BaseException:
         conn.close()

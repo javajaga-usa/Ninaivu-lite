@@ -19,11 +19,14 @@ Panel (that adds one small file to your Startup folder; untick it before
 moving or deleting this folder).
 
 Moving it: close the Control Panel after pressing Stop, then move or copy
-the whole folder. Upgrading: in the old folder's Control Panel press Stop and
-untick "Start Ninaivu Lite when I sign in", then extract the new version to a
-new folder, copy the old "data" folder into it, and tick the box again in the
-new Control Panel (otherwise the old copy keeps starting, and changes go into
-its data). Removing it: press Stop, untick
+the whole folder. Upgrading (Ninaivu Lite never checks for a newer version;
+download one when you choose to): first, in the old folder's Control Panel,
+press Stop, untick "Start Ninaivu Lite when I sign in" and close the Control
+Panel. Then extract the new version to a new folder, copy the old "data"
+folder into it, and tick the box again in the new Control Panel (otherwise the
+old copy keeps starting, and changes go into its data). Never extract a new
+version over a copy that is running. The first start of the new version keeps
+a copy of the old index in data\backups before it brings the index forward. Removing it: press Stop, untick
 "Start Ninaivu Lite when I sign in", and delete the folder.
 
 Setting up from a phone asks for a setup code: the Control Panel shows it,
@@ -60,11 +63,15 @@ Startup கோப்புறையில் ஒரு சிறு கோப்
 நீக்கும் முன் அந்தத் தேர்வை நீக்கவும்.
 
 நகர்த்த: Stop அழுத்தி Control Panel ஐ மூடி, முழுக் கோப்புறையையும் நகர்த்தவும்
-அல்லது நகலெடுக்கவும். புதுப்பிக்க: பழைய கோப்புறையின் Control Panel இல் Stop
-அழுத்தி "Start Ninaivu Lite when I sign in" தேர்வை நீக்கவும்; பின் புதிய
+அல்லது நகலெடுக்கவும். புதுப்பிக்க (நினைவு லைட் புதிய பதிப்பைத் தானாகத் தேடுவதில்லை;
+நீங்கள் விரும்பும்போது பதிவிறக்குங்கள்): முதலில் பழைய கோப்புறையின் Control Panel இல்
+Stop அழுத்தி, "Start Ninaivu Lite when I sign in" தேர்வை நீக்கி, Control Panel ஐ
+மூடவும்; பின் புதிய
 பதிப்பை ஒரு புதிய கோப்புறையில் விரித்து, பழைய "data" கோப்புறையை அதற்குள்
 நகலெடுத்து, புதிய Control Panel இல் அந்தத் தேர்வை மீண்டும் இடவும் (இல்லையெனில்
-பழைய நகலே தொடங்கும், மாற்றங்கள் அதன் தரவில் சேரும்). நீக்க: Stop அழுத்தி,
+பழைய நகலே தொடங்கும், மாற்றங்கள் அதன் தரவில் சேரும்). இயங்கிக்கொண்டிருக்கும்
+நகலின் மேல் புதிய பதிப்பை ஒருபோதும் விரிக்க வேண்டாம். புதிய பதிப்பின் முதல்
+தொடக்கம், அட்டவணையை மாற்றும் முன் அதன் பழைய நகலை data\backups இல் வைக்கும். நீக்க: Stop அழுத்தி,
 "Start Ninaivu Lite when I sign in" தேர்வை நீக்கி, கோப்புறையை அழிக்கவும்.
 
 கைப்பேசியிலிருந்து அமைத்தால் ஓர் அமைப்புக் குறியீடு கேட்கப்படும்: Control Panel

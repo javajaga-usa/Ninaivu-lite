@@ -277,7 +277,9 @@ def _fake_payload(root: Path) -> Path:
     payload = root / "payload"
     python = payload / "python" / "bin" / "python3"
     python.parent.mkdir(parents=True)
-    python.write_text("#!/bin/sh\necho /nowhere/icon-192.png\n", encoding="utf-8")
+    # Nothing of it is running: an upgrade stops what is, and checks.
+    python.write_text('#!/bin/sh\ncase "$*" in *--running*) exit 1 ;; esac\n'
+                      'echo /nowhere/icon-192.png\n', encoding="utf-8")
     python.chmod(0o755)
     (payload / "wheels").mkdir()
     (payload / "wheels" / "ninaivu_lite-0-py3-none-any.whl").write_bytes(b"")

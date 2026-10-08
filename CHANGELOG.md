@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+Updates are put in by hand, and safely:
+
+- **No update check.** The Control Panel no longer asks GitHub (or anywhere) whether a newer
+  version is out: the *Check now* button, the daily-check box and the code behind them
+  (`updates.py`) are gone, and the `update-check.json` they kept in the data folder is
+  removed when the panel opens. Ninaivu Lite makes no request outside the house. Its
+  *Updating* card says how to put a newer setup file in, and **Get ready to update** stops
+  Ninaivu Lite and closes the panel, without opening any page.
+- **A copy of the index before it is brought forward.** The first start after an update
+  that changes the index keeps it, as the earlier version left it, in `backups` as
+  `before-update-from-index-<n>-<time>.zip` (restorable with `--restore`), then carries it
+  forward one step at a time as before. Copies taken before a change are now kept by when
+  they were taken: by name, older "before" copies of one kind could push out newer ones of
+  another.
+- **Every installer says to stop Ninaivu Lite before updating.** The Windows installer, over
+  a running copy, says it is best stopped first and offers to stop it (OK) or change nothing
+  (Cancel); a silent install still stops and restarts it. The Linux installer says so and,
+  if a copy it cannot stop is still running (started in a terminal), changes nothing rather
+  than replacing its program under it. The Mac disk image carries a *Before updating - read
+  me.txt* (English and Tamil), and the Control Panel says when the server still running is
+  the version from before an update, with **Restart** to run the new one. The release notes,
+  README, `README-PORTABLE.txt` and both user guides say the same; the photos, people,
+  settings, index and backups are never touched by an update.
+- The Windows release build now also installs over its own running copy and checks that the
+  data folder is untouched and Ninaivu Lite is started again.
+
 ## 1.8.0 — 2026-10-08
 
 The index is unchanged (version 9), so 1.8.0 and 1.7.0 can open each other's data folder:

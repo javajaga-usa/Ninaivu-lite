@@ -1,5 +1,17 @@
 # Installers
 
+**Updating.** Ninaivu Lite never checks for updates or asks GitHub (or anywhere) for the
+latest version: a newer version is a setup file the household downloads and runs when it
+chooses. Every installer upgrades in place and never touches the data folder (people,
+settings, index, backups) or the photos. Stop Ninaivu Lite before updating (Stop in the
+Control Panel, then close it; `systemctl stop ninaivu-lite` for a Linux service). The
+Windows and Linux installers say so and offer to stop it themselves, and refuse to replace a
+copy they cannot stop; the Mac disk image carries a *Before updating - read me.txt*, and the
+Control Panel points out a server still running the version from before an update. The first
+start after an update keeps a copy of the index (`backups/before-update-from-index-<n>-…zip`)
+before bringing it forward. With Docker, `docker compose ... up -d --build` stops the old
+container before the new one starts, and the data stays in the `ninaivu_lite_data` volume.
+
 How to put Ninaivu Lite on a computer without asking anyone to install Python.
 Every installer carries its own Python and every package: nothing is downloaded
 when it installs or runs. Each one opens the **Control Panel**, from which
@@ -50,6 +62,9 @@ Needs the Python in `.python-version` from python.org (for its Tk), `pip install
 - offers to **open the Control Panel** on its last page (ticked);
 - carries Noto Sans Tamil (SIL Open Font License) for clear Tamil on Windows
   and on Android phones;
+- on upgrade, when Ninaivu Lite is running, says first that it is best stopped before
+  updating and offers to stop it (OK) or leave everything as it is (Cancel; not asked with
+  `/S`);
 - on upgrade or uninstall, asks a running Ninaivu Lite to stop first, and while
   anything of it is still in use (the server started from its own window, or
   the Control Panel left open) asks the person to stop it and close the panel,
@@ -154,7 +169,10 @@ A firewall may keep phones out: `sudo ufw allow 8080/tcp` (Ubuntu, Raspberry Pi
 OS) or `sudo firewall-cmd --permanent --add-port=8080/tcp && sudo firewall-cmd
 --reload` (Fedora).
 
-Running a newer installer upgrades in place. `…/ninaivu-lite/uninstall`
+Running a newer installer upgrades in place: it says when Ninaivu Lite is running, stops
+it (the service, then any other way it was started), and starts it again afterwards. One it
+cannot stop (started in a terminal) is left alone and nothing is changed, rather than having
+its program replaced under it. `…/ninaivu-lite/uninstall`
 removes the program (`--purge` also removes settings and the index).
 
 The bundled Python is a

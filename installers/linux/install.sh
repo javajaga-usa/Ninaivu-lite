@@ -52,6 +52,9 @@ was_running=0
 if [ -x "$prefix/python/bin/python3" ] && \
         "$prefix/python/bin/python3" -m ninaivu_lite.control --data "$data" --running >/dev/null 2>&1; then
     was_running=1
+    say "Ninaivu Lite $(cat "$prefix/VERSION" 2>/dev/null) is running. It is best stopped before an update"
+    say "(Stop in the Control Panel, or systemctl stop ninaivu-lite); stopping it now, and it"
+    say "is started again when the update is done. Photos, people, settings and the index are kept."
 fi
 start_old() {
     [ "$was_running" = 1 ] || return 0
@@ -66,6 +69,16 @@ if command -v systemctl >/dev/null 2>&1; then
 fi
 if [ -x "$prefix/python/bin/python3" ]; then
     "$prefix/python/bin/python3" -m ninaivu_lite.control --data "$data" --stop >/dev/null 2>&1 || true
+    # Still running (started in a terminal, which only its own window can
+    # stop): its program is not replaced under it, which would leave it
+    # running half old and half new. Nothing has been changed yet.
+    if "$prefix/python/bin/python3" -m ninaivu_lite.control --data "$data" --running >/dev/null 2>&1; then
+        start_old
+        echo "Ninaivu Lite is still running, so it was not updated. Nothing was changed." >&2
+        echo "Stop it (Ctrl+C in the window it was started from, or Stop in the Control Panel)," >&2
+        echo "then run this installer again." >&2
+        exit 1
+    fi
 fi
 
 # The machine's own Python is not used, and it need not have one.

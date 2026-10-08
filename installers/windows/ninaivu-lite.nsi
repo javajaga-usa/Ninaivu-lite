@@ -1,6 +1,7 @@
-; pynsist's own template with four additions: a "start at sign-in" box (left
+; pynsist's own template with five additions: a "start at sign-in" box (left
 ; as it was on an upgrade), the Control Panel on the Desktop, the Control
-; Panel opened when the installer finishes, and a tidy stop before an upgrade
+; Panel opened when the installer finishes, advice to stop a running Ninaivu
+; Lite before an upgrade (it offers to do it), and a tidy stop before an upgrade
 ; or an uninstall (the uninstall's in a section of its own that runs before
 ; the packages go), with the old program removed before an upgrade. Everything else is pynsist's; see
 ; https://github.com/takluyver/pynsist/blob/master/nsist/pyapp.nsi
@@ -85,6 +86,13 @@
     ExecWait '"$INSTDIR\Python\pythonw.exe" -m ninaivu_lite.control --running' $0
     StrCmp $0 "0" 0 nl_not_running
     StrCpy $nl_was_running "1"
+    ; Said before anything is stopped: the person may be in the middle of
+    ; something, and should know the library is safe. Not asked with /S.
+    IfSilent nl_not_running
+    MessageBox MB_OKCANCEL|MB_ICONINFORMATION \
+      "Ninaivu Lite is running. It is best to stop it before updating: in the Ninaivu Lite Control Panel press Stop, then close the Control Panel.$\r$\n$\r$\nPress OK to let this installer stop it now and start it again when the update is done, or Cancel to stop it yourself first and run this installer again.$\r$\n$\r$\nYour photographs, people, settings, index and backups are kept either way." \
+      IDOK nl_not_running
+    Abort "Nothing was changed. Stop Ninaivu Lite and close the Control Panel, then run this installer again."
   nl_not_running:
   !insertmacro WaitUntilNotInUse
   DetailPrint "Removing the previous Ninaivu Lite program files..."

@@ -83,7 +83,7 @@ ruff targets `py310`.
 AI with models (faces, search by description, generative edits, background and object tools,
 upscaling), cloud/phone backup, rotation, deleting media, the importer's pacing, drive-health
 sampling and classifiers, maps, disk health, tray icon, resource modes, Tailscale/zeroconf,
-notifications, screen lock, HTTPS. (The Control Panel's once-a-day update check is in: `updates.py`.)
+notifications, screen lock, HTTPS, update checks (a newer version is a setup file the household runs; nothing asks GitHub).
 
 ### Later phases (after 1.0)
 Upload from phone browser · HTTPS · map view (offline tiles) · optional face grouping as a plug-in.
@@ -106,7 +106,6 @@ ninaivu_lite/
   pages.py        /, /admin, /share/<token>, manifests, health, local stop
   control.py      state file, start/stop from outside, start at sign-in (stdlib only)
   panel.py        the Control Panel window (Tk)
-  updates.py      is there a newer release? one question to GitHub a day, from the panel
   api_auth.py api_gallery.py api_share.py api_admin.py   Ninaivu-compatible JSON API
   api_import.py   the Import page's calls (Ninaivu's archive API, trimmed)
   api_sudar.py    Sudar's one call: save the edited copy beside the original
