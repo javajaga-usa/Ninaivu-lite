@@ -9,6 +9,7 @@ import hashlib
 import os
 import shutil
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -405,3 +406,121 @@ def test_a127_each_video_gets_its_share_of_the_cores(tmp_path, monkeypatch):
     c.commit()
     s.thumbnail_now(c, 1)                     # one on screen: ffmpeg may use them all
     assert asked == [0]
+
+
+# --- A128: background work gives way to the gallery ----------------------------------------------
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"),
+                    reason="per-thread niceness is Linux's")
+def test_a128_a_background_thread_runs_lower_and_only_it():
+    base = os.getpriority(os.PRIO_PROCESS, os.getpid())
+    seen: dict[str, int] = {}
+
+    def lowered(name):
+        parallel.background()
+        parallel.background()                         # twice is still one step down
+        seen[name] = os.getpriority(os.PRIO_PROCESS, threading.get_native_id())
+        with parallel.pool(1, "inner") as inner:      # started from it: not lower again
+            seen["inner"] = inner.submit(
+                lambda: os.getpriority(os.PRIO_PROCESS, threading.get_native_id())).result()
+
+    t = threading.Thread(target=lowered, args=("job",))
+    t.start()
+    t.join()
+    expected = min(19, base + parallel.BACKGROUND_NICE)
+    assert seen == {"job": expected, "inner": expected}
+    assert os.getpriority(os.PRIO_PROCESS, threading.get_native_id()) == base   # the gallery's
+
+
+def test_a128_every_background_job_lowers_itself(tmp_path, monkeypatch):
+    lowered: set[str] = set()
+    real = parallel.background
+
+    def noted():
+        lowered.add(threading.current_thread().name.split("_")[0])
+        real()
+
+    monkeypatch.setattr(parallel, "background", noted)
+    monkeypatch.setattr(scanner_module, "THUMB_WORKERS", 2)
+    monkeypatch.setattr(media, "FACES", False)
+    root = tmp_path / "Photos"
+    for i in range(4):
+        make_jpeg(root / f"p{i}.jpg", "2020:01:01 10:00:00", size=(64, 48))
+    s = Scanner(tmp_path / "data", [str(root)])
+    s.start()
+    for _ in range(200):
+        if s.snapshot()["last_finished"]:
+            break
+        time.sleep(0.05)
+    s.stop()
+    engine = importer.Importer(tmp_path / "data")
+    big = tmp_path / "card" / "a.jpg"
+    big.parent.mkdir()
+    big.write_bytes(os.urandom(3 * importer.CHUNK))
+    engine.start([str(tmp_path / "card")], str(tmp_path / "archive"), ["image"], "copy")
+    engine.wait(30)
+    assert {"scanner", "thumbnails", "importer"} <= lowered
+    fresh: list[bool] = []
+    t = threading.Thread(target=lambda: fresh.append(parallel.in_background()))
+    t.start()
+    t.join()
+    assert fresh == [False]                           # a request's thread is untouched
+
+
+def test_a128_a_scans_ffmpeg_is_started_below_normal_on_windows(tmp_path, monkeypatch):
+    flags: list[int] = []
+
+    class Done:
+        returncode, stdout = 1, b""
+
+    def run(args, **kwargs):
+        flags.append(kwargs.get("creationflags", 0))
+        return Done()
+
+    monkeypatch.setattr(media, "FFMPEG", "ffmpeg")
+    monkeypatch.setattr(media.subprocess, "run", run)
+    monkeypatch.setattr(media.sys, "platform", "win32")
+    gallery = threading.Thread(target=media.video_frame, args=(str(tmp_path / "v.mp4"),))
+    gallery.start()                                             # asked for by the gallery
+    gallery.join()
+    t = threading.Thread(target=lambda: (setattr(parallel._marks, "background", True),
+                                         media.video_frame(str(tmp_path / "v.mp4"))))
+    t.start()
+    t.join()
+    below = parallel.WIN_BELOW_NORMAL_CLASS
+    assert flags and not any(f & below for f in flags[:2]) and all(f & below for f in flags[2:])
+
+
+# --- A129: an import lets the scan get on with thumbnails ------------------------------------------
+
+
+def test_a129_an_import_asks_the_library_to_look_now_and_then_not_every_500_files(
+        tmp_path, monkeypatch):
+    card = tmp_path / "card"
+    for i in range(1200):
+        (card / f"d{i // 300}").mkdir(parents=True, exist_ok=True)
+        (card / f"d{i // 300}" / f"IMG_{i:04}.jpg").write_bytes(
+            b"\xff\xd8\xff" + i.to_bytes(4, "big") + bytes(importer.MIN_BYTES))
+    looks: list[str] = []
+    engine = importer.Importer(tmp_path / "data")
+    engine.on_files = looks.append
+    engine.start([str(card)], str(tmp_path / "archive"), ["image"], "copy")
+    engine.wait(120)
+    assert engine.progress()["phase"] == "done", engine.progress()
+    assert len(looks) == 1                            # once at the end, within a minute
+
+    looks.clear()
+    engine.start([str(card)], str(tmp_path / "archive"), ["image"], "copy")   # all done already
+    engine.wait(120)
+    assert len(looks) == 1
+
+    looks.clear()
+    monkeypatch.setattr(importer, "SHOW_EVERY", 0)
+    for i in range(3):
+        (card / "new" / f"N{i}.jpg").parent.mkdir(exist_ok=True)
+        (card / "new" / f"N{i}.jpg").write_bytes(b"\xff\xd8\xff" + bytes([i]) * importer.MIN_BYTES)
+    engine.start([str(card)], str(tmp_path / "archive"), ["image"], "copy")
+    engine.wait(120)
+    # Something new each time and no wait: a look after each of the three, and the last one.
+    assert len(looks) == 4

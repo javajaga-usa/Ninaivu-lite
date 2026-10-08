@@ -16,12 +16,17 @@ Pillow, OpenCV, ``hashlib`` and file reads and writes all let go of Python's
 lock while they work, so these threads really do run on separate cores.
 Only reading happens side by side: the index is written by one thread, and
 nothing here ever writes to, moves or deletes a photograph.
+
+Work nobody is waiting for (a scan, an import, a copy to a drive, a backup)
+runs at a lower priority (:func:`background`), so when the computer is busy
+the gallery, a guest's page and the Control Panel are served first.
 """
 
 from __future__ import annotations
 
 import os
 import sys
+import threading
 from collections import deque
 from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
@@ -88,6 +93,55 @@ def workers(core_count: int | None = None, memory_bytes: int | None = None) -> i
 #: Worked out once, at start. Tests set it by hand.
 WORKERS = workers(memory_bytes=memory())
 
+#: How much lower than the program a background thread runs on Linux (a
+#: "nice" of 10 more, at most 19).
+BACKGROUND_NICE = 10
+#: Windows: THREAD_PRIORITY_BELOW_NORMAL, and for ffmpeg started from such a
+#: thread, BELOW_NORMAL_PRIORITY_CLASS.
+_WIN_BELOW_NORMAL = -1
+WIN_BELOW_NORMAL_CLASS = 0x00004000
+#: macOS: QOS_CLASS_UTILITY, for long work the person can see but is not waiting on.
+_MAC_UTILITY = 0x11
+_marks = threading.local()
+
+
+def background() -> None:
+    """Run the calling thread, and on Linux and macOS the programs it starts,
+    below the gallery's priority. Only ever lowers it, which needs no special
+    rights; never fails. Called first thing by every background thread and
+    worker."""
+    _marks.background = True
+    try:
+        if sys.platform == "win32":
+            import ctypes
+
+            kernel32 = ctypes.windll.kernel32                     # type: ignore[attr-defined]
+            kernel32.SetThreadPriority(kernel32.GetCurrentThread(), _WIN_BELOW_NORMAL)
+        elif sys.platform == "darwin":
+            import ctypes
+
+            libc = ctypes.CDLL(None)
+            libc.pthread_set_qos_class_self_np(_MAC_UTILITY, 0)
+        elif hasattr(os, "setpriority"):
+            # On Linux a thread has its own niceness: this one only. The
+            # program's own is the base, so a thread started by a background
+            # thread (which inherits its niceness) is not lowered twice.
+            base = os.getpriority(os.PRIO_PROCESS, os.getpid())
+            os.setpriority(os.PRIO_PROCESS, threading.get_native_id(),
+                           min(19, base + BACKGROUND_NICE))
+    except Exception:  # noqa: BLE001 — a priority is a nicety, never a reason to stop
+        pass
+
+
+def in_background() -> bool:
+    """Whether the calling thread has been through :func:`background`."""
+    return getattr(_marks, "background", False)
+
+
+def pool(width: int, name: str) -> ThreadPoolExecutor:
+    """*width* background worker threads."""
+    return ThreadPoolExecutor(width, thread_name_prefix=name, initializer=background)
+
 
 def in_order(items: Iterable[T], work: Callable[[T], R], pool: ThreadPoolExecutor | None,
              width: int) -> Iterator[tuple[T, R]]:
@@ -132,7 +186,8 @@ def chunks(f: IO[bytes], size: int, check: Callable[[], Any] | None = None) -> I
             if not chunk:
                 return
             yield chunk
-    with ThreadPoolExecutor(1, thread_name_prefix="read-ahead") as reader:
+    with ThreadPoolExecutor(1, thread_name_prefix="read-ahead",
+                            initializer=background if in_background() else None) as reader:
         # Leaving this block (finished, stopped or failed) waits for the one
         # read still running, so the file is never closed under it.
         ahead = reader.submit(f.read, size)

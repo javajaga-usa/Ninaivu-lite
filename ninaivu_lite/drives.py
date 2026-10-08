@@ -438,6 +438,7 @@ class Exporter:
             self.state["errors"] += 1
 
     def _run(self, folders: list[str], root: str, data_dir: str) -> None:
+        parallel.background()
         try:
             plan = []
             for item in self._walk(folders, root, data_dir):

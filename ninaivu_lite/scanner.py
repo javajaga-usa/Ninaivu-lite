@@ -97,6 +97,7 @@ class Scanner:
         self._wake.set()
 
     def _run(self) -> None:
+        parallel.background()
         conn = None
         try:
             while not self._stop.is_set():
@@ -261,7 +262,7 @@ class Scanner:
                 flush()
 
         workers = THUMB_WORKERS
-        pool = ThreadPoolExecutor(workers, thread_name_prefix="headers") if workers > 1 else None
+        pool = parallel.pool(workers, "headers") if workers > 1 else None
         todo: list[tuple] = []
         slow = {"disk": False}
         try:
@@ -472,7 +473,7 @@ class Scanner:
 
     def _make_thumbnails(self, conn: sqlite3.Connection) -> None:
         workers = THUMB_WORKERS
-        pool = ThreadPoolExecutor(workers, thread_name_prefix="thumbnails") if workers > 1 else None
+        pool = parallel.pool(workers, "thumbnails") if workers > 1 else None
         try:
             for name in ("small", "large"):
                 if not self._thumbnail_pass(conn, name, pool, workers):
@@ -540,7 +541,7 @@ class Scanner:
             return 0
         turned = 0
         workers = THUMB_WORKERS
-        pool = ThreadPoolExecutor(workers, thread_name_prefix="faces") if workers > 1 else None
+        pool = parallel.pool(workers, "faces") if workers > 1 else None
         try:
             while not self._stop.is_set() and not self._wake.is_set():
                 rows = conn.execute(

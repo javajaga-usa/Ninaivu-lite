@@ -26,6 +26,7 @@ import zlib
 from datetime import datetime
 from pathlib import Path
 
+from . import parallel
 from .db import DB_FILE
 
 AVATARS_DIR = "avatars"            # common.AVATARS_DIR; common needs Flask, this must not
@@ -384,6 +385,7 @@ class Keeper:
         self._stop.set()
 
     def _run(self) -> None:
+        parallel.background()
         # Not at the very first second: let the first scan get going.
         if self._stop.wait(120):
             return

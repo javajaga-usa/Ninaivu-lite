@@ -12,6 +12,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import threading
 from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
@@ -21,7 +22,7 @@ from typing import Any
 
 from PIL import Image, ImageOps
 
-from . import dates
+from . import dates, parallel
 
 log = logging.getLogger(__name__)
 
@@ -463,8 +464,12 @@ def video_frame(path: str, threads: int = 0) -> Image.Image | None:
                  "-f", "image2pipe", "-vcodec", "bmp", "-"],
                 capture_output=True, timeout=45, check=False,
                 # Started without a console (at sign-in, by pythonw), Windows
-                # would otherwise flash a black window for every video.
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                # would otherwise flash a black window for every video. For
+                # a scan it runs below the gallery, as the scan does (Linux
+                # and macOS pass that on by themselves).
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                | (parallel.WIN_BELOW_NORMAL_CLASS
+                   if sys.platform == "win32" and parallel.in_background() else 0))
             if proc.returncode == 0 and proc.stdout:
                 return Image.open(io.BytesIO(proc.stdout)).convert("RGB")
         except (subprocess.SubprocessError, OSError, ValueError):

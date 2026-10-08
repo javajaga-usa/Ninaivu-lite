@@ -34,6 +34,7 @@ import threading
 import time
 from typing import Any
 
+from . import parallel
 from .drives import Drive, _drive_id, _say, is_within
 
 log = logging.getLogger(__name__)
@@ -289,6 +290,7 @@ class PhoneImport:
 
     def _run(self, drive: Drive, mirror: str, destination: str, engine, data_dir: str) -> None:
         self.data_dir = data_dir
+        parallel.background()
         try:
             if not self._fetch(drive, mirror):
                 return
