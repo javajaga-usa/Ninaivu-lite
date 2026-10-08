@@ -1713,3 +1713,38 @@ body.admin {
 .drive-choice-hint { font-size: 12px; font-weight: 400; opacity: .85; line-height: 1.35; }
 .drive-modal .scan-bar { margin: 14px 0 6px; }
 .drive-progress { min-height: 1.4em; }
+
+/* ==========================================================================
+   Phones: nothing on top of anything else (M01–M13, 2026-10-08)
+   ========================================================================== */
+
+/* The top bar: brand and the six buttons need about 410px side by side; from
+   381 to 440 the last of them, Sign out, was off the right edge and the whole
+   console scrolled sideways. They take their own row up to 440 now, and the
+   first column can no longer be widened by the page tabs below it. */
+.admin-bar { grid-template-columns: minmax(0, 1fr) auto; }
+@media (max-width: 440px) {
+  .admin-bar { grid-template-columns: minmax(0, 1fr); }
+  .admin-bar-actions { grid-column: 1; grid-row: 2; margin: 8px 0 0; }
+  .admin-nav { grid-row: 3; }
+}
+
+/* Visibility: the whole-library line would not wrap, so its note ("Set it on
+   a folder below…") pushed the page 30px past a phone's edge, and squeezed
+   the name to "Whole li…" on a small tablet. It wraps, under the name on a
+   phone. */
+.folder-row > * { min-width: 0; }
+.folder-row .folder-note { white-space: normal; }
+@media (max-width: 620px) {
+  .folder-row .folder-note { text-align: left; }
+  /* Overview, Library: the folder path was set in a 100px column beside its
+     label and broke after every few letters. Label above, value below. */
+  .kv { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .kv dd { margin-bottom: 8px; }
+}
+
+/* First day, on a phone on its side: the step's text keeps its own scroll but
+   gives up its 180px minimum, so Back and Next stay inside the card. */
+@media (max-height: 520px) {
+  .fd-body { min-height: 0; margin: 4px 0 8px; }
+}

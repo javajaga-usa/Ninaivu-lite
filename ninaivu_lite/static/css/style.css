@@ -2772,3 +2772,62 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
    scrubber, keeps clear of its gutter, and wraps rather than running past. */
 .selection-bar { position: relative; z-index: 25; flex-wrap: wrap; row-gap: 6px; padding-right: 56px; }
 @media (max-width: 480px) { .selection-bar { padding-right: 40px; } }
+
+/* ==========================================================================
+   Phones: nothing on top of anything else (M01–M13, 2026-10-08)
+   Checked at 360×640, 375×667, 390×844, 412×915 and both landscapes, in
+   English and in Tamil, whose words run longer.
+   ========================================================================== */
+
+/* A dialog taller than the screen (a phone on its side) scrolls inside its
+   card instead of pushing its own buttons out of the bottom of it. dvh is the
+   height left by the browser's bars; older browsers keep the vh above. */
+.modal-card { overflow-y: auto; overscroll-behavior: contain; max-height: min(640px, 86dvh); }
+.viewer-tools-more { max-height: calc(100dvh - 90px); }
+
+/* The sign-in, setup and "who's watching" screens: on a phone on its side
+   the card is taller than the screen and was cut off at both ends with no
+   way to reach the button. The screen scrolls now; auto margins keep the
+   card centred whenever it does fit, and at the top when it does not. */
+body .gate { overflow-y: auto; overscroll-behavior: contain; place-items: start center; }
+body .gate > * { margin-top: auto; margin-bottom: auto; }
+
+/* The photo's details: the panel began 62px down, under a top bar that is
+   taller than that once the date and size wrap on a phone; its heading sat
+   on the size. The line under the name keeps to one line, and the panel
+   starts below the bar wherever the status bar puts it. */
+.viewer-title span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
+.viewer-info { padding-top: calc(62px + env(safe-area-inset-top, 0px)); }
+
+/* Share: the password field was as wide as its placeholder, which it cut
+   off, and the labels sat on the fields above and below them. */
+#share-options { display: flex; flex-direction: column; gap: 12px; }
+#share-options .field { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--text-2); }
+#share-options .field .input, #share-options .field .select { width: 100%; flex: none; height: 36px; }
+
+@media (max-width: 620px) {
+  /* The search box is narrow beside the toolbar, and 84px of it was kept
+     for a badge that no longer exists: what was typed showed its last two
+     letters. Room for the clear button only. */
+  .searchbar input { padding-right: 38px; }
+  .clear-search { right: 6px; }
+  /* Suggestions as wide as the screen, not as the box: a folder name was
+     wrapped and clipped in a 140px list. The top bar is the containing block
+     where it blurs (backdrop-filter) and the screen where it cannot; it sits
+     at the top-left edge either way, so the same offsets hold. */
+  .suggestions {
+    position: fixed; top: calc(var(--topbar-h) + env(safe-area-inset-top, 0px) + 4px);
+    left: max(8px, env(safe-area-inset-left, 0px)); right: max(8px, env(safe-area-inset-right, 0px));
+  }
+  .viewer-title span { max-width: 40vw; }
+}
+
+/* A phone on its side: dialogs use the height there is. */
+@media (max-height: 520px) {
+  .modal, .sheet {
+    padding-top: max(8px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  }
+  .modal-card { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); padding: 16px 18px; gap: 10px; }
+  .sheet-card { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }
+}

@@ -1113,3 +1113,31 @@
 @media (prefers-reduced-motion: reduce) {
   #ai-playground[open], #ai-playground[open]::backdrop, .ap-status { animation: none; }
 }
+
+/* ==========================================================================
+   Phones: nothing on top of anything else (M01–M13, 2026-10-08)
+   ========================================================================== */
+@media (max-width: 900px) {
+  /* The header's tools (undo, redo, reset, the three views, zoom, theme) had
+     a 90px strip between the name and Close, cut off mid-word, the rest
+     out of sight. They take a row of their own and wrap. */
+  .ap-header { flex-wrap: wrap; row-gap: 8px; padding: 8px 12px; }
+  .ap-header > button { margin-left: auto; }
+  .ap-bar { order: 3; flex: 1 0 100%; flex-wrap: wrap; overflow: visible; gap: 6px; }
+  .ap-cluster { flex-wrap: wrap; flex-shrink: 1; max-width: 100%; }
+  /* The tool panel was squeezed to a sliver between the tabs and the Save
+     and Download bar: the looks, the sliders and the prompt box were behind
+     the bar. The panel is as tall as what it holds, and the whole studio
+     scrolls (.ap-layout above). */
+  .ap-studio { overflow: visible; border-left: 0; border-top: 1px solid var(--ap-line); }
+  .ap-tools-body { flex: none; overflow: visible; }
+}
+/* The size and the note on downloads shared one line; on a phone the note
+   was squeezed into a column beside the file name. */
+.ap-studio-footer > div:last-child { flex-wrap: wrap; gap: 2px 10px; }
+@media (max-width: 480px) {
+  /* The format list cut its own words ("PNG · lossl"). */
+  .ap-export-row { flex-wrap: wrap; }
+  .ap-export-row select { flex: 1 1 100%; }
+  .ap-export-row .btn { flex: 1 1 auto; }
+}
