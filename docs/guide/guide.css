@@ -1,0 +1,232 @@
+/* Ninaivu Lite user guide — printed to A4 by Chromium (build.js).
+   guide.js frames the screenshots, sets out the chapter openers and fills the contents. */
+@font-face { font-family: "GuideInter"; src: url("fonts/Inter-Regular.ttf"); font-weight: 400; }
+@font-face { font-family: "GuideInter"; src: url("fonts/Inter-Italic.ttf"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "GuideInter"; src: url("fonts/Inter-Medium.ttf"); font-weight: 500; }
+@font-face { font-family: "GuideInter"; src: url("fonts/Inter-SemiBold.ttf"); font-weight: 600; }
+@font-face { font-family: "GuideInter"; src: url("fonts/Inter-Bold.ttf"); font-weight: 700; }
+@font-face { font-family: "GuideInter"; src: url("fonts/Inter-ExtraBold.ttf"); font-weight: 800; }
+@font-face { font-family: "Noto Sans Tamil"; src: local("Noto Sans Tamil"), url("fonts/NotoSansTamil-Regular.ttf"); font-weight: 400; }
+@font-face { font-family: "Noto Sans Tamil"; src: local("Noto Sans Tamil SemiBold"), url("fonts/NotoSansTamil-SemiBold.ttf"); font-weight: 500 600; }
+@font-face { font-family: "Noto Sans Tamil"; src: local("Noto Sans Tamil Bold"), url("fonts/NotoSansTamil-Bold.ttf"); font-weight: 700 800; }
+
+:root {
+  --ink: #101828;
+  --body: #1f2a3c;
+  --muted: #5b6b82;
+  --navy: #0a2348;
+  --blue: #1470d0;
+  --blue-deep: #0b4f9c;
+  --blue-soft: #edf4fd;
+  --blue-line: #cfe0f6;
+  --line: #e1e7ef;
+  --paper: #f6f8fb;
+  --amber: #b7791f;
+  --amber-soft: #fff8e8;
+  --amber-line: #f2c46b;
+  --green: #2f855a;
+  --green-soft: #eef8f2;
+  --green-line: #9fd5b5;
+  --sans: "GuideInter", "Noto Sans Tamil", "DejaVu Sans", sans-serif;
+  --display: "GuideInter", "Noto Sans Tamil", sans-serif;
+  --running-title: "Ninaivu Lite  ·  User guide";
+  --running-version: "Version 1.7.0";
+}
+:root:lang(ta) { --running-title: "நினைவு லைட்  ·  பயனர் வழிகாட்டி"; --running-version: "பதிப்பு 1.7.0"; }
+
+@page {
+  size: A4; margin: 21mm 18mm 18mm 18mm;
+  @top-left { content: var(--running-title); font: 400 7pt "Liberation Sans", "Noto Sans Tamil", sans-serif; color: #8393a8; vertical-align: bottom; padding-bottom: 5mm; }
+  @top-right { content: var(--running-version); font: 400 7pt "Liberation Sans", "Noto Sans Tamil", sans-serif; color: #8393a8; vertical-align: bottom; padding-bottom: 5mm; }
+  @bottom-center { content: counter(page); font: 700 8pt "Liberation Sans", sans-serif; color: #5b6b82; vertical-align: top; padding-top: 5mm; }
+}
+@page cover { margin: 0; @top-left { content: none; } @top-right { content: none; } @bottom-center { content: none; } }
+
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  margin: 0; color: var(--body); background: #fff;
+  font: 10pt/1.55 var(--sans);
+  counter-reset: figure;
+}
+body:lang(ta) { font-size: 9.5pt; line-height: 1.68; }
+
+b, strong { font-weight: 600; color: var(--ink); }
+em { font-style: italic; }
+a { color: inherit; text-decoration: none; }
+code, .mono {
+  font: 8.4pt/1.4 "DejaVu Sans Mono", monospace; color: #0b3b75;
+  background: #eef3f9; border: 1px solid #dde6f1; border-radius: 3px; padding: 0 3px;
+}
+.ui { font-weight: 600; color: var(--ink); }
+.ui.btn {
+  background: var(--blue-soft); color: var(--blue-deep); border: 1px solid var(--blue-line);
+  border-radius: 999px; padding: 0 6px; white-space: nowrap; font-size: .95em;
+}
+
+/* ---- cover (a page of its own, full bleed) ------------------------------- */
+.cover {
+  page: cover; position: relative; width: 210mm; height: 296.5mm; overflow: hidden;
+  break-after: page; color: #fff; background: #fff;
+}
+.cover .band {
+  position: absolute; inset: 0 0 auto 0; height: 168mm;
+  background:
+    radial-gradient(120mm 90mm at 92% 8%, rgba(86, 170, 255, .45), transparent 70%),
+    radial-gradient(90mm 70mm at 0% 100%, rgba(20, 112, 208, .55), transparent 70%),
+    linear-gradient(160deg, #071a38 0%, #0a2f63 55%, #1162b8 100%);
+}
+.cover .band::after {
+  content: ""; position: absolute; inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, .09) 1px, transparent 1.2px);
+  background-size: 5mm 5mm;
+}
+.cover .top { position: absolute; left: 20mm; right: 20mm; top: 18mm; display: flex; align-items: center; gap: 3.5mm; z-index: 2; }
+.cover .top .mark { font: 600 11pt var(--display); letter-spacing: .02em; }
+.cover .top .pill {
+  margin-left: auto; font: 600 7.6pt var(--sans); letter-spacing: .14em; text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, .35); border-radius: 999px; padding: 1.4mm 3.6mm;
+}
+.logo { width: 11mm; height: 11mm; border-radius: 3mm; background: #fff; display: grid; place-items: center; flex: none; }
+.logo svg { width: 7.4mm; height: 7.4mm; fill: none; stroke: var(--blue); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+.cover .title { position: absolute; left: 20mm; right: 20mm; top: 44mm; z-index: 2; }
+.cover h1 { font: 800 44pt/1.02 var(--display); letter-spacing: -.02em; margin: 0; color: #fff; }
+.cover .alt { font: 600 17pt/1.3 var(--sans); color: #9ccbff; margin: 2.5mm 0 0; }
+.cover .lede { font: 400 13pt/1.45 var(--sans); color: #dbe9fb; margin: 6mm 0 0; max-width: 120mm; }
+.cover .hero { position: absolute; left: 20mm; right: 20mm; top: 108mm; height: 112mm; z-index: 3; }
+.cover .hero .window { position: absolute; left: 0; top: 0; width: 140mm; box-shadow: 0 6mm 14mm rgba(4, 18, 40, .35); }
+.cover .hero .phone-frame { position: absolute; right: 2mm; top: 16mm; width: 46mm; box-shadow: 0 6mm 14mm rgba(4, 18, 40, .4); }
+.cover .hero .phone-frame img { height: auto; width: 100%; }
+.cover .bottom { position: absolute; left: 20mm; right: 20mm; bottom: 18mm; color: var(--body); z-index: 2; }
+.cover .bottom .kind { font: 700 18pt/1.2 var(--display); color: var(--ink); margin: 0 0 1.5mm; }
+.cover .bottom .meta { font-size: 10pt; color: var(--muted); margin: 0 0 7mm; }
+.cover .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
+.cover .features div {
+  border-top: 2px solid var(--blue); padding-top: 2.4mm; font-size: 8.8pt; line-height: 1.45; color: var(--muted);
+}
+.cover .features b { display: block; color: var(--ink); font-size: 9.6pt; margin-bottom: .6mm; }
+
+/* ---- contents ------------------------------------------------------------ */
+.contents { break-after: page; }
+.contents h2.toc-title { font: 800 26pt/1.1 var(--display); color: var(--ink); margin: 2mm 0 7mm; letter-spacing: -.01em; display: block; }
+.contents h2.toc-title::before { display: none; }
+#toc { list-style: none; margin: 0; padding: 0; }
+#toc li { break-inside: avoid; border-bottom: 1px solid var(--line); padding: 2.1mm 0; margin: 0; }
+#toc a { display: grid; grid-template-columns: 11mm 1fr auto; align-items: baseline; column-gap: 2mm; }
+#toc .n { font: 700 10pt var(--display); color: var(--blue); }
+#toc .t { font-weight: 600; color: var(--ink); font-size: 10.6pt; }
+#toc .p { font: 600 10pt var(--display); color: var(--ink); min-width: 8mm; text-align: right; }
+#toc .subs { grid-column: 2 / 3; display: block; font-size: 8.2pt; color: var(--muted); line-height: 1.45; margin-top: .4mm; }
+.about {
+  margin-top: 8mm; background: var(--paper); border: 1px solid var(--line); border-radius: 3mm;
+  padding: 4mm 5mm; font-size: 8.8pt; color: var(--muted); display: grid; grid-template-columns: auto 1fr; gap: 1.2mm 5mm;
+}
+.about b { color: var(--ink); }
+
+/* ---- chapter openers (guide.js splits "3. Title" into its parts) ---------- */
+h1.chapter {
+  break-before: page; margin: 0 0 7mm; padding: 0 0 5mm; border-bottom: 2px solid var(--ink);
+  display: grid; grid-template-columns: auto 1fr; column-gap: 5mm; align-items: end;
+}
+h1.chapter .num { grid-row: 1 / 3; font: 800 40pt/0.9 var(--display); color: var(--blue); letter-spacing: -.03em; }
+h1.chapter .kicker { font: 600 7.6pt var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+h1.chapter .title { font: 700 21pt/1.15 var(--display); color: var(--ink); letter-spacing: -.01em; }
+body:lang(ta) h1.chapter .kicker { letter-spacing: .02em; text-transform: none; font-size: 8.4pt; }
+body:lang(ta) h1.chapter .title { font: 700 18pt/1.35 var(--sans); }
+
+h2 {
+  font: 700 13pt/1.3 var(--display); color: var(--ink); margin: 7mm 0 2.6mm; padding: 0;
+  break-after: avoid; display: flex; align-items: center; gap: 2.4mm;
+}
+h2::before { content: ""; width: 1.2mm; height: 4.6mm; border-radius: 1mm; background: var(--blue); flex: none; }
+body:lang(ta) h2 { font: 700 11.6pt/1.4 var(--sans); }
+h3 { font: 600 11pt var(--display); color: var(--ink); margin: 4.5mm 0 1.5mm; break-after: avoid; }
+p { margin: 0 0 2.8mm; orphans: 3; widows: 3; }
+ul { margin: 0 0 3.2mm; padding-left: 5mm; }
+ul li { margin: 1mm 0; padding-left: .8mm; }
+ul li::marker { color: var(--blue); }
+
+/* ---- numbered steps ------------------------------------------------------ */
+ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 1mm 0 4mm; }
+ol.steps > li { counter-increment: step; position: relative; padding-left: 9mm; margin: 2mm 0; break-inside: avoid; }
+ol.steps > li::before {
+  content: counter(step); position: absolute; left: 0; top: .1mm;
+  width: 5.6mm; height: 5.6mm; border-radius: 1.6mm; background: var(--blue); color: #fff;
+  font: 700 8pt var(--display); display: grid; place-items: center; line-height: 1;
+}
+
+/* ---- figures: every screenshot sits in a window or a phone ---------------- */
+figure { margin: 4mm 0 5mm; text-align: center; break-inside: avoid; }
+figure .row { display: flex; gap: 4mm; justify-content: center; align-items: flex-start; }
+.window, .phone-frame { display: inline-block; vertical-align: top; text-align: left; }
+.window {
+  background: #fff; border: 1px solid #d3dbe6; border-radius: 2.2mm; overflow: hidden;
+  box-shadow: 0 .6mm 1.4mm rgba(16, 24, 40, .06), 0 2.4mm 6mm rgba(16, 24, 40, .07);
+}
+.window .bar { height: 4.4mm; background: linear-gradient(#f7f9fc, #eef2f7); border-bottom: 1px solid #dfe5ee; display: flex; align-items: center; gap: 1.1mm; padding: 0 2.2mm; }
+.window .bar i { width: 1.6mm; height: 1.6mm; border-radius: 50%; display: block; }
+.window .bar i:nth-child(1) { background: #f2827a; }
+.window .bar i:nth-child(2) { background: #f5c451; }
+.window .bar i:nth-child(3) { background: #6fcf7c; }
+.window img, .phone-frame img { display: block; max-width: 100%; }
+.window img { width: 100%; }
+.phone-frame { background: #101828; border-radius: 5.5mm; padding: 2.2mm 1.6mm; box-shadow: 0 2.4mm 6mm rgba(16, 24, 40, .16); }
+.phone-frame img { border-radius: 3.4mm; }
+figure.full > .window { width: 100%; }
+figure.w80 > .window { width: 80%; } figure.w70 > .window { width: 70%; } figure.w65 > .window { width: 65%; }
+figure.w60 > .window { width: 60%; } figure.w50 > .window { width: 50%; } figure.w40 > .window { width: 40%; }
+figure.short > .window, figure.tall > .window { width: auto; }
+.short img { max-height: 92mm; width: auto; }
+.tall img { max-height: 135mm; width: auto; }
+figure.phone img { height: 100mm; width: auto; }
+figure figcaption { counter-increment: figure; font-size: 8.2pt; color: var(--muted); margin: 2.4mm auto 0; max-width: 150mm; line-height: 1.45; }
+figure figcaption::before { content: "Figure " counter(figure) "\2003"; font-weight: 700; color: var(--blue); }
+body:lang(ta) figure figcaption::before { content: "படம் " counter(figure) "\2003"; }
+
+/* ---- callouts ------------------------------------------------------------ */
+.tip, .note {
+  position: relative; margin: 4mm 0 4.5mm; padding: 3mm 4.5mm 3mm 13mm; border-radius: 2.4mm;
+  break-inside: avoid; font-size: 9.3pt; line-height: 1.55;
+}
+.tip { background: var(--amber-soft); border: 1px solid var(--amber-line); }
+.note { background: var(--green-soft); border: 1px solid var(--green-line); }
+.ico { position: absolute; left: 4mm; top: 3.2mm; width: 6mm; height: 6mm; border-radius: 50%; display: grid; place-items: center; color: #fff; }
+.tip .ico { background: var(--amber); }
+.note .ico { background: var(--green); }
+.ico svg { width: 3.6mm; height: 3.6mm; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.tip b.lead, .note b.lead { display: block; font: 700 8pt var(--sans); letter-spacing: .1em; text-transform: uppercase; margin-bottom: .6mm; }
+.tip b.lead { color: var(--amber); }
+.note b.lead { color: var(--green); }
+body:lang(ta) .tip b.lead, body:lang(ta) .note b.lead { letter-spacing: 0; text-transform: none; font-size: 9pt; }
+
+/* ---- tables -------------------------------------------------------------- */
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0; margin: 3mm 0 5mm; font-size: 9pt;
+  border: 1px solid var(--line); border-radius: 2.4mm; overflow: hidden;
+}
+th, td { padding: 2mm 3mm; vertical-align: top; text-align: left; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+th { background: var(--navy); color: #fff; font-weight: 600; font-size: 8.6pt; letter-spacing: .02em; }
+tr:nth-child(even) td { background: #f8fafc; }
+tr { break-inside: auto; }
+table.faq tr, table.buttons tr { break-inside: avoid; }
+table.faq td:first-child { width: 31%; font-weight: 600; color: var(--ink); }
+table.buttons td:first-child { width: 28%; font-weight: 600; color: var(--ink); }
+.cmds { margin: 1.5mm 0 2mm; background: #0f1b2d; border-radius: 2mm; padding: 2.4mm 3.4mm; }
+.cmds code { display: inline-block; margin: .4mm 0; white-space: pre-wrap; word-break: break-all; background: none; border: 0; color: #d6e6ff; padding: 0; }
+.keep { break-inside: avoid; }
+.pb { break-before: page; }
+
+/* ---- back cover ---------------------------------------------------------- */
+.backcover {
+  page: cover; break-before: page; position: relative; width: 210mm; height: 296.5mm; overflow: hidden;
+  color: #dbe9fb; background: linear-gradient(160deg, #071a38 0%, #0a2f63 60%, #1162b8 100%);
+}
+.backcover .inner { position: absolute; left: 20mm; right: 20mm; bottom: 26mm; }
+.backcover .logo { width: 14mm; height: 14mm; border-radius: 3.6mm; }
+.backcover .logo svg { width: 9.4mm; height: 9.4mm; }
+.backcover h2 { font: 800 26pt/1.1 var(--display); color: #fff; margin: 6mm 0 1mm; display: block; }
+.backcover h2::before { display: none; }
+.backcover p { color: #b9d4f5; font-size: 10.4pt; margin: 0 0 1.2mm; }
+.backcover .fine { margin-top: 10mm; font-size: 8.4pt; color: #8fb2de; border-top: 1px solid rgba(255, 255, 255, .18); padding-top: 4mm; }
+.backcover::after { content: ""; position: absolute; inset: 0; background-image: radial-gradient(rgba(255, 255, 255, .07) 1px, transparent 1.2px); background-size: 5mm 5mm; }
+.backcover .inner { z-index: 1; }

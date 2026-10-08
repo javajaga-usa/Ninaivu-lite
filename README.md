@@ -19,7 +19,7 @@ archive, and **Sudar**, the photo studio that runs in the browser.
 
 **[Download the latest release](https://github.com/javajaga-usa/Ninaivu-lite/releases/latest)**
 · **[Ninaivu and Lite comparison](https://javajaga-usa.github.io/Ninaivu/#ninaivu-lite)**
-· **[English guide](docs/USER-GUIDE.md)** · **[தமிழ் வழிகாட்டி](docs/USER-GUIDE.ta.md)**
+· **[English guide](docs/USER-GUIDE.md)** ([PDF](docs/Ninaivu-Lite-User-Guide-English.pdf)) · **[தமிழ் வழிகாட்டி](docs/USER-GUIDE.ta.md)** ([PDF](docs/Ninaivu-Lite-User-Guide-Tamil.pdf))
 
 ## Why Lite
 

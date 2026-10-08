@@ -1,6 +1,6 @@
 # Ninaivu Lite — user guide
 
-[தமிழில் படிக்க](USER-GUIDE.ta.md)
+[தமிழில் படிக்க](USER-GUIDE.ta.md) · Printable guide with screenshots: [PDF, English](Ninaivu-Lite-User-Guide-English.pdf) · [PDF, தமிழ்](Ninaivu-Lite-User-Guide-Tamil.pdf)
 
 Ninaivu Lite shows your family's photos and videos to everyone at home, on any phone, tablet or
 computer on the same Wi-Fi. It **only reads** your photo folders: it never moves, edits or
