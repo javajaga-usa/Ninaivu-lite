@@ -88,6 +88,9 @@ there is no Control Panel: use `sudo systemctl start|stop|restart ninaivu-lite`.
      enter (no secret, a PIN, or a password).
 3. Indexing starts by itself. Photos appear as they are found; small previews are made in
    the background. A large library can take a while the first time; later starts are quick.
+   On a computer with four or more cores (a Raspberry Pi, most laptops) three previews are
+   made at a time, always leaving one core for the gallery, so the family can look at photos
+   while it works; a one- or two-core computer makes them one at a time.
 
 ## 3. Roles and who sees what
 
@@ -150,6 +153,9 @@ Public photograph; choose one you are happy to show.
   words (*AI assist*), and clothing colour by brush. Nothing is sent anywhere and the original
   is never changed: download the result, or, as the administrator, *Save copy to Ninaivu
   library* puts it beside the original.
+- **On a phone** — the gallery opens quickly on later visits: the phone keeps the app's own
+  files until Ninaivu Lite is updated, then fetches the new ones by itself. Held sideways,
+  the sign-in screens and dialogs scroll, so every button can be reached.
 - **Sideways photos** are put right during the scan, from the camera's own tag, and, when the
   OpenCV extra is installed, from the faces in a photo that has none. The administrator can
   turn any photo by hand with ⋯ → *Rotate* (or **R**); the file itself is never changed.
@@ -255,8 +261,9 @@ later. The visitor does not see the file's name.
   **Download** button opens its page); on Linux, run the newer `.sh` the same way as the first.
   For the portable zip, extract the new version to a new folder and copy the old `data`
   folder into it (untick start-at-sign-in in the old copy first). For a copy of the source, replace the program files and start it again.
-  Your data folder stays as it is. Going back to an older version afterwards means restoring a
-  backup made before the update: 1.6.0 cannot open the index of 1.7.0.
+  Your data folder stays as it is. Going back from 1.8.0 to 1.7.0 needs nothing special.
+  Going back to 1.6.0 or older means restoring a backup made before the update: 1.6.0
+  cannot open the index of 1.7.0 or later.
 - **Linux, installed with `sudo`** — Ninaivu Lite runs as a service under its own
   `ninaivu-lite` account, never as root, with its data in `/var/lib/ninaivu-lite`. That
   account must be able to read your photo folders and pass through every folder above them.

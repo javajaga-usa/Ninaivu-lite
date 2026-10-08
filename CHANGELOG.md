@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.8.0 — 2026-10-08
+
+The index is unchanged (version 9), so 1.8.0 and 1.7.0 can open each other's data folder:
+going back to 1.7.0 needs no backup restore.
 
 Fixes for the performance review of 2026-10-08 (A120-A122):
 

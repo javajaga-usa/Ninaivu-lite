@@ -18,7 +18,7 @@
   <div class="hero"><img src="img/en/g20-timeline.jpg" alt=""><span class="hero-phone"><img src="img/en/h32c-timeline.jpg" alt=""></span></div>
   <div class="bottom">
     <p class="kind">Complete user guide</p>
-    <p class="meta">Version 1.7.0 &nbsp;·&nbsp; 7 October 2026 &nbsp;·&nbsp; with screenshots</p>
+    <p class="meta">Version 1.8.0 &nbsp;·&nbsp; 8 October 2026 &nbsp;·&nbsp; with screenshots</p>
     <div class="features"><div><b>Private</b>Runs on one computer at home. Nothing leaves the house.</div><div><b>Tamil and English</b>Every screen, message and this guide, in both.</div><div><b>Any computer</b>Windows 10 and 11, Mac, Linux and Raspberry Pi.</div></div>
   </div>
 </section>
@@ -26,7 +26,7 @@
 <section class="contents">
   <h2 class="toc-title">Contents</h2>
   <ol id="toc"></ol>
-  <div class="about"><b>Version</b><span>1.7.0, released 7 October 2026</span><b>Screenshots</b><span>Taken from this version in English, with a sample library of 120 drawn pictures and 3 short videos</span><b>Repository</b><span>github.com/javajaga-usa/Ninaivu-lite</span><b>In Tamil</b><span>The same guide is available in Tamil.</span></div>
+  <div class="about"><b>Version</b><span>1.8.0, released 8 October 2026</span><b>Screenshots</b><span>Taken from this version in English, with a sample library of 120 drawn pictures and 3 short videos</span><b>Repository</b><span>github.com/javajaga-usa/Ninaivu-lite</span><b>In Tamil</b><span>The same guide is available in Tamil.</span></div>
 </section>
 
 <!-- 1 ======================================================================= -->
@@ -132,6 +132,7 @@
   <li><span class="ui btn">Remove</span> takes a folder out of the library, after asking. The photos on disk are not touched, and a copy of the index is taken just before. Who sees what, favourites, albums and share links come back if the same folder is added again.</li>
   <li><span class="ui btn">Moved?</span> (<span class="ui">The photographs are somewhere else now: choose where</span>) appears beside a folder that cannot be found. If its photos are somewhere else now (a new drive letter, a new computer), press it and choose the new place: the folder points there and keeps everything.</li>
 </ul>
+<div class="tip"><b class="lead">Tip:</b> The first scan makes a small preview of every photo. On a computer with four or more cores (a Raspberry Pi, most laptops) it makes three at a time and always leaves one core for the gallery, so the family can look at photos while it works. Later visits to the gallery open at once until something in the library changes.</div>
 
 <h2>Import: old drives into one archive</h2>
 <figure class="full"><img src="img/en/c12-import.jpg" style="max-height:175mm;width:auto"><figcaption>The Import page: sources, destination, run, and the result of each file.</figcaption></figure>
@@ -281,7 +282,7 @@
 
 <!-- 11 ====================================================================== -->
 <h1 class="chapter">11. On a phone or tablet</h1>
-<p>Open the <em>On your phone</em> address from the Control Panel, such as <code>http://192.168.1.20:8080/</code>, in the phone's browser. Add it to the home screen to open it like an app.</p>
+<p>Open the <em>On your phone</em> address from the Control Panel, such as <code>http://192.168.1.20:8080/</code>, in the phone's browser. Add it to the home screen to open it like an app. The phone keeps Ninaivu Lite's own files until it is updated, so the gallery opens quickly on later visits; after an update it fetches the new ones by itself. Held sideways, the sign-in screens and dialogs scroll, so every button can be reached.</p>
 <figure class="phone"><div class="row"><img src="img/en/h32a-picker.jpg"><img src="img/en/h32b-pin.jpg"><img src="img/en/h32c-timeline.jpg"></div><figcaption>Pick your picture, enter your PIN, and the timeline opens.</figcaption></figure>
 <ol class="steps">
   <li>Tap your own picture. A profile with no secret opens straight away.</li>
@@ -309,7 +310,7 @@
       <li><b>Docker:</b> <code>docker compose -f installers/docker/docker-compose.yml run --rm ninaivu-lite python -m ninaivu_lite --data /data --reset-password &lt;username&gt;</code>.</li>
     </ul></li>
   <li><b>A drive unplugged?</b> Its photos show as unavailable and come back when it returns. Nothing is lost.</li>
-  <li><b>Updating:</b> with an installer, run the new installer. In the Control Panel press <b>Check now</b> (or tick the daily check); <b>Download</b> offers to stop Ninaivu Lite and close the panel, and opens the release page. On Linux, run the newer <code>.sh</code> the same way as the first. For the portable zip, untick <b>Start Ninaivu Lite when I sign in</b> in the old copy's Control Panel, extract the new version to a new folder, copy the old <code>data</code> folder into it, and tick the box in the new copy's Control Panel. For a copy of the source, replace the program files and start it again. Your settings, people, index and photos are untouched. Going back to an older version afterwards means restoring a backup made before the update (see <em>Backups</em> above): version 1.6.0 cannot open the index of 1.7.0.</li>
+  <li><b>Updating:</b> with an installer, run the new installer. In the Control Panel press <b>Check now</b> (or tick the daily check); <b>Download</b> offers to stop Ninaivu Lite and close the panel, and opens the release page. On Linux, run the newer <code>.sh</code> the same way as the first. For the portable zip, untick <b>Start Ninaivu Lite when I sign in</b> in the old copy's Control Panel, extract the new version to a new folder, copy the old <code>data</code> folder into it, and tick the box in the new copy's Control Panel. For a copy of the source, replace the program files and start it again. Your settings, people, index and photos are untouched. Going back from 1.8.0 to 1.7.0 needs nothing special. Going back to 1.6.0 or older means restoring a backup made before the update (see <em>Backups</em> above): version 1.6.0 cannot open the index of 1.7.0 or later.</li>
   <li class="keep"><b>Linux, installed with <code>sudo</code>:</b> Ninaivu Lite runs as a service under its own <code>ninaivu-lite</code> account, never as root, with its data in <code>/var/lib/ninaivu-lite</code>, and there is no Control Panel: use <code>sudo systemctl start|stop|restart ninaivu-lite</code>. That account must be able to read your photo folders and pass through every folder above them. The installer names any it cannot read; let it in with, for example:
     <div class="cmds"><code>sudo setfacl -R -m u:ninaivu-lite:rX /home/me/Pictures</code> (what is there now)<br>
     <code>sudo setfacl -R -d -m u:ninaivu-lite:rX /home/me/Pictures</code> (what is added later)<br>
@@ -336,7 +337,7 @@
 
 <section class="backcover"><div class="inner">
   <div class="logo"><svg viewBox="0 0 32 32"><path d="M4 15 16 5l12 10v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M12 28v-7a4 4 0 0 1 8 0v7"/></svg></div>
-  <h2>Ninaivu Lite 1.7.0</h2>
+  <h2>Ninaivu Lite 1.8.0</h2>
   <p>Your family's photographs, at home.</p>
   <p>github.com/javajaga-usa/Ninaivu-lite</p>
   <p class="fine">Free and open source under the MIT licence. © 2026 Jagadeesh Rajendran.</p>
