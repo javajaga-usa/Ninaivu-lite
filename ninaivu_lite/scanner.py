@@ -6,9 +6,12 @@ A scan has two passes:
    time are unchanged is not opened again, so re-scanning an unchanged library
    takes seconds. New and changed files have their header read (date, size,
    camera) and are queued for thumbnails.
-2. **Grid thumbnails**, newest first, so the top of the timeline fills in
-   first. These are small and quick (about 20 ms a photo).
-3. **Viewer pictures** (1600 px), newest first, in a second quieter pass.
+2. **Grid thumbnails** (256 px), newest first, so the top of the timeline
+   fills in first. These are small and quick (about 20 ms a photo).
+3. **Big tiles** (640 px), newest first, in a second pass.
+
+Thumbnails are made a few at a time on a computer with cores to spare
+(:data:`THUMB_WORKERS`); the index is written by this thread alone.
 
 The gallery can also ask for either directly (:meth:`Scanner.thumbnail_now`),
 so whatever is on screen never waits for the queue.
@@ -26,6 +29,8 @@ import os
 import sqlite3
 import threading
 import time
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +46,12 @@ BATCH = 200
 RESCAN_EVERY = 30 * 60
 #: How soon to try again when the index could not be opened at all.
 RETRY_EVERY = 60
+#: Thumbnails made at once during a scan. Pillow lets go of Python's lock
+#: while it decodes, shrinks and encodes a picture, so each one more is close
+#: to another core's worth: a Raspberry Pi's four cores make a first scan about
+#: three times faster. One core is always left for the gallery, so a one- or
+#: two-core computer makes them one at a time, as it always did.
+THUMB_WORKERS = max(1, min(3, (os.cpu_count() or 1) - 1))
 
 
 class Scanner:
@@ -416,38 +427,84 @@ class Scanner:
     }
 
     def _make_thumbnails(self, conn: sqlite3.Connection) -> None:
-        for name in ("small", "large"):
-            where, sizes, state = self._QUEUE[name]
-            total = conn.execute(
-                f"SELECT COUNT(*) FROM assets a WHERE {where} AND a.missing = 0").fetchone()[0]
-            self._set(state=state, thumbs_total=total, thumbs_left=total)
-            # Each row is tried once per pass, in date order, newest first. The
-            # next page starts after the last row tried (not at an offset):
-            # rows done leave the queue and rows that failed stay in it, so
-            # an offset would skip work, and starting over would spin at full
-            # CPU on a row whose drive is asleep.
-            after: tuple[float, int] | None = None
-            while not self._stop.is_set():
-                page = "" if after is None else \
-                    "AND (a.captured_at < ? OR (a.captured_at = ? AND a.id < ?))"
-                args = () if after is None else (after[0], after[0], after[1])
-                rows = conn.execute(
-                    f"""SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.rotation, a.captured_at,
-                               f.path AS root
-                        FROM assets a JOIN folders f ON f.id = a.folder_id
-                        WHERE {where} AND a.missing = 0 {page}
-                        ORDER BY a.captured_at DESC, a.id DESC LIMIT 50""", args).fetchall()
-                left = conn.execute(
-                    f"SELECT COUNT(*) FROM assets a WHERE {where} AND a.missing = 0").fetchone()[0]
-                self._set(thumbs_left=left)
-                if not rows:
-                    break
-                self.generation += 1
-                for row in rows:
-                    if self._stop.is_set() or self._wake.is_set():
-                        return  # a rescan was asked for: walk first, then carry on here
+        workers = THUMB_WORKERS
+        pool = ThreadPoolExecutor(workers, thread_name_prefix="thumbnails") if workers > 1 else None
+        try:
+            for name in ("small", "large"):
+                if not self._thumbnail_pass(conn, name, pool, workers):
+                    return
+        finally:
+            if pool is not None:
+                # At most *workers* pictures are still being made. They finish
+                # on their own, unrecorded, so the next pass makes them again.
+                pool.shutdown(wait=False, cancel_futures=True)
+
+    def _thumbnail_pass(self, conn: sqlite3.Connection, name: str,
+                        pool: ThreadPoolExecutor | None, workers: int) -> bool:
+        """One pass of the queue; False when it stopped early for a stop or a rescan."""
+        where, sizes, state = self._QUEUE[name]
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM assets a WHERE {where} AND a.missing = 0").fetchone()[0]
+        self._set(state=state, thumbs_total=total, thumbs_left=total)
+        tried = 0
+        # Each row is tried once per pass, in date order, newest first. The
+        # next page starts after the last row tried (not at an offset):
+        # rows done leave the queue and rows that failed stay in it, so
+        # an offset would skip work, and starting over would spin at full
+        # CPU on a row whose drive is asleep.
+        after: tuple[float, int] | None = None
+        while not self._stop.is_set():
+            page = "" if after is None else \
+                "AND (a.captured_at < ? OR (a.captured_at = ? AND a.id < ?))"
+            args = () if after is None else (after[0], after[0], after[1])
+            rows = conn.execute(
+                f"""SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.rotation, a.captured_at,
+                           f.path AS root
+                    FROM assets a JOIN folders f ON f.id = a.folder_id
+                    WHERE {where} AND a.missing = 0 {page}
+                    ORDER BY a.captured_at DESC, a.id DESC LIMIT 50""", args).fetchall()
+            # Counted down here rather than counted again for every page: on a
+            # large library that count was a walk of the whole index.
+            self._set(thumbs_left=max(0, total - tried))
+            if not rows:
+                break
+            self.generation += 1
+            made = self._rendered(rows, sizes, pool, workers)
+            try:
+                for row, result in made:
                     after = (row["captured_at"], row["id"])
-                    self._thumbnail(conn, row, sizes)
+                    tried += 1
+                    if result is not None:
+                        self._record(conn, row, *result)
+                    if self._stop.is_set() or self._wake.is_set():
+                        return False  # a rescan was asked for: walk first, then carry on here
+            finally:
+                made.close()
+        return not self._stop.is_set()
+
+    def _rendered(self, rows: list, sizes: tuple[str, ...], pool: ThreadPoolExecutor | None,
+                  workers: int):
+        """(row, what :meth:`_render` made) for each row, in the order given,
+        *workers* at a time. Closed early, the ones not started are dropped."""
+        if pool is None:
+            for row in rows:
+                yield row, self._render(row, sizes)
+            return
+        window: deque = deque()
+        try:
+            for row in rows:
+                window.append((row, pool.submit(self._render, row, sizes)))
+                # One more waiting than there are workers keeps every worker
+                # busy while this thread writes the oldest one down.
+                if len(window) > workers:
+                    first, future = window.popleft()
+                    yield first, future.result()
+            while window:
+                first, future = window.popleft()
+                yield first, future.result()
+        finally:
+            for _row, future in window:
+                future.cancel()
 
     # --- which way up ------------------------------------------------------------
 
@@ -515,16 +572,31 @@ class Scanner:
 
     def _thumbnail(self, conn: sqlite3.Connection, row: sqlite3.Row,
                    sizes: tuple[str, ...]) -> bool:
+        made = self._render(row, sizes)
+        if made is None:
+            return False
+        self._record(conn, row, *made)
+        return made[1]
+
+    def _render(self, row: sqlite3.Row, sizes: tuple[str, ...]
+                ) -> tuple[tuple[str, ...], bool, str | None] | None:
+        """Make the thumbnails for *row* (no index work, so any thread may):
+        (sizes made, whether they were, colour), or None for a file that is
+        not there right now."""
         full = full_path(row["root"], row["dir"], row["name"])
         if not os.path.isfile(long_path(full)):
             # Away, not broken: a drive asleep or unplugged. The row keeps its
             # place in the queue for when the file is back; the next walk
             # marks it missing if it is gone for good.
-            return False
+            return None
         if row["kind"] == "video":
             sizes = ("s", "l")   # one ffmpeg call makes both
         ok, colour = media.make_thumbnails(full, row["kind"], self.thumbs_dir, row["id"], sizes,
                                            rotation=row["rotation"] or 0)
+        return sizes, ok, colour
+
+    def _record(self, conn: sqlite3.Connection, row: sqlite3.Row, sizes: tuple[str, ...],
+                ok: bool, colour: str | None) -> None:
         version = int(time.time() * 1000) % 2_000_000_000
         with conn:
             if "s" in sizes:
@@ -538,7 +610,6 @@ class Scanner:
                 # a request for the big one (thumbnail_now) still may.
                 conn.execute("UPDATE assets SET large = ? WHERE id = ?",
                              (1 if ok else 2, row["id"]))
-        return ok
 
     def thumbnail_now(self, conn: sqlite3.Connection, asset_id: int, size: str = "s") -> bool:
         """Make one thumbnail right away, for a picture that is on screen."""

@@ -19,7 +19,7 @@ from flask import Blueprint, Response, jsonify, request
 
 from . import auth, backups, db, export, folders, media
 from . import importer as importer_rules
-from .common import (body, cfg, conn, drop_avatar, fail, folder_ids, importer,
+from .common import (body, cfg, conn, counted, drop_avatar, fail, folder_ids, importer,
                      library_exists, require_admin, scanner, split_library, subtree, visible)
 from .config import clean_house_name
 from .version import COPYRIGHT, LICENCE, __version__
@@ -78,10 +78,9 @@ def _library_summaries() -> list[dict[str, Any]]:
     for root in c.folders:
         count, size = 0, 0
         if root in ids:
-            row = conn().execute(
+            count, size = counted(
                 "SELECT COUNT(*) n, COALESCE(SUM(size), 0) b FROM assets "
-                "WHERE folder_id = ? AND missing = 0", (ids[root],)).fetchone()
-            count, size = row["n"], row["b"]
+                "WHERE folder_id = ? AND missing = 0", (ids[root],))[0]
         out.append({
             "path": root,
             "name": os.path.basename(root.rstrip("\\/")) or root,
@@ -96,7 +95,7 @@ def _library_summaries() -> list[dict[str, Any]]:
 
 def _stats(who: auth.User) -> dict[str, Any]:
     where, params = visible(who)
-    row = conn().execute(
+    count, pictures, videos, public, family, hidden, size, first, last = counted(
         f"""SELECT COUNT(*) count,
                    COALESCE(SUM(a.kind = 'picture'), 0) pictures,
                    COALESCE(SUM(a.kind = 'video'), 0) videos,
@@ -105,16 +104,16 @@ def _stats(who: auth.User) -> dict[str, Any]:
                    COALESCE(SUM(a.visibility = 2), 0) hidden,
                    COALESCE(SUM(a.size), 0) bytes,
                    MIN(a.date_key) first_date, MAX(a.date_key) last_date
-            FROM assets a WHERE {where}""", params).fetchone()
-    favourites = conn().execute(
+            FROM assets a WHERE {where}""", params)[0]
+    favourites = counted(
         f"SELECT COUNT(*) FROM user_assets u JOIN assets a ON a.id = u.asset_id "
-        f"WHERE u.user_id = ? AND u.favorite = 1 AND {where}", [who.id, *params]).fetchone()[0]
+        f"WHERE u.user_id = ? AND u.favorite = 1 AND {where}", [who.id, *params])[0][0]
     return {
-        "count": row["count"], "pictures": row["pictures"], "videos": row["videos"],
-        "audio": 0, "public": row["public"], "family": row["family"], "hidden": row["hidden"],
-        "bytes": row["bytes"], "live": 0, "favorites": favourites, "nsfw": 0,
+        "count": count, "pictures": pictures, "videos": videos,
+        "audio": 0, "public": public, "family": family, "hidden": hidden,
+        "bytes": size, "live": 0, "favorites": favourites, "nsfw": 0,
         "duplicate_groups": 0, "embedded": 0,
-        "first_date": row["first_date"] or "", "last_date": row["last_date"] or "",
+        "first_date": first or "", "last_date": last or "",
     }
 
 

@@ -174,6 +174,21 @@ export function folderDate(path) {
   }
 }
 
+/**
+ * Where a locale's strings are. The page's import map gives the address that
+ * carries the file's version, which the browser keeps until it changes (half
+ * a megabyte of Tamil, otherwise asked for again on every visit); a browser
+ * without one uses the plain address.
+ */
+function stringsUrl(code) {
+  const plain = `/static/i18n/${code}.json`;
+  try {
+    return import.meta.resolve?.(plain) ?? plain;
+  } catch {
+    return plain;
+  }
+}
+
 /** Fetch a locale's strings. English needs none. */
 async function load(code) {
   if (loaded[code]) return loaded[code];
@@ -181,7 +196,7 @@ async function load(code) {
   // needs no fetch: a quarter of a megabyte that said nothing new.
   if (code === 'en') { loaded.en = {}; return loaded.en; }
   try {
-    const response = await fetch(`/static/i18n/${code}.json`, {
+    const response = await fetch(stringsUrl(code), {
       headers: { Accept: 'application/json' },
     });
     loaded[code] = response.ok ? await response.json() : {};

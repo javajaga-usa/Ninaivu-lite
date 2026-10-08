@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from collections.abc import Callable
 from typing import Any, NoReturn
 
 from flask import Response, current_app, g, request
@@ -40,6 +41,25 @@ def conn() -> sqlite3.Connection:
     if "db" not in g:
         g.db = db.connect(cfg().data_dir)
     return g.db
+
+
+def counted(sql: str, params: list[Any] | tuple[Any, ...] = ()) -> list[tuple]:
+    """The rows of a read-only count over the index, worked out again only
+    when the index has changed since (see :class:`db.Remembered`)."""
+    return current_app.config["REMEMBERED"].get(
+        (sql, tuple(params)), lambda: [tuple(r) for r in conn().execute(sql, params)])
+
+
+#: A grid page larger than this is not kept (a 25,000-photo page is about
+#: 0.7 MB): at most PAGES_KEPT of them stay in memory.
+PAGE_KEEP_BYTES = 4 * 1024 * 1024
+PAGES_KEPT = 6
+
+
+def remembered_page(key: tuple, compute: Callable[[], str]) -> str:
+    """A grid page's answer, made again only when the index has changed."""
+    return current_app.config["REMEMBERED_PAGES"].get(
+        key, compute, keep=lambda body: len(body) <= PAGE_KEEP_BYTES)
 
 
 def user() -> auth.User:
