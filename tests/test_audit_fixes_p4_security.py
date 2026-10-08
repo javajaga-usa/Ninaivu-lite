@@ -11,12 +11,11 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 from PIL import Image
 
-from ninaivu_lite import api_auth, api_gallery, auth, db, media, panel, updates
+from ninaivu_lite import api_auth, api_gallery, auth, db, media
 
 from conftest import ids, make_jpeg, sign_in
 
@@ -272,7 +271,7 @@ def test_a49_guests_get_no_camera_models(app, guest, family):
     assert family.get("/api/segments?q=Canon").get_json()["total"] == 1
 
 
-# --- A50: PINs, temporary passwords, the update link ---------------------------------------------
+# --- A50: PINs, temporary passwords ---------------------------------------------
 
 
 def test_a50_a_new_pin_signs_that_person_out(app, admin):
@@ -292,20 +291,6 @@ def test_a50_a_temporary_password_changes_nothing_until_replaced(app):
     assert phone.post("/api/me/password",
                       json={"password": "my own long words"}).status_code == 200
     assert phone.post("/api/albums", json={"name": "Pongal"}).status_code == 200
-
-
-@pytest.mark.parametrize("url,kept", [
-    ("https://github.com/javajaga-usa/ninaivu-lite/releases/tag/v9.9.9", True),
-    ("file:///C:/Windows/System32/calc.exe", False),
-    ("https://github.com.evil.example/x", False),
-    (None, False),
-])
-def test_a50_the_panel_opens_only_github_for_an_update(url, kept):
-    view = SimpleNamespace(update_text=SimpleNamespace(set=lambda _t: None),
-                           download_button=SimpleNamespace(pack=lambda **_k: None,
-                                                           pack_forget=lambda: None))
-    panel.Panel.show_update(view, {"version": "9.9.9", "url": url, "available": True}, True)
-    assert view.update_url == (url if kept else updates.RELEASES_PAGE)
 
 
 # --- A51: PIN-less Family profiles are pointed out --------------------------------------------------

@@ -114,6 +114,33 @@ staging="$build/dmg"
 mkdir -p "$staging"
 cp -R "$app" "$staging/"
 ln -s /Applications "$staging/Applications"
+# Dragging a new app over the old one replaces the program, not the data
+# folder; replacing it under a running server leaves that server half old.
+cat > "$staging/Before updating - read me.txt" <<'NOTE'
+Updating Ninaivu Lite
+=====================
+
+1. Stop Ninaivu Lite first: in the Ninaivu Lite Control Panel press Stop, then
+   quit the Control Panel (or press "Get ready to update", which does both).
+2. Drag the new Ninaivu Lite into Applications and choose Replace.
+3. Open the Control Panel again and press Start.
+
+Photos, people, settings, the index and backups are kept: they live in
+~/Library/Application Support/Ninaivu-lite, not in the app. Ninaivu Lite never
+checks for updates by itself.
+
+நினைவு லைட்டைப் புதுப்பித்தல்
+==============================
+
+1. முதலில் நினைவு லைட்டை நிறுத்துங்கள்: Ninaivu Lite Control Panel-இல் Stop
+   அழுத்தி, Control Panel-ஐ மூடுங்கள் ("Get ready to update" இரண்டையும் செய்யும்).
+2. புதிய Ninaivu Lite-ஐ Applications-க்குள் இழுத்து Replace தேர்ந்தெடுங்கள்.
+3. Control Panel-ஐ மீண்டும் திறந்து Start அழுத்துங்கள்.
+
+படங்கள், நபர்கள், அமைப்புகள், அட்டவணை, காப்புப் பிரதிகள் அப்படியே இருக்கும்:
+அவை ~/Library/Application Support/Ninaivu-lite இல் உள்ளன, செயலிக்குள் அல்ல.
+நினைவு லைட் தானாகப் புதுப்பிப்புகளைத் தேடுவதில்லை.
+NOTE
 hdiutil create -volname "Ninaivu Lite" -srcfolder "$staging" -ov -format UDZO "$dmg" >/dev/null
 rm -rf "$staging"
 

@@ -239,6 +239,25 @@ jobs:
             try { Invoke-RestMethod http://127.0.0.1:8080/api/health -TimeoutSec 2 | Out-Null; $up = $true; break } catch { Start-Sleep 1 }
           }
           if (-not $up) { throw "the installed server did not start again before the uninstall" }
+          # The same installer again over the running copy, as an update: it stops it, leaves
+          # the data folder alone, and starts it again.
+          $userData = Join-Path $env:LOCALAPPDATA "Ninaivu-lite"
+          $marker = Join-Path $userData "kept-by-the-update.txt"
+          Set-Content -Path $marker -Value "kept"
+          # Waited for by itself: -Wait would also wait for the server it starts again, which
+          # does not stop.
+          $update = Start-Process -FilePath $installer -ArgumentList "/S", "/INSTDIR=$dir" -PassThru
+          if (-not $update.WaitForExit(300000)) { throw "the update did not finish in five minutes" }
+          if ($update.ExitCode -ne 0) { throw "the update failed with exit code $($update.ExitCode)" }
+          if ((Get-Content $marker -ErrorAction SilentlyContinue) -ne "kept") { throw "the update touched the data folder" }
+          if (-not (Test-Path (Join-Path $userData "ninaivu-lite.db"))) { throw "the update lost the index" }
+          $up = $false
+          foreach ($i in 1..40) {
+            try { Invoke-RestMethod http://127.0.0.1:8080/api/health -TimeoutSec 2 | Out-Null; $up = $true; break } catch { Start-Sleep 1 }
+          }
+          if (-not $up) { throw "the update did not start Ninaivu Lite again" }
+          Remove-Item $marker
+          Write-Host "updated over a running copy, data kept, started again"
           # _?= makes the uninstaller run in place and wait, instead of copying itself away.
           Start-Process -FilePath (Join-Path $dir "uninstall.exe") -ArgumentList "/S", "_?=$dir" -Wait
           if (Test-Path (Join-Path $dir "pkgs")) { throw "uninstall left the program behind" }
@@ -520,6 +539,8 @@ jobs:
             echo
             echo "**Windows:** \`Ninaivu-Lite-$version-windows-x64.exe\`, or \`Ninaivu-Lite-$version-windows-x64-portable.zip\` to run without installing (extract it, then open *Ninaivu Lite Control Panel.vbs*; its data stays in the folder). **macOS:** the \`.dmg\` for Apple silicon (\`arm64\`) or Intel (\`x86_64\`). **Linux and Raspberry Pi:** \`Ninaivu-Lite-$version-linux-amd64.sh\` for a PC, \`-linux-arm64.sh\` for a Raspberry Pi 4 or 5 with a 64-bit OS — run it with \`sh\`, no root needed."
             echo "Every installer carries its own Python and every package: nothing is downloaded at install time. Checksums are in \`SHA256SUMS.txt\`."
+            echo
+            echo "**Updating:** Stop Ninaivu Lite first (press **Stop** in the Control Panel, then close it; on a Linux server \`sudo systemctl stop ninaivu-lite\`), then run the new installer over the old one. Photos, people, settings, the index and backups are kept, and the index is copied to \`backups\` before it is brought forward. Ninaivu Lite never checks for updates by itself: new versions are only here, when you choose to download one."
             echo
             if [ "$HAS_PFX" != "true" ]; then
               echo "> **The Windows installer is not signed.** SmartScreen will say *Windows protected your PC*: choose **More info → Run anyway**."

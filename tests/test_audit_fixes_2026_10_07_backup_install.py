@@ -637,7 +637,7 @@ def test_a103_a_shortcut_that_starts_another_copy_is_not_this_ones(tmp_path, mon
     c.set_autostart(True)
     assert c.autostart_enabled() and not c.autostart_elsewhere()
     readme = flat(read("installers/windows/portable/README-PORTABLE.txt"))
-    assert "Upgrading: in the old folder's Control Panel press Stop and untick" in readme
+    assert "in the old folder's Control Panel, press Stop, untick" in readme
 
 
 # --- A104 (F2): the sign-in script is written so Windows reads any letters ----------------
@@ -787,13 +787,17 @@ def test_a110_the_control_commands_the_installers_use(tmp_path, monkeypatch, cap
 
 def stand_in_payload(root: Path) -> Path:
     """A payload whose Python does what the environment says: FAIL_PIP makes
-    the install fail, WAS_RUNNING answers --running, NEEDS_SETUP --needs-setup."""
+    the install fail, WAS_RUNNING answers --running (until --stop, unless
+    STUCK: started in a terminal, which --stop cannot stop), NEEDS_SETUP
+    --needs-setup."""
     payload = root / "payload"
     python = payload / "python" / "bin" / "python3"
     python.parent.mkdir(parents=True)
     python.write_text('#!/bin/sh\ncase "$*" in\n'
                       '  *"pip install"*) [ -z "$FAIL_PIP" ] || exit 1 ;;\n'
-                      '  *--running*) [ -n "$WAS_RUNNING" ] || exit 1 ;;\n'
+                      '  *--running*) [ -n "$WAS_RUNNING" ] && [ ! -e "$0.stopped" ] || exit 1 ;;\n'
+                      '  *--stop*) [ -n "$STUCK" ] || touch "$0.stopped" ;;\n'
+                      '  *--start*) rm -f "$0.stopped" ;;\n'
                       '  *--needs-setup*) [ -n "$NEEDS_SETUP" ] || exit 1 ;;\n'
                       'esac\necho /nowhere/icon-192.png\n', encoding="utf-8")
     python.chmod(0o755)
@@ -817,7 +821,7 @@ def user_install_env(tmp_path: Path, **extra: str) -> tuple[dict, Path, Path]:
     env = {**os.environ, "HOME": str(home), "XDG_DATA_HOME": str(home / ".local" / "share"),
            "XDG_CONFIG_HOME": str(home / ".config"),
            "PATH": f"{shims}{os.pathsep}{os.environ.get('PATH', '')}", **extra}
-    for key in ("FAIL_PIP", "WAS_RUNNING", "NEEDS_SETUP"):
+    for key in ("FAIL_PIP", "WAS_RUNNING", "NEEDS_SETUP", "STUCK"):
         if key not in extra:
             env.pop(key, None)
     return env, home, calls

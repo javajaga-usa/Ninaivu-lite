@@ -41,10 +41,10 @@ archive, and **Sudar**, the photo studio that runs in the browser.
 | --- | --- | --- |
 | Timeline by the day each photo was taken, with a date bar and a year row on phones | Admin console: overview, library folders, rescans, people, visibility, settings, backup | Three dependencies: Flask, Pillow, waitress |
 | Search by name, folder, date or camera | Three roles (Admin, Family, Guest) and Public / Family / Hidden per folder or per photo, with undo | Installers for Windows, macOS, Linux and Raspberry Pi that carry their own Python |
-| Full-screen viewer: swipe, keys, zoom, slideshow, ambient frame, details, rotate | People with a PIN, a password or nothing, each seeing one folder or all | Nothing leaves the house: no accounts, no cloud, no telemetry; one update check only when asked |
+| Full-screen viewer: swipe, keys, zoom, slideshow, ambient frame, details, rotate | People with a PIN, a password or nothing, each seeing one folder or all | Nothing leaves the house: no accounts, no cloud, no telemetry, no update checks |
 | Favourites per person; albums from any folder, shareable | Import old drives, cards and backups into one hash-checked archive filed by date; Google Takeout kept whole | Photographs and videos are only ever read; edits and turns are kept beside them or in the index |
 | Share links with a password and an expiry; the visitor's copy carries no location | Sideways photos put right during the scan (camera tag, then faces with optional OpenCV) | gzip, long caches and a virtual grid: a 100,000-photo library scrolls on a phone |
-| Sudar photo studio in the browser: light, colour, detail, crops, looks, plain-words requests, clothing colour | Control Panel: start, stop, restart, addresses for phones, start with the computer, update check | SQLite index with numbered migrations; thumbnails and viewing copies cached in the data folder |
+| Sudar photo studio in the browser: light, colour, detail, crops, looks, plain-words requests, clothing colour | Control Panel: start, stop, restart, addresses for phones, start with the computer, getting ready for an update | SQLite index with numbered migrations; thumbnails and viewing copies cached in the data folder |
 | A photo as your sign-in picture; Tamil or English per person | Daily recovery zips (index, settings, profile pictures; the last seven kept) and `--restore`; export for Ninaivu | Tests on Windows, macOS and Linux, Python 3.10 and 3.13, on every push to `main` and every pull request |
 
 ## What it does
@@ -93,6 +93,27 @@ and downloads nothing.
 | Docker | `docker compose -f installers/docker/docker-compose.yml up -d` |
 
 How they are built: [installers/README.md](installers/README.md).
+
+### Updating
+
+Ninaivu Lite never looks for updates by itself and asks nothing of GitHub or anywhere
+else: a newer version is a setup file you download from the
+[releases page](https://github.com/javajaga-usa/Ninaivu-lite/releases) when you choose to.
+
+1. **First stop Ninaivu Lite.** In the Control Panel press **Stop**, then close the Control
+   Panel (**Get ready to update** in it does both). On a Linux server:
+   `sudo systemctl stop ninaivu-lite`.
+2. **Run the newer installer** over the old one: the same `.exe`, `.sh` or `.dmg` as the
+   first time. On a Mac, drag the new app over the old one in Applications.
+3. Start it again (the Windows and Linux installers do it for you if it was running).
+
+Your photos, people, settings, index and backups are kept: they live in the data folder, not
+with the program, and no installer touches it. The first start after an update brings the
+index forward on its own, after keeping a copy of it as it was in the data folder's
+`backups` (a `before-update-…` zip). If you forget to stop it, the Windows and Linux
+installers offer to stop it for you, and refuse to replace a copy they cannot stop rather
+than leave it half updated. For the portable zip, extract the new version to a new folder
+and copy the old `data` folder into it (see `README-PORTABLE.txt`).
 
 **The releases are not code-signed yet.** Free signing through the
 [SignPath Foundation](https://signpath.org) has been applied for and is pending; until then

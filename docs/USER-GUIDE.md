@@ -25,8 +25,9 @@ releases page, right-click it, choose *Properties*, tick *Unblock*, then *Extrac
 folder that stays put (or a pendrive). Double-click **`Ninaivu Lite Control Panel.vbs`** in it.
 Everything stays in that folder: the program, and the family's settings, people and index
 in the `data` folder that appears beside it the first time. To upgrade, extract the new
-version to a new folder and copy the old `data` folder into it; if the old copy starts when
-you sign in, untick that in its Control Panel first and tick it in the new one. Its
+version to a new folder and copy the old `data` folder into it. Press **Stop** in the old
+copy's Control Panel and close it first; if the old copy starts when you sign in, untick that
+in its Control Panel first and tick it in the new one. Its
 `README-PORTABLE.txt` says how to move or remove it.
 
 **Without an installer, from the source:**
@@ -52,14 +53,11 @@ addresses to open, and has:
 - **Open the family app** and **Open the console**;
 - **Start Ninaivu Lite when I sign in** — tick it once and it starts with the computer;
 - **Open the log** and **Open the data folder**, for when something needs looking into;
-- **Updates** — press **Check now** to ask GitHub whether a newer Ninaivu Lite exists; if so,
-  the panel says which version with a **Download** button to the release page. Tick *Tell me
-  when a new version is available* and it asks once a day by itself. Nothing is asked until
-  you do one of those, and nothing about your library is ever sent.
-  Before running the installer you downloaded, press **Stop** and close the Control Panel:
-  Windows cannot replace a program that is in use. **Download** offers to do both for you,
-  and the installer waits and asks until nothing is in use. Your settings, people, index
-  and photographs are untouched by an upgrade.
+- **Updating** — Ninaivu Lite never looks for updates by itself and asks nothing of GitHub.
+  When you have a newer setup file, first stop Ninaivu Lite: press **Stop**, then close the
+  Control Panel. **Get ready to update** does both for you. A program that is in use cannot
+  be replaced, and the installer offers to stop it, and waits, if you forget. Your settings,
+  people, index, backups and photographs are untouched by an update.
 
 Closing the Control Panel leaves Ninaivu Lite running. On a Raspberry Pi or a server without
 a screen, the Linux installer sets up a service that starts it at boot. Installed with `sudo`,
@@ -257,11 +255,18 @@ later. The visitor does not see the file's name.
 - **A library folder moved, or not needed?** **Moved?**, beside a folder *Library settings* cannot
   find, points it at its new place and keeps everything. *Remove* takes it out of the gallery; who sees what,
   favourites, albums and share links come back if the same folder is added again.
-- **Updating** — with an installer, run the new installer (the Control Panel's
-  **Download** button opens its page); on Linux, run the newer `.sh` the same way as the first.
-  For the portable zip, extract the new version to a new folder and copy the old `data`
-  folder into it (untick start-at-sign-in in the old copy first). For a copy of the source, replace the program files and start it again.
-  Your data folder stays as it is. Going back from 1.8.0 to 1.7.0 needs nothing special.
+- **Updating** — Ninaivu Lite never checks for a newer version; download one from the
+  releases page when you choose to. **First stop Ninaivu Lite**: press **Stop** in the Control
+  Panel and close it (**Get ready to update** does both); on a Linux server,
+  `sudo systemctl stop ninaivu-lite`. Then, with an installer, run the new installer; on
+  Linux, run the newer `.sh` the same way as the first; on a Mac, drag the new app over the
+  old one in Applications. For the portable zip, extract the new version to a new folder and
+  copy the old `data` folder into it (untick start-at-sign-in in the old copy first). For a
+  copy of the source, replace the program files and start it again.
+  Your data folder stays as it is. The first start after an update brings the index forward
+  by itself, after keeping a copy of it as it was (`backups/before-update-…zip`). If a Mac
+  app was replaced while Ninaivu Lite ran, the Control Panel says the old version is still
+  running: press **Restart**. Going back from 1.8.0 to 1.7.0 needs nothing special.
   Going back to 1.6.0 or older means restoring a backup made before the update: 1.6.0
   cannot open the index of 1.7.0 or later.
 - **Linux, installed with `sudo`** — Ninaivu Lite runs as a service under its own

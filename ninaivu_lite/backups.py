@@ -288,12 +288,19 @@ def before_change(data_dir: str | Path, what: str) -> Path | None:
     except Exception:  # noqa: BLE001 — a missing copy must not stop the admin
         log.exception("could not take a backup before %s", what)
         return None
-    for old in sorted(folder.glob("before-*.zip"), reverse=True)[KEEP_BEFORE:]:
+    # Newest first by when they were taken, whatever they were taken before
+    # (by name, every "before-update" copy would outlive newer "before-person" ones).
+    for old in sorted(folder.glob("before-*.zip"), key=_taken_at, reverse=True)[KEEP_BEFORE:]:
         try:
             old.unlink()
         except OSError:
             pass
     return target
+
+
+def _taken_at(path: Path) -> str:
+    """``before-<what>-YYYY-mm-dd-HHMMSS.zip`` → its time, for sorting."""
+    return path.stem[-17:]
 
 
 def listing(data_dir: str | Path) -> list[dict]:

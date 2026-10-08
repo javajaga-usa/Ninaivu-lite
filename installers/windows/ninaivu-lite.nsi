@@ -1,6 +1,7 @@
-; pynsist's own template with four additions: a "start at sign-in" box (left
+; pynsist's own template with five additions: a "start at sign-in" box (left
 ; as it was on an upgrade), the Control Panel on the Desktop, the Control
-; Panel opened when the installer finishes, and a tidy stop before an upgrade
+; Panel opened when the installer finishes, advice to stop a running Ninaivu
+; Lite before an upgrade (it offers to do it), and a tidy stop before an upgrade
 ; or an uninstall (the uninstall's in a section of its own that runs before
 ; the packages go), with the old program removed before an upgrade. Everything else is pynsist's; see
 ; https://github.com/takluyver/pynsist/blob/master/nsist/pyapp.nsi
@@ -16,6 +17,7 @@
   !macro WaitUntilNotInUse
     ; One id for this insertion's labels (the macro is used twice).
     !define U ${__COUNTER__}
+    StrCpy $nl_waited 0
     IfFileExists "$INSTDIR\Python\pythonw.exe" 0 not_in_use_${U}
     ExecWait '"$INSTDIR\Python\pythonw.exe" -m ninaivu_lite.control --stop'
     check_${U}:
@@ -29,9 +31,18 @@
       FileClose $0
       Goto not_in_use_${U}
     in_use_${U}:
+      ; A server asked to stop lets go of its files a moment after it stops
+      ; answering: a few seconds' grace before anyone is asked.
+      IntOp $nl_waited $nl_waited + 1
+      IntCmp $nl_waited 15 ask_${U} 0 ask_${U}
+      Sleep 1000
+      Goto check_${U}
+    ask_${U}:
+      StrCpy $nl_waited 0
+      ; With /S nobody can answer: Cancel, rather than wait for ever.
       MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION \
         "Ninaivu Lite is still running, so its files cannot be replaced.$\r$\n$\r$\nIn the Ninaivu Lite Control Panel press Stop (or close the window Ninaivu Lite was started from), then close the Control Panel itself, and press Retry." \
-        IDRETRY check_${U}
+        /SD IDCANCEL IDRETRY check_${U}
       Abort "Ninaivu Lite is still running. Stop it and close the Control Panel, then run this installer again."
     not_in_use_${U}:
     !undef U
@@ -48,6 +59,8 @@
   VIAddVersionKey "LegalCopyright" "(c) 2026 Jagadeesh Rajendran. MIT licence."
   ; "1" once the install folder is found to hold a Ninaivu Lite already: an upgrade.
   Var nl_ours
+  ; Seconds waited for the old program to let go of its files (WaitUntilNotInUse).
+  Var nl_waited
   ; "1" when the earlier version was running when the upgrade began: it is
   ; started again at the end, so phones do not lose the library until
   ; somebody presses Start (with /S nobody would).
@@ -85,6 +98,13 @@
     ExecWait '"$INSTDIR\Python\pythonw.exe" -m ninaivu_lite.control --running' $0
     StrCmp $0 "0" 0 nl_not_running
     StrCpy $nl_was_running "1"
+    ; Said before anything is stopped: the person may be in the middle of
+    ; something, and should know the library is safe. Not asked with /S.
+    IfSilent nl_not_running
+    MessageBox MB_OKCANCEL|MB_ICONINFORMATION \
+      "Ninaivu Lite is running. It is best to stop it before updating: in the Ninaivu Lite Control Panel press Stop, then close the Control Panel.$\r$\n$\r$\nPress OK to let this installer stop it now and start it again when the update is done, or Cancel to stop it yourself first and run this installer again.$\r$\n$\r$\nYour photographs, people, settings, index and backups are kept either way." \
+      IDOK nl_not_running
+    Abort "Nothing was changed. Stop Ninaivu Lite and close the Control Panel, then run this installer again."
   nl_not_running:
   !insertmacro WaitUntilNotInUse
   DetailPrint "Removing the previous Ninaivu Lite program files..."

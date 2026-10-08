@@ -25,7 +25,7 @@ import webbrowser
 from pathlib import Path
 from urllib.parse import urlencode
 
-from . import drives, updates
+from . import drives
 from .control import Controller
 from .version import APP_NAME, COPYRIGHT, LICENCE, __version__
 
@@ -47,6 +47,10 @@ STATUS = {  # foreground, background, border
 }
 CARD_ACCENT = {"addresses": "#10b981", "library": "#3b82f6", "options": "#64748b",
                "updates": "#f59e0b"}
+#: What the UPDATING card says. Nothing is checked or downloaded by the panel.
+UPDATE_ADVICE = (f"This is version {__version__}. To update, run the newer setup file (or "
+                 "extract the newer zip) you were given. Stop Ninaivu Lite and close this "
+                 "panel first. Photos, people, settings and the index are kept.")
 FONT = "Segoe UI" if sys.platform == "win32" else "Helvetica"
 #: ▶ ■ ↻ as in Ninaivu where the font surely has them (Segoe UI); words alone elsewhere.
 SYMBOL = sys.platform == "win32"
@@ -87,10 +91,17 @@ class Panel:
         self.finished = threading.Event()
         self.busy = False
         self.is_running = False
-        #: set by Download: once the stop it asked for is done, the panel closes
+        #: set by Get ready to update: once the stop it asked for is done, the panel closes
         self.close_when_done = False
+        #: the version of a server still running from before an update, once said
+        self.stale_version: str | None = None
         #: pendrives and external drives plugged in while the panel is open
         self.drive_watcher = drives.Watcher()
+        # What the update check of 1.3.4 to 1.8.0 kept; there is no check now.
+        try:
+            (controller.data_dir / "update-check.json").unlink(missing_ok=True)
+        except OSError:
+            pass
 
         root.title(TITLE)
         root.configure(bg=BG)
@@ -197,30 +208,20 @@ class Panel:
         ttk.Button(row, text="Open the data folder",
                    command=lambda: self.reveal(controller.data_dir)).pack(side="right", padx=(0, 6))
 
-        # -- a newer version? ---------------------------------------------------------
-        # One small question to GitHub a day, from a thread; the answer is a
-        # line here and a button to the download page, never anything more.
-        body = self._card(outer, "updates", "UPDATES")
+        # -- updating -----------------------------------------------------------------
+        # Nothing here asks the internet anything: there is no update check.
+        # A newer version is a setup file (or zip) someone downloads on
+        # purpose; this card says how to put it in safely and gets the
+        # computer ready for it.
+        body = self._card(outer, "updates", "UPDATING")
         row = tk.Frame(body, bg=SURFACE)
         row.pack(fill="x")
-        self.update_text = tk.StringVar(value="")
-        self.update_url = updates.RELEASES_PAGE
+        self.update_text = tk.StringVar(value=UPDATE_ADVICE)
         tk.Label(row, textvariable=self.update_text, font=(FONT, 10), bg=SURFACE, fg=INK,
-                 anchor="w", justify="left", wraplength=400).pack(side="left", fill="x", expand=True)
-        self.download_button = ttk.Button(row, text="Download", style="Accent.TButton",
-                                          command=self.download)
-        ttk.Button(row, text="Check now",
-                   command=lambda: self.check_updates(force=True)).pack(side="right")
-        row = tk.Frame(body, bg=SURFACE)
-        row.pack(fill="x", pady=(6, 0))
-        self.updates_on = tk.BooleanVar(value=updates.enabled(controller.data_dir))
-        ttk.Checkbutton(row, text="Tell me when a new version is available (asks GitHub once a day)",
-                        variable=self.updates_on,
-                        command=self.toggle_updates).pack(side="left")
-        # Nothing is asked of GitHub until the box is ticked or Check now is
-        # pressed; said so, in place of an answer, while it is off.
-        if not self.updates_on.get():
-            self.update_text.set("Not checking. Press Check now, or tick the box below.")
+                 anchor="w", justify="left", wraplength=440).pack(side="left", fill="x", expand=True)
+        self.prepare_button = ttk.Button(row, text="Get ready to update",
+                                         command=self.prepare_update)
+        self.prepare_button.pack(side="right")
 
         self.notice = tk.StringVar(value="Closing this panel leaves Ninaivu Lite running.")
         tk.Label(outer, textvariable=self.notice, font=(FONT, 10), bg=BG, fg=MUTED,
@@ -242,7 +243,6 @@ class Panel:
         root.geometry(f"+{x}+{y}")
         root.protocol("WM_DELETE_WINDOW", self.close)
         threading.Thread(target=self.watch, name="panel-watch", daemon=True).start()
-        self.check_updates()
         root.after(150, self.pump)
 
     # -- building --------------------------------------------------------------------------
@@ -280,13 +280,15 @@ class Panel:
         from . import net
         while not self.finished.is_set():
             try:
-                running = self.controller.running()
+                health = self.controller.health()
+                running = health is not None
                 port = self.controller.port
                 phones = net.lan_addresses()[:2] if running else []
                 summary = self.controller.library_summary()
                 self.events.put(("reading", running, port, phones, summary,
                                  self.controller.can_stop(),
-                                 self.controller.setup_code() if running else None))
+                                 self.controller.setup_code() if running else None,
+                                 health.get("version") if running else None))
                 if running:
                     self.look_for_drives(summary.get("folders") or [])
             except Exception as exc:  # noqa: BLE001 — a bad reading must not end the loop
@@ -329,8 +331,6 @@ class Panel:
                         return
                 elif event[0] == "notice":
                     self.notice.set(event[1])
-                elif event[0] == "update":
-                    self.show_update(event[1], event[2])
                 elif event[0] == "drive":
                     self.offer_drive(event[1])
         except queue.Empty:
@@ -338,8 +338,11 @@ class Panel:
         if not self.finished.is_set():
             self.root.after(150, self.pump)
 
-    def show_reading(self, running, port, phones, summary, can_stop, setup_code=None) -> None:
+    def show_reading(self, running, port, phones, summary, can_stop, setup_code=None,
+                     version=None) -> None:
         self.is_running = running
+        if version is not None or not running:
+            self.say_if_stale(version)
         if not self.busy:
             self.status.set("Running" if running else "Stopped")
             self._paint_status("running" if running else "stopped")
@@ -476,62 +479,47 @@ class Panel:
 
     # -- the rest ---------------------------------------------------------------------------
 
-    # -- updates ----------------------------------------------------------------------
+    # -- updating ----------------------------------------------------------------------
 
-    def check_updates(self, force: bool = False) -> None:
-        """Ask on a thread; the answer comes back through the queue."""
-        if not force and not self.updates_on.get():
+    def say_if_stale(self, version) -> None:
+        """A server still running the version from before an update (the new
+        program was put in while it ran: a Mac app replaced, a zip extracted)
+        keeps running the old program until it is restarted. Said once."""
+        stale = version if isinstance(version, str) and version and version != __version__ \
+            else None
+        if stale == self.stale_version:
             return
+        self.stale_version = stale
+        if stale:
+            self.notice.set(f"Ninaivu Lite {stale} is still running from before the update. "
+                            f"Press Restart to run version {__version__}.")
 
-        def work():
-            info = updates.check(self.controller.data_dir, force=force)
-            self.events.put(("update", info, force))
-
-        threading.Thread(target=work, name="panel-updates", daemon=True).start()
-
-    def show_update(self, info, asked: bool) -> None:
-        if info is None:
-            self.update_text.set("Could not reach GitHub to check." if asked else "")
-            self.download_button.pack_forget()
-            return
-        # Only ever a page on GitHub: the answer is read back from a file in
-        # the data folder, and what it names is opened (on Windows, run).
-        url = info.get("url")
-        self.update_url = url if isinstance(url, str) and url.startswith("https://github.com/") \
-            else updates.RELEASES_PAGE
-        if info["available"]:
-            self.update_text.set(f"Version {info['version']} is available (you have {__version__}). "
-                                 "Before installing it, stop Ninaivu Lite and close this panel.")
-            self.download_button.pack(side="right", padx=(0, 6))
-        else:
-            self.update_text.set(f"You have the latest version, {__version__}." if asked else "")
-            self.download_button.pack_forget()
-
-    def download(self) -> None:
-        """The release page, then the one thing the installer needs: nothing of
-        the old program in use. Windows cannot replace a file in use, and a
-        running Ninaivu Lite or this panel keeps the program in use, so the
-        panel offers to stop the one and close the other, before the installer
-        has to ask."""
-        webbrowser.open(self.update_url)
+    def prepare_update(self) -> None:
+        """The one thing a setup file needs: nothing of the old program in
+        use. Windows cannot replace a file in use, and a running Ninaivu Lite
+        or this panel keeps the program in use (elsewhere, a program replaced
+        while it runs carries on half old), so the panel offers to stop the
+        one and close the other, before the installer has to ask. Nothing is
+        downloaded or looked up."""
         if self.is_running:
-            question = ("Before running the installer, Ninaivu Lite must be stopped and this "
-                        "panel closed: files in use cannot be replaced.\n\n"
+            question = ("Before running the newer setup file, Ninaivu Lite must be stopped and "
+                        "this panel closed: files in use cannot be replaced. Your photos, "
+                        "people, settings and index are kept.\n\n"
                         "Stop Ninaivu Lite and close this panel now?")
         else:
-            question = ("Before running the installer, this panel must be closed: files in "
-                        "use cannot be replaced.\n\nClose this panel now?")
+            question = ("Before running the newer setup file, this panel must be closed: files "
+                        "in use cannot be replaced.\n\nClose this panel now?")
         if not self.ask(question):
-            self.notice.set(("Before running the installer: press Stop, then close this "
-                             "Control Panel.") if self.is_running
-                            else "Before running the installer, close this Control Panel.")
+            self.notice.set(("Before updating: press Stop, then close this Control Panel.")
+                            if self.is_running
+                            else "Before updating, close this Control Panel.")
             return
         if self.is_running and self.controller.can_stop():
             self.close_when_done = True
             self.run(self.controller.stop, "Stopping…")
         elif self.is_running:
             self.notice.set("Ninaivu Lite was started from its own window: close that window, "
-                            "then close this panel, before running the installer.")
+                            "then close this panel, before updating.")
         else:
             self.close()
 
@@ -550,15 +538,6 @@ class Panel:
         """A yes/no box over the window; a test replaces it."""
         from tkinter import messagebox
         return bool(messagebox.askyesno(TITLE, question, parent=self.root))
-
-    def toggle_updates(self) -> None:
-        on = self.updates_on.get()
-        updates.set_enabled(self.controller.data_dir, on)
-        if on:
-            self.check_updates(force=True)
-        else:
-            self.update_text.set("Not checking. Press Check now, or tick the box below.")
-            self.download_button.pack_forget()
 
     def toggle_autostart(self) -> None:
         on = self.at_sign_in.get()
