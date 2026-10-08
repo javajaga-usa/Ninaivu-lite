@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ninaivu Lite — User Guide</title>
+<link rel="stylesheet" href="guide.css">
+</head>
+<body>
+
+<section class="cover">
+  <div class="band"></div>
+  <div class="top"><div class="logo"><svg viewBox="0 0 32 32"><path d="M4 15 16 5l12 10v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M12 28v-7a4 4 0 0 1 8 0v7"/></svg></div><span class="mark">Ninaivu Lite</span><span class="pill">User guide</span></div>
+  <div class="title">
+    <h1>Ninaivu Lite</h1>
+    <p class="alt">நினைவு லைட்</p>
+    <p class="lede">Your family's photographs, at home. On every phone, tablet and computer in the house, and nowhere else.</p>
+  </div>
+  <div class="hero"><img src="img/en/g20-timeline.jpg" alt=""><span class="hero-phone"><img src="img/en/h32c-timeline.jpg" alt=""></span></div>
+  <div class="bottom">
+    <p class="kind">Complete user guide</p>
+    <p class="meta">Version 1.7.0 &nbsp;·&nbsp; 7 October 2026 &nbsp;·&nbsp; with screenshots</p>
+    <div class="features"><div><b>Private</b>Runs on one computer at home. Nothing leaves the house.</div><div><b>Tamil and English</b>Every screen, message and this guide, in both.</div><div><b>Any computer</b>Windows 10 and 11, Mac, Linux and Raspberry Pi.</div></div>
+  </div>
+</section>
+
+<section class="contents">
+  <h2 class="toc-title">Contents</h2>
+  <ol id="toc"></ol>
+  <div class="about"><b>Version</b><span>1.7.0, released 7 October 2026</span><b>Screenshots</b><span>Taken from this version in English, with a sample library of 120 drawn pictures and 3 short videos</span><b>Repository</b><span>github.com/javajaga-usa/Ninaivu-lite</span><b>In Tamil</b><span>The same guide is available in Tamil.</span></div>
+</section>
+
+<!-- 1 ======================================================================= -->
+<h1 class="chapter">1. Before you start</h1>
+<p>Ninaivu Lite shows your family's photos and videos to everyone at home, on any phone, tablet or computer on the same Wi-Fi. It runs on one computer in the house. It <b>only reads</b> your photo folders: it never moves, edits or deletes a photograph, and nothing leaves the house. (The importer copies photos <em>into</em> the library from old drives, and Sudar can save an edited <em>copy</em> beside an original; neither changes a photograph you have.)</p>
+
+<h2>What you need</h2>
+<ul>
+  <li>A computer that stays on at home: Windows 10 or 11, a Mac, a Linux PC, or a Raspberry Pi 4 or 5 (64-bit).</li>
+  <li>Your photos in one or more folders on that computer, or on a drive plugged into it.</li>
+  <li>Phones, tablets or computers on the same Wi-Fi, with a current browser (Chrome, Edge, Firefox, or Safari 16.4 or newer).</li>
+</ul>
+
+<h2>Install it</h2>
+<p>The simplest way is a download from the Releases page of github.com/javajaga-usa/Ninaivu-lite. Each one carries everything it needs, including its own Python.</p>
+<table>
+  <tr><th style="width:19%">Computer</th><th style="width:33%">File to download</th><th>What to do</th></tr>
+  <tr><td>Windows 10 / 11</td><td><code>Ninaivu-Lite-&lt;version&gt;-windows-x64.exe</code></td><td>Double-click it and follow the steps. The Control Panel opens when it finishes.</td></tr>
+  <tr><td>Windows, without installing</td><td><code>Ninaivu-Lite-&lt;version&gt;-windows-x64-portable.zip</code></td><td>Right-click it, <em>Properties</em>, tick <em>Unblock</em>, then <em>Extract All</em> to a folder that stays put (or a pendrive). Double-click <code>Ninaivu Lite Control Panel.vbs</code> in it. Everything stays in that folder: the family's settings, people and index go in the <code>data</code> folder that appears beside the program the first time. To upgrade, press <b>Stop</b> and untick <b>Start Ninaivu Lite when I sign in</b> in the old copy's Control Panel, extract the new version to a new folder, copy the old <code>data</code> folder into it, and tick the box in the new copy's Control Panel.</td></tr>
+  <tr><td>Mac</td><td>the <code>.dmg</code> for Apple silicon (arm64) or Intel (x86_64)</td><td>Open it and drag Ninaivu Lite to Applications.</td></tr>
+  <tr><td>Linux PC</td><td><code>Ninaivu-Lite-&lt;version&gt;-linux-amd64.sh</code></td><td>Run <code>sh</code> on the file in a terminal. Run as yourself, everything stays in your account and it starts with the computer. Run with <code>sudo</code> (a server, or a computer the whole house uses), it runs as its own <code>ninaivu-lite</code> account: see <em>Linux, installed with sudo</em> in chapter 12.</td></tr>
+  <tr><td>Raspberry Pi</td><td><code>Ninaivu-Lite-&lt;version&gt;-linux-arm64.sh</code></td><td>As for a Linux PC.</td></tr>
+</table>
+<div class="tip"><b class="lead">Tip:</b> The downloads are not code-signed yet, so Windows may say <em>Windows protected your PC</em>: press <b>More info</b>, then <b>Run anyway</b>. Installing for everyone on the computer asks for administrator permission, and a PC with Smart App Control switched on refuses the installer. Then use the portable zip, or start Ninaivu Lite from a copy of the source: install Python 3.10 or newer from python.org (tick <em>Add python.exe to PATH</em>), unzip the download to a permanent folder such as <code>C:\Ninaivu-lite</code>, and double-click <code>start.cmd</code> (<code>./start.sh</code> on a Mac or Linux). The first start takes a minute or two and needs the internet once; keep that window open while the family uses it.</div>
+
+<h2>The Control Panel</h2>
+<p>The Control Panel is a small window on the computer that runs Ninaivu Lite. It opens after installation, and at any time from the <b>Ninaivu Lite Control Panel</b> shortcut (in the portable zip, <code>Ninaivu Lite Control Panel.vbs</code>; in a copy of the source, <code>Start - Ninaivu Lite Control Panel.vbs</code> or <code>./start.sh --panel</code>).</p>
+<figure class="w65"><img src="img/panel.jpg"><figcaption>The Control Panel, before the administrator is made: the addresses, and the setup code (its window is in English on every computer).</figcaption></figure>
+<ol class="steps">
+  <li>Press <b>Start</b>. The status changes to <em>Running</em>.</li>
+  <li>Read the addresses under <b>Where to open it</b>. Use the <em>On your phone</em> address (such as <code>http://192.168.1.20:8080/</code>) on phones and tablets.</li>
+  <li>Until the administrator is made, the panel also shows the <b>Setup code</b>. It is asked for only when the administrator is made from another device (see chapter 2).</li>
+  <li>Press <b>Open the family app</b> for the gallery, or <b>Open the console</b> for the administrator's pages.</li>
+  <li>Tick <b>Start Ninaivu Lite when I sign in</b> once, so it starts with the computer.</li>
+  <li>Closing the panel leaves Ninaivu Lite running. <b>Stop</b> stops it; <b>Open the log</b> and <b>Open the data folder</b> help when something needs looking into. <b>Check now</b> under <em>Updates</em> asks GitHub whether a newer version exists.</li>
+</ol>
+<div class="note"><b class="lead">Servers:</b> on a Raspberry Pi or a server without a screen, the Linux installer sets up a service that starts Ninaivu Lite at boot. Installed with <code>sudo</code>, there is no Control Panel: use <code>sudo systemctl start|stop|restart ninaivu-lite</code>.</div>
+
+<!-- 2 ======================================================================= -->
+<h1 class="chapter">2. The first visit: make the administrator</h1>
+<p>The administrator decides what everyone else can see. Do this once, on the computer itself if you can.</p>
+<figure class="w60"><img src="img/en/f02-setup.jpg"><figcaption>The first page asks for the administrator.</figcaption></figure>
+<ol class="steps">
+  <li>Open <code>http://localhost:8080</code> (or press <b>Open the family app</b> in the Control Panel).</li>
+  <li>Choose the language at the bottom: <span class="ui">English</span> or <span class="ui">தமிழ்</span>.</li>
+  <li>Fill in <span class="ui">Your name</span>, a <span class="ui">Username</span> (lowercase, no spaces) and a <span class="ui">Password</span> of at least 8 characters.</li>
+  <li>Press <span class="ui btn">Create profile</span>.</li>
+  <li>If you do this from a phone instead of the computer, it also asks for the short <span class="ui">Setup code</span>. The Control Panel shows it (Figure 1). It is also written to <code>logs/ninaivu-lite.log</code> in the data folder (<b>Open the log</b>), and printed in the window when Ninaivu Lite was started from a copy of the source. On a Linux service, run <code>journalctl -u ninaivu-lite | grep code</code> (with <code>--user</code> if it was installed without <code>sudo</code>); with Docker, <code>docker logs ninaivu-lite</code>.</li>
+</ol>
+<figure class="full short"><img src="img/en/f03-empty.jpg"><figcaption>Until a folder is chosen the gallery is empty and points to the console.</figcaption></figure>
+<p>Press <span class="ui btn">Open the admin console</span>. The console opens with the first-day walk-through.</p>
+
+<!-- 3 ======================================================================= -->
+<h1 class="chapter">3. The first-day walk-through</h1>
+<p>Four short steps: the library folder, old photos to bring in, the household, and what the family can do. <span class="ui btn">Skip for now</span> leaves any of them for later.</p>
+<h2>Step 1: where are the photographs?</h2>
+<figure><div class="row"><img src="img/en/f04a-step1.jpg" style="width:49%"><img src="img/en/f04b-picker.jpg" style="width:41%"></div><figcaption>Choose the folder that holds the photos.</figcaption></figure>
+<ol class="steps">
+  <li>Press <span class="ui btn">Choose a folder</span>.</li>
+  <li>Click through the folders, or type the path in the box at the bottom (for example <code>D:\Photos</code>).</li>
+  <li>Press <span class="ui btn">Use this folder</span>. Indexing starts at once; photos appear as they are found.</li>
+  <li>Press <span class="ui btn">Next</span>.</li>
+</ol>
+<figure class="w60"><img src="img/en/f05-chosen.jpg"><figcaption>The chosen folder. More can be added later under Library settings.</figcaption></figure>
+
+<h2>Step 2: bring in old photos</h2>
+<figure class="w70"><img src="img/en/f06-import.jpg"><figcaption>Add old drives, memory cards and backup folders to sweep into one archive, then start the import.</figcaption></figure>
+<ol class="steps">
+  <li>Type the top folder of an old drive or card and press <span class="ui btn">Add folder</span>, or use <span class="ui btn">Browse…</span>. Every folder inside it is scanned, however deep.</li>
+  <li>Check <span class="ui">Where the archive is built</span>. By default it is inside your library folder, so the family sees the photos as they arrive.</li>
+  <li>Press <span class="ui btn">Start the import</span>. Every file is copied and checked; the originals are never changed, moved or deleted.</li>
+  <li>Press <span class="ui btn">Next</span>. The import carries on in the background; you can watch it on the <span class="ui">Import</span> page. If there is nothing to bring in, skip this step: <em>Import</em>, under <em>Library</em>, does the same at any time.</li>
+</ol>
+
+<h2>Step 3: who is in the household?</h2>
+<figure class="w60"><img src="img/en/f07-people.jpg"><figcaption>Each person gets a name, a role and, if you like, a PIN.</figcaption></figure>
+<ol class="steps">
+  <li>Type a name, choose <span class="ui">Family member</span> or <span class="ui">Guest</span>, and type a PIN of 4 to 8 digits (or leave it empty). A guest gets a password instead.</li>
+  <li>Press <span class="ui btn">Add</span>. The person appears in the list above. Repeat for everyone.</li>
+  <li>A PIN that is too easy to guess, such as 1234, is refused with a message under the form. Choose another.</li>
+  <li>Press <span class="ui btn">Next</span>.</li>
+</ol>
+<div class="tip"><b class="lead">Tip:</b> A family member without a PIN can be opened from any phone or computer on your home network. Give a PIN to anyone whose photographs should stay theirs.</div>
+
+<h2>Step 4: what your family can do</h2>
+<figure class="w70"><img src="img/en/f08-tour.jpg"><figcaption>A short tour of what the family can do.</figcaption></figure>
+<p>Read it, then press <span class="ui btn">Open the console</span>.</p>
+
+<!-- 4 ======================================================================= -->
+<h1 class="chapter">4. The admin console</h1>
+<p>The console is at <code>http://&lt;computer&gt;:8080/admin</code>. Only administrators can open it; it asks for the username and password.</p>
+<figure class="w50"><img src="img/en/c09-login.jpg"><figcaption>Signing in to the console.</figcaption></figure>
+<h2>Overview</h2>
+<figure class="full tall"><img src="img/en/c10-overview.jpg"><figcaption>Overview: how many photos, how many are public or hidden, profiles, and who is signed in.</figcaption></figure>
+<p>Under <span class="ui">What each role sees</span>, choose a role or a person to see the library exactly as they would. The library card at the bottom lists the folders and the address for the family app.</p>
+
+<h2>Library settings</h2>
+<figure class="full short"><img src="img/en/c11-library.jpg"><figcaption>Library settings: the folders Ninaivu Lite reads, and indexing. <em>Old laptop photos</em> is not where it was, so it has a Moved? button.</figcaption></figure>
+<ul>
+  <li><span class="ui btn">Add a folder</span> adds another photo folder (another drive, for example).</li>
+  <li><span class="ui">Watch the folder and index new files automatically</span> picks up new photos by itself as they are copied in.</li>
+  <li><span class="ui btn">Rescan all</span> looks for changes now; <span class="ui btn">Full re-index</span> reads everything again from the start.</li>
+  <li><span class="ui btn">Remove</span> takes a folder out of the library, after asking. The photos on disk are not touched, and a copy of the index is taken just before. Who sees what, favourites, albums and share links come back if the same folder is added again.</li>
+  <li><span class="ui btn">Moved?</span> (<span class="ui">The photographs are somewhere else now: choose where</span>) appears beside a folder that cannot be found. If its photos are somewhere else now (a new drive letter, a new computer), press it and choose the new place: the folder points there and keeps everything.</li>
+</ul>
+
+<h2>Import: old drives into one archive</h2>
+<figure class="full"><img src="img/en/c12-import.jpg" style="max-height:175mm;width:auto"><figcaption>The Import page: sources, destination, run, and the result of each file.</figcaption></figure>
+<ol class="steps">
+  <li><b>Sources:</b> add each old drive, card or backup folder with <span class="ui btn">Add source</span>. Every folder inside is scanned.</li>
+  <li><b>Destination:</b> where the archive is built, filed as <code>YYYY/MM/DD</code> by the day each photo was taken. Choose the archive's own root; pick a folder inside one and Ninaivu uses the root instead, and says so.</li>
+  <li><b>Run:</b> <span class="ui btn">Start consolidation</span> copies and checks every file (hashed as it is read, read back from the archive before it counts). Duplicates are found by content and left where they are; the same name with different bytes gets <code>_1</code>. Start also resumes an interrupted run. <span class="ui btn">Dry run</span> decides everything and writes nothing; <span class="ui btn">Audit archive</span> re-reads every archived file and re-checks its hash. Imported photos appear in the gallery while the import runs.</li>
+  <li>When it finishes, <span class="ui btn">Add to library</span> makes the archive part of the gallery (an archive inside the library folder, as here, already is). A Google Photos export (Takeout) comes across with its dates, places and descriptions, and <span class="ui btn">Make the albums</span> recreates its albums once the archive is indexed. <span class="ui btn">Export manifest</span> writes a list of every file with its hash.</li>
+</ol>
+<div class="tip"><b class="lead">Not finished?</b> If the drive is unplugged or the destination fills up part-way, the run ends as not finished and says so. Plug the drive back in (or make room) and press <span class="ui btn">Start consolidation</span> to finish; what was copied is kept.</div>
+
+<h2>People</h2>
+<figure class="full short"><img src="img/en/c13-people.jpg"><figcaption>People: everyone who shares the library, with their role, folder and how they sign in.</figcaption></figure>
+<ol class="steps">
+  <li>To add someone, press <span class="ui btn">Add someone</span>.</li>
+  <li>Fill in the name and username, choose the role and the library folder they may see, and how they sign in: <span class="ui">Tap to enter — no secret</span>, a PIN, or a password.</li>
+  <li>Press <span class="ui btn">Create profile</span>.</li>
+  <li>For anyone already listed you can change the role, folder or entry, <span class="ui btn">Disable</span> them, <span class="ui btn">Reset password</span>, <span class="ui btn">Sign out everywhere</span>, or <span class="ui btn">Delete</span> them.</li>
+</ol>
+<figure class="w80"><img src="img/en/c14-add.jpg"><figcaption>The Add someone form.</figcaption></figure>
+<table>
+  <tr><th style="width:22%">Role</th><th>Can</th></tr>
+  <tr><td>Admin</td><td>Everything: folders, people, who sees what, settings.</td></tr>
+  <tr><td>Family member</td><td>See Public and Family photos, download, favourites, albums, share links.</td></tr>
+  <tr><td>Guest</td><td>See Public photos only.</td></tr>
+</table>
+<p>You can also give a person <b>one folder</b> (for example only <code>Trips</code>): they then see nothing outside it.</p>
+
+<h2>Visibility: who sees what</h2>
+<p>Every photo is <span class="ui">Everyone</span> (public: guests and <em>Just looking</em> visitors too), <span class="ui">Family</span> (the default) or <span class="ui">Nobody</span> (hidden: administrators only). Set it per folder here; the rule covers everything inside the folder, including photos added later.</p>
+<figure class="full short"><img src="img/en/c15-visibility.jpg"><figcaption>Visibility, folder by folder.</figcaption></figure>
+<ol class="steps">
+  <li>Find the folder (press the arrow to open the folders inside it).</li>
+  <li>Press <span class="ui btn">Everyone</span>, <span class="ui btn">Family</span> or <span class="ui btn">Nobody</span> on its row.</li>
+  <li>If this would show photos that are now more private, a box asks first. Press <span class="ui btn">Show them anyway</span> to go ahead.</li>
+  <li>A banner shows the last change with <span class="ui btn">Undo that change</span>, in case you change your mind.</li>
+</ol>
+<figure><div class="row"><img src="img/en/c16a-confirm.jpg" style="width:38%"><img src="img/en/c16b-undo.jpg" style="width:58%"></div><figcaption>Confirming a change, then the change with its Undo.</figcaption></figure>
+<div class="tip"><b class="lead">Tip:</b> Administrators can also change one photo while viewing it, with the three buttons in the viewer's bar.</div>
+
+<h2>Settings</h2>
+<figure class="full tall"><img src="img/en/c17-settings.jpg"><figcaption>Settings: the home's name, the default language, guest browsing, videos for guests, and backups.</figcaption></figure>
+<ul>
+  <li><span class="ui">This home</span>: the name shown at the top of the family app, and the default language for new visitors.</li>
+  <li><span class="ui">Let visitors browse public media without signing in</span>: the <em>Just looking</em> tile. Untick it if the library should be private.</li>
+  <li><span class="ui">Send videos to guests and share links as they are when their location cannot be removed</span>: off by default. A video is sent to a guest or a share link with its location removed, which needs ffmpeg on the computer; without ffmpeg such a video is not shared unless this is ticked (it then keeps its location). See chapter 8.</li>
+  <li><span class="ui">Backups</span>: <span class="ui btn">Download a backup</span> gives you a full recovery zip to keep somewhere else: the index with people, albums, favourites, share links and who sees what, the settings, and profile pictures. Keep it private: it holds everyone's password and PIN checks and the share links. Ninaivu Lite also makes one by itself every day; Settings lists the copies kept, and says so if the last daily copy failed (chapter 12).</li>
+  <li><span class="ui">Moving up to Ninaivu</span>: <span class="ui btn">Export for Ninaivu</span> is an optional file, if you ever move the library to the full Ninaivu.</li>
+</ul>
+
+<!-- 5 ======================================================================= -->
+<h1 class="chapter">5. Plugging in a pendrive, a drive or a phone</h1>
+<p>Plug a USB pendrive, a memory card, an external hard drive or a phone (by its cable) into the computer Ninaivu Lite runs on. The console, and the Control Panel if it is open, ask what to do with it.</p>
+<figure class="w50"><img src="img/en/d18-drive.jpg"><figcaption>A drive was connected.</figcaption></figure>
+<ul>
+  <li><span class="ui">Import media from this drive</span> opens the Import page with the drive as the source. Check the destination and press <span class="ui btn">Start consolidation</span>. Nothing on the drive is changed.</li>
+  <li><span class="ui">Export media to this drive</span> copies the library's photos and videos onto the drive, into a <code>Ninaivu Lite</code> folder, keeping the library's own folders. Next time only what is new is copied; nothing already on the drive is overwritten or deleted. When it finishes, eject the drive before unplugging it.</li>
+  <li><span class="ui btn">Not now</span> asks again only when the drive is next plugged in.</li>
+</ul>
+<figure><div class="row"><img src="img/en/d19a-export.jpg" style="width:47%"><img src="img/en/d19b-phone.jpg" style="width:47%"></div><figcaption>Copying the library to the drive, and a phone on its cable.</figcaption></figure>
+<p>A phone is offered <span class="ui">Import media from this phone</span> only. Unlock it and choose <em>File transfer</em> (Android) or <em>Trust this computer</em> (iPhone), or Windows cannot see its photos. On Windows the camera folders (DCIM, Pictures, Movies) are copied across the cable, imported into the archive, and the temporary copies removed; next time only new photos come across. Nothing on the phone is changed. On Linux, open the phone in the file manager first; on a Mac, phones are not detected.</p>
+<div class="tip"><b class="lead">Tip:</b> The computer's own disks, and a drive the library itself is on, are never asked about. When Ninaivu Lite was installed on Linux with <code>sudo</code>, it runs as its own account and may not see drives or phones your desktop opens: add their folders under <em>Import</em> yourself.</div>
+
+<!-- 6 ======================================================================= -->
+<h1 class="chapter">6. The family gallery on a computer</h1>
+<figure class="full short"><img src="img/en/g20-timeline.jpg"><figcaption>The timeline: newest first, grouped by the day each photo was taken.</figcaption></figure>
+<ul>
+  <li><b>Left menu:</b> <span class="ui">All media</span>, <span class="ui">Favourites</span>, <span class="ui">Photos</span>, <span class="ui">Videos</span>; for administrators also <span class="ui">Hidden</span> and <span class="ui">Public</span>. Below them your albums, a row of years, and the folders with their counts.</li>
+  <li><b>Top bar:</b> search, the view menu, the thumbnail-size slider, the language button (அ) and your profile.</li>
+  <li><b>Date bar:</b> on the right edge, drag to jump to a month or year.</li>
+</ul>
+<h2>Search and folders</h2>
+<figure><div class="row"><img src="img/en/g21a-search.jpg" style="width:48%"><img src="img/en/g21b-folder.jpg" style="width:48%"></div><figcaption>Searching for a place, and one folder opened from the left menu.</figcaption></figure>
+<ol class="steps">
+  <li>Type in the search box: a file name, a folder, a year or month, or a camera name. Suggestions appear as you type; press Enter.</li>
+  <li>Or click a folder or a year in the left menu.</li>
+  <li>A chip at the top shows what is filtered. Press × on it, or <span class="ui btn">Clear all</span>, to see everything again.</li>
+</ol>
+<h2>Selecting photos and making an album</h2>
+<figure class="full short"><img src="img/en/g22-selected.jpg"><figcaption>A day selected; the bar at the top acts on the selection.</figcaption></figure>
+<ol class="steps">
+  <li>Press <span class="ui btn">Select all</span> beside a day, or tick photos one by one.</li>
+  <li>The bar at the top offers <span class="ui btn">Favourite</span>, <span class="ui btn">Download</span> (as a zip), <span class="ui btn">Add to album</span> and, for administrators, who may see them.</li>
+  <li>Press <span class="ui btn">Add to album</span>, type a new album name and press <span class="ui btn">Create</span>, or pick an existing album.</li>
+  <li>The album appears under <span class="ui">Albums</span> in the left menu. Open it to rename, share or delete it.</li>
+</ol>
+<figure><div class="row"><img src="img/en/g23a-album-name.jpg" style="width:36%"><img src="img/en/g23b-album.jpg" style="width:60%"></div><figcaption>Naming the new album, then the album opened.</figcaption></figure>
+<h2>Favourites</h2>
+<p>Each person keeps their own favourites. Press ♡ in the viewer (or <span class="ui btn">Favourite</span> on a selection), and find them under <span class="ui">Favourites</span> in the left menu.</p>
+<figure class="full short"><img src="img/en/g24-favourites.jpg"><figcaption>Favourites.</figcaption></figure>
+
+<!-- 7 ======================================================================= -->
+<h1 class="chapter">7. Viewing a photo</h1>
+<figure class="full short"><img src="img/en/v25-viewer.jpg"><figcaption>The viewer, with the filmstrip along the bottom.</figcaption></figure>
+<p>Click a photo to open it full screen. Move with the arrows, the ← → keys, or by swiping; close with ✕ or Esc. The buttons along the top, from left to right (in a narrow window, the ones after ⓘ move behind the ⋮ menu):</p>
+<table class="buttons">
+  <tr><th>Button</th><th>What it does</th></tr>
+  <tr><td>− / +</td><td>Zoom out and in.</td></tr>
+  <tr><td>♡</td><td>Add to your favourites (F).</td></tr>
+  <tr><td>Share</td><td>Make a share link for this photo.</td></tr>
+  <tr><td>ⓘ</td><td>Details: name, folder, date taken, size, dimensions, camera (I).</td></tr>
+  <tr><td>Wand (<span class="ui">Edit with Sudar (AI)</span>)</td><td>Edit the photo in the Sudar studio (chapter 9).</td></tr>
+  <tr><td>▷</td><td><span class="ui">Slideshow</span> (Space).</td></tr>
+  <tr><td>Screen</td><td><span class="ui">Ambient frame</span>: a slow full-screen show for a wall or TV (K).</td></tr>
+  <tr><td>Person</td><td><span class="ui">Use as my profile picture</span>.</td></tr>
+  <tr><td>↻</td><td><span class="ui">Rotate</span> (R), for administrators. The file itself is never changed.</td></tr>
+  <tr><td>Album</td><td><span class="ui">Add to album</span>.</td></tr>
+  <tr><td>Globe / people / crossed eye</td><td>Public, Family or Hidden: who may see this one photo (administrators).</td></tr>
+  <tr><td>⬇</td><td>Download the original (D).</td></tr>
+</table>
+<figure class="full short"><img src="img/en/v26-info.jpg"><figcaption>Details beside the photo.</figcaption></figure>
+
+<!-- 8 ======================================================================= -->
+<h1 class="chapter">8. Sharing with someone outside the family</h1>
+<figure><div class="row"><img src="img/en/s27a-share.jpg" style="width:47%"><img src="img/en/s27b-link.jpg" style="width:47%"></div><figcaption>Choose an expiry and an optional password, then copy the link.</figcaption></figure>
+<ol class="steps">
+  <li>In the viewer press the share button (<span class="ui">Share link</span>), or <span class="ui btn">Share album</span> on an open album.</li>
+  <li>Choose when it expires: 7 days, 30 days or never. Add a password or PIN if you like; whoever has the link can try it 60 times a day at most.</li>
+  <li>Press <span class="ui btn">Generate Link</span>, then <span class="ui btn">Copy</span>, and send the link to the person.</li>
+  <li>Your list of links is in your profile, where any link can be ended at any time.</li>
+</ol>
+<figure class="phone"><div class="row"><img src="img/en/s28a-visitor-pass.jpg" style="height:90mm"><img src="img/en/s28b-visitor-photo.jpg" style="height:90mm"></div><figcaption>What the visitor sees: the password, then the photo.</figcaption></figure>
+<p><b>Hidden photographs.</b> A Hidden photograph cannot be shared: make it Family or Public first. A link to a photo stops working if the photo is later set to Hidden.</p>
+<p><b>Videos.</b> A video is sent with its location removed too, which needs ffmpeg on the computer. Without it, a guest or someone with a link is told the video cannot be shared, unless an administrator ticks <span class="ui">Send videos to guests and share links as they are when their location cannot be removed</span> in Settings; the video then keeps its location.</p>
+<div class="tip"><b class="lead">Tip:</b> The visitor gets a copy without location or camera details, and does not see the file name. Links work only on your home network: Ninaivu Lite is not meant to be reached from the internet.</div>
+
+<!-- 9 ======================================================================= -->
+<h1 class="chapter">9. Sudar, the photo studio</h1>
+<p>Sudar edits a photo in the browser. Nothing is sent anywhere and the original is never changed. Open it from the viewer: the wand button (<span class="ui">Edit with Sudar (AI)</span>), or on a phone ⋮ → <span class="ui">Edit with Sudar (AI)</span>.</p>
+<figure class="full"><img src="img/en/z29-sudar.jpg"><figcaption>A look applied, compared before and after with the slider.</figcaption></figure>
+<ol class="steps">
+  <li>In <span class="ui">Adjust</span>, pick a look (<span class="ui">Vivid</span>, <span class="ui">Golden hour</span>, <span class="ui">Cinematic</span> and others), a suggestion, or move the sliders for light, colour and detail.</li>
+  <li>Drag the slider across the photo to compare the original and the edit.</li>
+  <li>In <span class="ui">AI assist</span>, describe the change in plain words, such as <em>make it warmer</em>, and press <span class="ui btn">Plan edits</span>. Review the plan before applying it.</li>
+  <li>When it looks right, press <span class="ui btn">Download image</span>, or as an administrator <span class="ui btn">Save copy to Ninaivu library</span> to keep a copy beside the original.</li>
+</ol>
+<figure class="full"><img src="img/en/z30-ai.jpg"><figcaption>Asking for a change in plain words.</figcaption></figure>
+
+<!-- 10 ====================================================================== -->
+<h1 class="chapter">10. Your profile and signing out</h1>
+<figure><div class="row"><img src="img/en/p31a-menu.jpg" style="width:30%"><img src="img/en/p31b-profile.jpg" style="width:66%"></div><figcaption>The profile menu, and Your profile.</figcaption></figure>
+<ul>
+  <li>Press your initials at the top right. <span class="ui">Your profile</span> lets you change your name, colour and password, and lists your share links.</li>
+  <li><b>Your picture:</b> open a Family or Public photo, then choose <span class="ui">Use as my profile picture</span>. <span class="ui btn">Remove picture</span> in your profile puts the initials back; an administrator can remove anyone's from <em>People</em>. The picture is shown to whoever reaches the sign-in screen, so a Hidden photo cannot be used; choose one you are happy to show.</li>
+  <li><span class="ui">Sign out</span> (the door symbol) returns to the sign-in screen.</li>
+</ul>
+
+<!-- 11 ====================================================================== -->
+<h1 class="chapter">11. On a phone or tablet</h1>
+<p>Open the <em>On your phone</em> address from the Control Panel, such as <code>http://192.168.1.20:8080/</code>, in the phone's browser. Add it to the home screen to open it like an app.</p>
+<figure class="phone"><div class="row"><img src="img/en/h32a-picker.jpg"><img src="img/en/h32b-pin.jpg"><img src="img/en/h32c-timeline.jpg"></div><figcaption>Pick your picture, enter your PIN, and the timeline opens.</figcaption></figure>
+<ol class="steps">
+  <li>Tap your own picture. A profile with no secret opens straight away.</li>
+  <li>If it asks for a PIN or password, type it and tap <span class="ui btn">Enter</span>. <span class="ui">← Someone else</span> goes back to the pictures.</li>
+  <li>On a tablet the family shares, signing in as someone else signs the previous person out of it, so nobody stays signed in as them.</li>
+  <li><span class="ui">Just looking</span> shows only public photos, with no sign-in.</li>
+  <li>On a phone a row of years sits above the photos: tap one to jump to it. Tap ☰ for the menu with albums and folders.</li>
+</ol>
+<figure class="phone"><div class="row"><img src="img/en/h33a-menu.jpg"><img src="img/en/h33b-viewer.jpg"><img src="img/en/h33c-more.jpg"></div><figcaption>The menu, the viewer, and the viewer's ⋮ menu.</figcaption></figure>
+<p>In the viewer, swipe left or right to move and down to close. The everyday buttons stay on the bar; the rest (<span class="ui">Edit with Sudar (AI)</span>, slideshow, ambient frame, profile picture, add to album) are behind ⋮. To select several photos, press and hold one, then tap others.</p>
+<figure class="phone"><img src="img/en/h34-looking.jpg"><figcaption>Just looking: a visitor sees only the folders made public.</figcaption></figure>
+
+<!-- 12 ====================================================================== -->
+<h1 class="chapter">12. Looking after it</h1>
+<ul>
+  <li><b>Backups:</b> every day Ninaivu Lite makes a full recovery zip (the index with people, albums, favourites, share links and visibility, the settings, and profile pictures) in <code>backups/</code> in its data folder, and keeps the last 7 days, plus one a week for 4 weeks and one a month for 3 months. It also takes one just before a library folder or a person is removed. <em>Settings</em> lists the copies kept, and says so if the last daily copy failed. <em>Settings → Download a backup</em> gives you one to keep elsewhere; keep it private, as it holds everyone's password and PIN checks and the share links. To put one back, stop Ninaivu Lite and run the command below for how it was installed, with <code>--restore &lt;zip&gt;</code> in place of <code>--reset-password &lt;username&gt;</code>; what was there is kept in a <code>before-restore-…</code> folder inside the data folder, never deleted. Everyone signs in again afterwards. If the restored folders are not where they were (a new computer), use <span class="ui btn">Moved?</span> on <em>Library settings</em>. Your photos are not in the zip: they are your own files, so back them up as you always do.</li>
+  <li><b>Data folder:</b> <code>%LOCALAPPDATA%\Ninaivu-lite</code> on Windows, <code>~/Library/Application Support/Ninaivu-lite</code> on a Mac, <code>~/.local/share/ninaivu-lite</code> on Linux; the <code>data</code> folder beside the program for the portable zip; <code>/var/lib/ninaivu-lite</code> for Linux installed with <code>sudo</code>; the <code>ninaivu_lite_data</code> volume for Docker. It holds settings, the index, previews, backups and logs, never your photos.</li>
+  <li><b>Who can reach it:</b> Ninaivu Lite answers phones and computers on your home network, a private VPN such as Tailscale, and the computer it runs on. A request from the internet (mobile data through a port forwarded on the router, or a tunnel such as ngrok or Cloudflare Tunnel) is refused with <em>Ninaivu Lite answers only the home network.</em> Only someone who puts HTTPS of their own in front of it should change this: stop Ninaivu Lite and set <code>"allow_internet": true</code> in <code>settings.json</code> in the data folder (or the environment variable <code>NINAIVU_ALLOW_INTERNET=1</code>; with Docker, <code>ALLOW_INTERNET=1</code>).</li>
+  <li class="keep"><b>Forgot the admin password?</b> Stop Ninaivu Lite, then on that computer run the command for how it was installed:
+    <ul>
+      <li><b>Windows installer, or Linux without <code>sudo</code>:</b> <code>ninaivu-lite --reset-password &lt;username&gt;</code> (on Windows, in a new Command Prompt).</li>
+      <li><b>Linux with <code>sudo</code>:</b> <code>sudo systemctl stop ninaivu-lite</code>, then <code>sudo -u ninaivu-lite /usr/local/bin/ninaivu-lite --reset-password &lt;username&gt;</code>, then <code>sudo systemctl start ninaivu-lite</code>.</li>
+      <li><b>Portable zip:</b> in its folder, <code>Python\python.exe -m ninaivu_lite --data "&lt;that folder&gt;\data" --reset-password &lt;username&gt;</code>.</li>
+      <li><b>A copy of the source:</b> <code>python -m ninaivu_lite --reset-password &lt;username&gt;</code> (inside the folder, after <code>.venv\Scripts\activate</code> on Windows or <code>source .venv/bin/activate</code> elsewhere).</li>
+      <li><b>Docker:</b> <code>docker compose -f installers/docker/docker-compose.yml run --rm ninaivu-lite python -m ninaivu_lite --data /data --reset-password &lt;username&gt;</code>.</li>
+    </ul></li>
+  <li><b>A drive unplugged?</b> Its photos show as unavailable and come back when it returns. Nothing is lost.</li>
+  <li><b>Updating:</b> with an installer, run the new installer. In the Control Panel press <b>Check now</b> (or tick the daily check); <b>Download</b> offers to stop Ninaivu Lite and close the panel, and opens the release page. On Linux, run the newer <code>.sh</code> the same way as the first. For the portable zip, untick <b>Start Ninaivu Lite when I sign in</b> in the old copy's Control Panel, extract the new version to a new folder, copy the old <code>data</code> folder into it, and tick the box in the new copy's Control Panel. For a copy of the source, replace the program files and start it again. Your settings, people, index and photos are untouched. Going back to an older version afterwards means restoring a backup made before the update (see <em>Backups</em> above): version 1.6.0 cannot open the index of 1.7.0.</li>
+  <li class="keep"><b>Linux, installed with <code>sudo</code>:</b> Ninaivu Lite runs as a service under its own <code>ninaivu-lite</code> account, never as root, with its data in <code>/var/lib/ninaivu-lite</code>, and there is no Control Panel: use <code>sudo systemctl start|stop|restart ninaivu-lite</code>. That account must be able to read your photo folders and pass through every folder above them. The installer names any it cannot read; let it in with, for example:
+    <div class="cmds"><code>sudo setfacl -R -m u:ninaivu-lite:rX /home/me/Pictures</code> (what is there now)<br>
+    <code>sudo setfacl -R -d -m u:ninaivu-lite:rX /home/me/Pictures</code> (what is added later)<br>
+    <code>sudo setfacl -m u:ninaivu-lite:x /home/me</code> (each folder above it)<br>
+    <code>sudo systemctl restart ninaivu-lite</code></div>
+    It may not see drives your desktop opens; add their folders under <em>Import</em> yourself.</li>
+  <li><b>Moving up to Ninaivu (optional):</b> for faces, search by description or cloud backup, the full Ninaivu can take over your library. Use <em>Settings → Export for Ninaivu</em>, or run the command above with <code>--export lite-export.json</code>, and give that file to Ninaivu.</li>
+</ul>
+
+<!-- 13 ====================================================================== -->
+<h1 class="chapter">13. Common questions</h1>
+<table class="faq">
+  <tr><th>Question</th><th>Answer</th></tr>
+  <tr><td>The phone can't open the address.</td><td>Use the address shown in the Control Panel (not <code>localhost</code>), make sure the phone is on the same Wi-Fi, and allow Ninaivu Lite (Python) through the Windows firewall when asked. On Linux, let port 8080 through the firewall: <code>sudo ufw allow 8080/tcp</code> (Ubuntu, Raspberry Pi OS) or <code>sudo firewall-cmd --permanent --add-port=8080/tcp &amp;&amp; sudo firewall-cmd --reload</code> (Fedora).</td></tr>
+  <tr><td>"This address is not one Ninaivu Lite answers to."</td><td>Ninaivu Lite answers only to this computer's own names: its addresses (such as <code>http://192.168.1.20:8080</code>), its network name (<code>mypc</code> or <code>mypc.local</code>) and <code>localhost</code>. To use another name (a name of your own, or a reverse proxy), stop Ninaivu Lite and add it to <code>"allowed_hosts"</code> in <code>settings.json</code> in the data folder, for example <code>"allowed_hosts": ["photos.home"]</code>, or to the <code>NINAIVU_ALLOWED_HOSTS</code> environment variable (names separated by commas; with Docker, <code>ALLOWED_HOSTS</code>), then start it again.</td></tr>
+  <tr><td>"Ninaivu Lite answers only the home network."</td><td>The phone or computer reached it from the internet, not from home: on mobile data through a port forwarded on the router, or through a tunnel. Connect it to the home Wi-Fi, or to a private VPN such as Tailscale, and use the address from the Control Panel. To allow the internet on purpose, see <em>Who can reach it</em> in chapter 12.</td></tr>
+  <tr><td>A guest or a share link says a video cannot be shared.</td><td>Install <code>ffmpeg</code> on the computer: Ninaivu Lite needs it to remove a video's location before sending it. Or, as the administrator, tick <span class="ui">Send videos to guests and share links as they are when their location cannot be removed</span> in Settings (the video then keeps its location).</td></tr>
+  <tr><td>Some videos show a plain tile.</td><td>A video gets its preview picture the first time a family member or administrator scrolls past it or plays it. A video the browser cannot play keeps the plain tile (install <code>ffmpeg</code> on the computer for those); it can still be downloaded.</td></tr>
+  <tr><td>iPhone HEIC photos show a plain tile.</td><td>Install the optional HEIC support (<code>pip install pillow-heif</code> in Ninaivu Lite's Python: <code>.venv\Scripts\pip</code> on Windows, <code>.venv/bin/pip</code> elsewhere), then restart.</td></tr>
+  <tr><td>Port 8080 is busy.</td><td>Ninaivu Lite uses the next free port and shows it in the Control Panel; or choose one with <code>--port</code>.</td></tr>
+  <tr><td>Someone forgot their PIN.</td><td>An administrator opens <span class="ui">People</span> in the console and uses <span class="ui btn">Reset password</span>, or changes how that person signs in.</td></tr>
+  <tr><td>Can people outside the house see the photos?</td><td>No. Ninaivu Lite answers only the home network and private VPNs, and refuses requests from the internet. Do not open it to the internet: it uses plain HTTP.</td></tr>
+</table>
+
+<section class="backcover"><div class="inner">
+  <div class="logo"><svg viewBox="0 0 32 32"><path d="M4 15 16 5l12 10v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M12 28v-7a4 4 0 0 1 8 0v7"/></svg></div>
+  <h2>Ninaivu Lite 1.7.0</h2>
+  <p>Your family's photographs, at home.</p>
+  <p>github.com/javajaga-usa/Ninaivu-lite</p>
+  <p class="fine">Free and open source under the MIT licence. © 2026 Jagadeesh Rajendran.</p>
+</div></section>
+<script src="guide.js"></script>
+</body>
+</html>
