@@ -17,6 +17,29 @@ Fixes for the performance review of 2026-10-08 (A120-A122):
   script, and the Tamil translations, at an address that changes only with the file, so a
   phone keeps them until the next upgrade. (A122)
 
+Phone layout fixes (M01-M13), checked on 360, 375, 390 and 412 px wide phones upright and on
+their side, in English and Tamil:
+
+- **The console's top bar fits a 390-440 px phone.** Sign out was off the right edge and the
+  whole console scrolled sideways; the buttons take their own row there now. (M01)
+- **Visibility no longer scrolls sideways on a phone**: the whole-library note wraps. (M02)
+- **Dialogs fit a phone on its side.** The first-day walk-through's Back and Next, and the
+  second choice when a drive is plugged in, were below the card; a dialog taller than the
+  screen scrolls inside its card. (M03)
+- **The sign-in, setup and "who's watching" screens scroll on a phone on its side**; the
+  button was cut off with no way to reach it. (M13)
+- **Sudar on a phone**: undo, redo, reset, the views and zoom have a row of their own instead
+  of a strip cut off beside Close (M04); the looks, sliders and prompt are no longer hidden
+  behind the Save and Download bar (M05); the format list and the download note are not cut
+  off (M06).
+- **The photo's details panel** no longer has its heading over the date and size. (M07)
+- **Share**: the password field is full width and its hint is not cut off. (M08)
+- **Search on a phone** shows what you type (only the last two letters showed), and its
+  suggestions are as wide as the screen instead of the box. (M09, M10)
+- **Overview, Library**: the folder path sits under its label instead of breaking after every
+  few letters in a narrow column. (M11)
+- The viewer's More menu keeps within the visible screen when the browser shows its bars. (M12)
+
 ## 1.7.0 — 2026-10-07
 
 Fixes for the external attack surface review of 2026-10-07 (A116-A119):
