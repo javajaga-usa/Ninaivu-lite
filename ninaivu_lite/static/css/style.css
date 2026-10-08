@@ -2812,9 +2812,9 @@ body .gate > * { margin-top: auto; margin-bottom: auto; }
   .searchbar input { padding-right: 38px; }
   .clear-search { right: 6px; }
   /* Suggestions as wide as the screen, not as the box: a folder name was
-     wrapped and clipped in a 140px list. The top bar is the containing block
-     where it blurs (backdrop-filter) and the screen where it cannot; it sits
-     at the top-left edge either way, so the same offsets hold. */
+     wrapped and clipped in a 140px list. The screen is the containing block
+     (the top bar's blur is on a layer behind it, M15), and the bar sits at
+     its top-left edge, so the offsets are the bar's. */
   .suggestions {
     position: fixed; top: calc(var(--topbar-h) + env(safe-area-inset-top, 0px) + 4px);
     left: max(8px, env(safe-area-inset-left, 0px)); right: max(8px, env(safe-area-inset-right, 0px));
@@ -2831,3 +2831,24 @@ body .gate > * { margin-top: auto; margin-bottom: auto; }
   .modal-card { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); padding: 16px 18px; gap: 10px; }
   .sheet-card { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }
 }
+
+/* ==========================================================================
+   Phones: a sharp top bar (M15, 2026-10-08)
+   ========================================================================== */
+
+/* Safari on an iPhone could draw the top bar's own name, search box and
+   buttons soft, because they were drawn into the bar's backdrop-blur layer.
+   The blur and the tint sit on a layer behind the bar instead, so what is in
+   it is drawn like the rest of the page. The bar's z-index keeps the layer
+   inside it. */
+.topbar {
+  background: transparent;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.topbar::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  pointer-events: none;
+  background: var(--bg-elev);
+  backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px);
+}
+@supports (color: color-mix(in srgb, red 50%, blue)) { .topbar::before { background: color-mix(in srgb, var(--bg-elev) 88%, transparent); } }
