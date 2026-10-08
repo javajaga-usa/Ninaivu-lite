@@ -86,9 +86,10 @@ there is no Control Panel: use `sudo systemctl start|stop|restart ninaivu-lite`.
      enter (no secret, a PIN, or a password).
 3. Indexing starts by itself. Photos appear as they are found; small previews are made in
    the background. A large library can take a while the first time; later starts are quick.
-   On a computer with four or more cores (a Raspberry Pi, most laptops) three previews are
-   made at a time, always leaving one core for the gallery, so the family can look at photos
-   while it works; a one- or two-core computer makes them one at a time.
+   A computer with several cores makes previews on all of them but one (three at a time on
+   a Raspberry Pi, seven on an eight-core laptop), always leaving one core for the gallery,
+   so the family can look at photos while it works; a one- or two-core computer makes them
+   one at a time.
 
 ## 3. Roles and who sees what
 

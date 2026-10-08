@@ -10,8 +10,9 @@ A scan has two passes:
    fills in first. These are small and quick (about 20 ms a photo).
 3. **Big tiles** (640 px), newest first, in a second pass.
 
-Thumbnails are made a few at a time on a computer with cores to spare
-(:data:`THUMB_WORKERS`); the index is written by this thread alone.
+On a computer with cores to spare, new files' headers are read, thumbnails
+made and faces looked for several at a time (:data:`THUMB_WORKERS`, one for
+every core but one); the index is written by this thread alone.
 
 The gallery can also ask for either directly (:meth:`Scanner.thumbnail_now`),
 so whatever is on screen never waits for the queue.
@@ -29,12 +30,11 @@ import os
 import sqlite3
 import threading
 import time
-from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from . import db, media
+from . import db, media, parallel
 from .dates import from_timestamp, long_path
 
 log = logging.getLogger(__name__)
@@ -46,12 +46,17 @@ BATCH = 200
 RESCAN_EVERY = 30 * 60
 #: How soon to try again when the index could not be opened at all.
 RETRY_EVERY = 60
-#: Thumbnails made at once during a scan. Pillow lets go of Python's lock
-#: while it decodes, shrinks and encodes a picture, so each one more is close
-#: to another core's worth: a Raspberry Pi's four cores make a first scan about
-#: three times faster. One core is always left for the gallery, so a one- or
-#: two-core computer makes them one at a time, as it always did.
-THUMB_WORKERS = max(1, min(3, (os.cpu_count() or 1) - 1))
+#: Files looked at at once during a scan: headers read, thumbnails made,
+#: faces looked for. Pillow and OpenCV let go of Python's lock while they
+#: work, so each one more is close to another core's worth: a Raspberry Pi's
+#: four cores make a first scan about three times faster, an eight-core
+#: computer about seven. One core is always left for the gallery, so a one-
+#: or two-core computer does them one at a time, as it always did. See
+#: :func:`parallel.workers` for the memory limit.
+THUMB_WORKERS = parallel.WORKERS
+#: New files' headers taking this long each (seconds) are read several at a
+#: time: a network drive or a hard disk, not a fast local disk.
+SLOW_HEADER = 0.002
 
 
 class Scanner:
@@ -92,6 +97,7 @@ class Scanner:
         self._wake.set()
 
     def _run(self) -> None:
+        parallel.background()
         conn = None
         try:
             while not self._stop.is_set():
@@ -200,32 +206,38 @@ class Scanner:
                            upright=CASE WHEN assets.rot_source='manual' THEN 1 ELSE excluded.upright END""",
                     rows)
 
-        for rel_dir, name, full, st in self._files(root, failed):
-            if self._stop.is_set():
-                break
-            kind = media.kind_of(name)
-            if kind is None:
-                continue
-            self.status["found"] += 1
-            row = known.get((rel_dir, name))
-            if row and row[1] == st.st_size and abs(row[2] - st.st_mtime) < 1:
-                seen.add(row[0])
-                if row[3]:
-                    with conn:
-                        # Back after being away: a thumbnail that failed while it
-                        # was away is asked for again.
-                        conn.execute("UPDATE assets SET missing = 0, "
-                                     "thumb = CASE WHEN thumb = ? THEN 0 ELSE thumb END "
-                                     "WHERE id = ?", (db.THUMB_NONE, row[0]))
-                continue
+        def describe(item: tuple) -> tuple[dict[str, Any], float]:
+            began = time.perf_counter()
+            info = media.describe(item[2], item[1], item[4], item[3])
+            return info, time.perf_counter() - began
+
+        def described(todo: list[tuple]) -> None:
+            # Reading a header is mostly Python's own work on a fast disk, so
+            # threads only get in each other's way there; on a network drive,
+            # a USB stick or a waking hard disk it is mostly waiting, and
+            # several at a time is several times faster. Each batch goes the
+            # way the last one says the disk needs (SLOW_HEADER).
+            made = parallel.in_order(todo, describe, pool if slow["disk"] else None, workers)
+            spent = 0.0
             try:
-                info = media.describe(full, name, kind, st)
+                for item, (info, took) in made:
+                    spent += took
+                    if self._stop.is_set():
+                        return
+                    add(item, info)
+            finally:
+                made.close()
+            slow["disk"] = spent / len(todo) >= SLOW_HEADER
+
+        def add(item: tuple, info: dict[str, Any]) -> None:
+            rel_dir, name, full, st, kind, row = item
+            try:
                 if rel_dir not in rules:
                     rules[rel_dir] = db.rule_for(conn, folder_id, rel_dir)
             except Exception:  # noqa: BLE001 — one bad file must not stop the scan
                 log.exception("could not look at %s", full)
                 failed.append(f"{rel_dir}/{name}" if rel_dir else name)
-                continue
+                return
             rule = rules[rel_dir]
             # A camera's own orientation tag is final (the browser and the
             # thumbnails honour it); a photograph without one is looked at
@@ -248,6 +260,39 @@ class Scanner:
             self.status["new"] += 1
             if len(pending) >= BATCH:
                 flush()
+
+        workers = THUMB_WORKERS
+        pool = parallel.pool(workers, "headers") if workers > 1 else None
+        todo: list[tuple] = []
+        slow = {"disk": False}
+        try:
+            for rel_dir, name, full, st in self._files(root, failed):
+                if self._stop.is_set():
+                    break
+                kind = media.kind_of(name)
+                if kind is None:
+                    continue
+                self.status["found"] += 1
+                row = known.get((rel_dir, name))
+                if row and row[1] == st.st_size and abs(row[2] - st.st_mtime) < 1:
+                    seen.add(row[0])
+                    if row[3]:
+                        with conn:
+                            # Back after being away: a thumbnail that failed while it
+                            # was away is asked for again.
+                            conn.execute("UPDATE assets SET missing = 0, "
+                                         "thumb = CASE WHEN thumb = ? THEN 0 ELSE thumb END "
+                                         "WHERE id = ?", (db.THUMB_NONE, row[0]))
+                    continue
+                todo.append((rel_dir, name, full, st, kind, row))
+                if len(todo) >= BATCH:
+                    described(todo)
+                    todo.clear()
+            if todo and not self._stop.is_set():
+                described(todo)
+        finally:
+            if pool is not None:
+                pool.shutdown(wait=False, cancel_futures=True)
         flush()
         if self._stop.is_set():
             return
@@ -428,7 +473,7 @@ class Scanner:
 
     def _make_thumbnails(self, conn: sqlite3.Connection) -> None:
         workers = THUMB_WORKERS
-        pool = ThreadPoolExecutor(workers, thread_name_prefix="thumbnails") if workers > 1 else None
+        pool = parallel.pool(workers, "thumbnails") if workers > 1 else None
         try:
             for name in ("small", "large"):
                 if not self._thumbnail_pass(conn, name, pool, workers):
@@ -443,6 +488,8 @@ class Scanner:
                         pool: ThreadPoolExecutor | None, workers: int) -> bool:
         """One pass of the queue; False when it stopped early for a stop or a rescan."""
         where, sizes, state = self._QUEUE[name]
+        # Each video's ffmpeg gets its share of the cores the workers have.
+        share = max(1, (parallel.cores() - 1) // workers) if pool is not None else 0
         total = conn.execute(
             f"SELECT COUNT(*) FROM assets a WHERE {where} AND a.missing = 0").fetchone()[0]
         self._set(state=state, thumbs_total=total, thumbs_left=total)
@@ -469,7 +516,8 @@ class Scanner:
             if not rows:
                 break
             self.generation += 1
-            made = self._rendered(rows, sizes, pool, workers)
+            made = parallel.in_order(rows, lambda row: self._render(row, sizes, share),
+                                     pool, workers)
             try:
                 for row, result in made:
                     after = (row["captured_at"], row["id"])
@@ -482,30 +530,6 @@ class Scanner:
                 made.close()
         return not self._stop.is_set()
 
-    def _rendered(self, rows: list, sizes: tuple[str, ...], pool: ThreadPoolExecutor | None,
-                  workers: int):
-        """(row, what :meth:`_render` made) for each row, in the order given,
-        *workers* at a time. Closed early, the ones not started are dropped."""
-        if pool is None:
-            for row in rows:
-                yield row, self._render(row, sizes)
-            return
-        window: deque = deque()
-        try:
-            for row in rows:
-                window.append((row, pool.submit(self._render, row, sizes)))
-                # One more waiting than there are workers keeps every worker
-                # busy while this thread writes the oldest one down.
-                if len(window) > workers:
-                    first, future = window.popleft()
-                    yield first, future.result()
-            while window:
-                first, future = window.popleft()
-                yield first, future.result()
-        finally:
-            for _row, future in window:
-                future.cancel()
-
     # --- which way up ------------------------------------------------------------
 
     def _straighten(self, conn: sqlite3.Connection) -> int:
@@ -516,21 +540,33 @@ class Scanner:
         if not media.FACES:
             return 0
         turned = 0
-        while not self._stop.is_set() and not self._wake.is_set():
-            rows = conn.execute(
-                """SELECT a.id, a.dir, a.name, a.width, a.height, f.path AS root FROM assets a
-                   JOIN folders f ON f.id = a.folder_id
-                   WHERE a.upright = 0 AND a.kind = 'picture' AND a.missing = 0
-                   ORDER BY a.captured_at DESC LIMIT 50""").fetchall()
-            if not rows:
-                break
-            self._set(state="finishing", thumbs_total=0, thumbs_left=0)
-            for row in rows:
-                if self._stop.is_set() or self._wake.is_set():
-                    return turned
-                rotation = media.detect_rotation(full_path(row["root"], row["dir"], row["name"]))
-                turned += self.set_rotation(conn, row["id"], rotation, "faces" if rotation else "none",
-                                            remake=False)
+        workers = THUMB_WORKERS
+        pool = parallel.pool(workers, "faces") if workers > 1 else None
+        try:
+            while not self._stop.is_set() and not self._wake.is_set():
+                rows = conn.execute(
+                    """SELECT a.id, a.dir, a.name, a.width, a.height, f.path AS root FROM assets a
+                       JOIN folders f ON f.id = a.folder_id
+                       WHERE a.upright = 0 AND a.kind = 'picture' AND a.missing = 0
+                       ORDER BY a.captured_at DESC LIMIT 50""").fetchall()
+                if not rows:
+                    break
+                self._set(state="finishing", thumbs_total=0, thumbs_left=0)
+                # Looked at several at a time; each answer is written here.
+                looked = parallel.in_order(
+                    rows, lambda row: media.detect_rotation(
+                        full_path(row["root"], row["dir"], row["name"])), pool, workers)
+                try:
+                    for row, rotation in looked:
+                        turned += self.set_rotation(conn, row["id"], rotation,
+                                                    "faces" if rotation else "none", remake=False)
+                        if self._stop.is_set() or self._wake.is_set():
+                            return turned
+                finally:
+                    looked.close()
+        finally:
+            if pool is not None:
+                pool.shutdown(wait=False, cancel_futures=True)
         return turned
 
     def set_rotation(self, conn: sqlite3.Connection, asset_id: int, rotation: int, source: str,
@@ -578,11 +614,11 @@ class Scanner:
         self._record(conn, row, *made)
         return made[1]
 
-    def _render(self, row: sqlite3.Row, sizes: tuple[str, ...]
+    def _render(self, row: sqlite3.Row, sizes: tuple[str, ...], threads: int = 0
                 ) -> tuple[tuple[str, ...], bool, str | None] | None:
         """Make the thumbnails for *row* (no index work, so any thread may):
         (sizes made, whether they were, colour), or None for a file that is
-        not there right now."""
+        not there right now. *threads* is for a video's ffmpeg."""
         full = full_path(row["root"], row["dir"], row["name"])
         if not os.path.isfile(long_path(full)):
             # Away, not broken: a drive asleep or unplugged. The row keeps its
@@ -592,7 +628,7 @@ class Scanner:
         if row["kind"] == "video":
             sizes = ("s", "l")   # one ffmpeg call makes both
         ok, colour = media.make_thumbnails(full, row["kind"], self.thumbs_dir, row["id"], sizes,
-                                           rotation=row["rotation"] or 0)
+                                           rotation=row["rotation"] or 0, threads=threads)
         return sizes, ok, colour
 
     def _record(self, conn: sqlite3.Connection, row: sqlite3.Row, sizes: tuple[str, ...],

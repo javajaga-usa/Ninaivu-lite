@@ -9,6 +9,44 @@
   console and the family app alike, so what is in the bar is drawn as sharply as the rest
   of the page; what scrolls behind it is still frosted.
 
+Ninaivu Lite uses more of a computer with cores to spare, always leaving one core for the
+gallery and never touching the photographs (parallel work review, A123-A127; the index is
+unchanged):
+
+- **Scan work follows the computer (A123).** Thumbnails, header reading and the face check
+  run on every core but one, no longer at most three: an eight-core computer makes seven
+  at a time, a Raspberry Pi still three, a one- or two-core computer still one. Each worker
+  is given 128 MB and no more than half the memory is used, so a small computer gets fewer;
+  very large pictures are still made one at a time.
+- **Photos on a network drive, a USB stick or a hard disk are indexed faster (A124).** When
+  reading a new file's details is slow (2 ms or more each), several are read at once: about
+  2.5 times faster on a drive that answers in 2 to 5 ms. On a fast disk they are still read
+  one by one, which is quicker there.
+- **The face check for sideways photographs is about three times faster (A125)** on a
+  four-core computer (with the optional OpenCV installed): 60 large photographs took 65 s
+  and now take 23 s.
+- **Imports, audits and copies to a drive read ahead (A126).** The next megabyte is read
+  while the last one is checked and written, so the source, the processor and the
+  destination are all kept busy; each file is still read once, in order. Importing from a
+  fast drive was about 1.6 times faster in testing.
+- **Video thumbnails are about twice as fast (A127).** ffmpeg now hands over a frame
+  already shrunk (at most 1280 pixels across) rather than a full 4K picture, and when
+  several videos are done at once each ffmpeg gets its share of the cores: 12 4K videos
+  took 4.1 s and now take 2.2 s.
+
+Jobs running at the same time get on better (A128-A129):
+
+- **Background work gives way to the gallery (A128).** The scan, its workers, an import, a
+  copy to a drive, a phone import and the daily backup run at a lower priority than the
+  gallery (and on Windows, so does the ffmpeg a scan starts), so when the computer is busy
+  the family's and guests' pages are served first. With the computer fully loaded by a
+  scan and an import at once, gallery work took 16-17 ms instead of 19-21 ms.
+- **An import no longer holds up thumbnails (A129).** An import into a library folder asked
+  the library to look again every 500 files, and each look started the scan over from its
+  walk. A resumed import steps over thousands of files a second, so the scan kept walking
+  and made no thumbnails until the import ended. It now asks at most once a minute, and only
+  when something new was copied, plus once at the end.
+
 ## 1.9.0 — 2026-10-08
 
 The index is unchanged (version 9), so 1.9.0, 1.8.0 and 1.7.0 can open each other's data

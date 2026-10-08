@@ -34,12 +34,13 @@ import sqlite3
 import threading
 import time
 import uuid
+from contextlib import closing
 from datetime import datetime
 from typing import Any
 
 from PIL import Image
 
-from . import db, dates, media
+from . import db, dates, media, parallel
 from .dates import long_path
 
 log = logging.getLogger(__name__)
@@ -68,6 +69,8 @@ IGNORE_DIRS = {"$RECYCLE.BIN", "System Volume Information", "@eaDir", "#recycle"
 TERMINAL = ("verified", "duplicate", "skipped")
 PLAN = ("planned", "plan-duplicate", "plan-skip")
 ESTIMATE_CAP = 200_000
+#: Seconds between asking the library to look at what an import brought in.
+SHOW_EVERY = 60
 
 
 class Cancelled(Exception):
@@ -136,13 +139,10 @@ def sniff_media(path: str) -> str | None:
 
 def hash_file(path: str, gate: Gate | None = None) -> str:
     h = hashlib.sha256()
-    with open(long_path(path), "rb") as f:
-        while True:
-            if gate:
-                gate.check()
-            chunk = f.read(CHUNK)
-            if not chunk:
-                break
+    # The next megabyte is read while this one is hashed (parallel.chunks).
+    with open(long_path(path), "rb") as f, \
+            closing(parallel.chunks(f, CHUNK, gate.check if gate else None)) as read:
+        for chunk in read:
             h.update(chunk)
     return h.hexdigest()
 
@@ -712,6 +712,7 @@ class Importer:
     # -- one run --------------------------------------------------------------------
 
     def _run(self) -> None:
+        parallel.background()      # the gallery first; the import gets the rest
         try:
             conn = db.connect(self.data_dir)
         except Exception as exc:  # noqa: BLE001 — said on the console, not left "counting"
@@ -872,14 +873,22 @@ class Importer:
             os.makedirs(long_path(self._partial_dir()), exist_ok=True)
         self._set(phase="copying", fresh_started=time.time())
         counters = {}
+        shown_at, shown_bytes = time.monotonic(), j["bytes_copied"]
         for path, st, kind in self._walk(j["sources"], j["kinds"], j["destination"],
                                          self.gate, counters):
             self._one(conn, path, st, kind)
             with self._lock:
                 self.job["processed"] += 1
-                processed = self.job["processed"]
-            if not dry and processed % 500 == 0 and self.on_files is not None:
-                self.on_files(j["destination"])     # the gallery shows them as they come
+                copied = self.job["bytes_copied"]
+            # The gallery shows them as they come: a look at the library now
+            # and then, when something new has landed. Each look starts the
+            # scan over from its walk, so asking every few hundred files kept
+            # it walking and never making thumbnails while an import ran (a
+            # resumed run steps over thousands of files a second).
+            if not dry and self.on_files is not None and copied != shown_bytes \
+                    and time.monotonic() - shown_at >= SHOW_EVERY:
+                self.on_files(j["destination"])
+                shown_at, shown_bytes = time.monotonic(), copied
         if not dry:
             self._sweep_partials()
         # A source that went away during the copy (a card pulled out) is not
@@ -1113,15 +1122,18 @@ class Importer:
     def _copy_and_hash(self, src: str, tmp: str) -> tuple[str, int]:
         h = hashlib.sha256()
         total = 0
-        with open(long_path(src), "rb") as fi, open(long_path(tmp), "wb") as fo:
-            while True:
-                self.gate.check()
-                chunk = fi.read(CHUNK)
-                if not chunk:
-                    break
-                h.update(chunk)
+        # Three things at once on a computer with the cores: the source's
+        # next megabyte is read while this one is hashed and, beside it,
+        # written. The card, the processor and the archive disk are all kept
+        # busy, and each still sees the file in order, once.
+        with open(long_path(src), "rb") as fi, open(long_path(tmp), "wb") as fo, \
+                closing(parallel.chunks(fi, CHUNK, self.gate.check)) as read, \
+                parallel.pool(1, "hash") as hasher:
+            for chunk in read:
+                hashed = hasher.submit(h.update, chunk)
                 fo.write(chunk)
                 total += len(chunk)
+                hashed.result()
             fo.flush()
             os.fsync(fo.fileno())
         return h.hexdigest(), total

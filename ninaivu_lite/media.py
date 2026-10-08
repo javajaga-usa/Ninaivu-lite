@@ -12,6 +12,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import threading
 from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
@@ -21,7 +22,7 @@ from typing import Any
 
 from PIL import Image, ImageOps
 
-from . import dates
+from . import dates, parallel
 
 log = logging.getLogger(__name__)
 
@@ -207,6 +208,9 @@ def _photo_moment(path: str) -> tuple[datetime, timedelta] | None:
     return wall - offset, offset
 
 
+_ZONES = threading.Lock()
+
+
 @lru_cache(maxsize=4)
 def _folder_zones(folder: str, stamp: int) -> tuple[tuple[datetime, timedelta], ...]:
     """Every (moment, offset) the photos in a folder carry, in time order.
@@ -235,7 +239,10 @@ def zone_near(path: str):
             stamp = os.stat(dates.long_path(folder)).st_mtime_ns
         except OSError:
             return None
-        moments = _folder_zones(folder, stamp)
+        # One at a time: headers are read several at once on a slow disk, and
+        # each of a folder's videos would otherwise read its photos again.
+        with _ZONES:
+            moments = _folder_zones(folder, stamp)
         if not moments:
             return None
         when = utc.astimezone(timezone.utc).replace(tzinfo=None)
@@ -290,7 +297,10 @@ _SKIN_FRACTION = 0.25
 _MIN_FACE_EVIDENCE = 0.0035
 _MIN_FACE_MARGIN = 1.6
 _CASCADES = ("haarcascade_frontalface_default.xml", "haarcascade_profileface.xml")
-_cascades: list[Any] | None = None
+#: Each thread's own classifiers: the face check runs several at a time
+#: (``scanner.THUMB_WORKERS``), and one OpenCV classifier is not safe to use
+#: from two threads at once.
+_cascades = threading.local()
 
 
 def turn(img: Image.Image, rotation: int) -> Image.Image:
@@ -300,11 +310,14 @@ def turn(img: Image.Image, rotation: int) -> Image.Image:
 
 
 def _face_cascades() -> list[Any]:
-    global _cascades
-    if _cascades is None:
+    found = getattr(_cascades, "found", None)
+    if found is None:
         found = []
         if FACES:
             try:
+                # One core each: the scan already looks at several pictures
+                # at once, and OpenCV's own threads on top would leave no
+                # core for the gallery.
                 cv2.setNumThreads(1)
             except Exception:  # noqa: BLE001
                 pass
@@ -312,8 +325,8 @@ def _face_cascades() -> list[Any]:
                 classifier = cv2.CascadeClassifier(cv2.data.haarcascades + name)
                 if not classifier.empty():
                     found.append(classifier)
-        _cascades = found
-    return _cascades
+        _cascades.found = found
+    return found
 
 
 def _face_evidence(img: Image.Image) -> float:
@@ -428,18 +441,35 @@ def strip_video(path: str, out: str) -> bool:
     return False
 
 
-def video_frame(path: str) -> Image.Image | None:
+#: The longest edge a video's frame is handed over at: twice the big tile, so
+#: the thumbnail is still shrunk from more than it shows.
+VIDEO_FRAME_EDGE = 2 * THUMB_SIZES["l"]
+
+
+def video_frame(path: str, threads: int = 0) -> Image.Image | None:
+    """One frame from about a second in, at most :data:`VIDEO_FRAME_EDGE`
+    across. *threads* is how many cores ffmpeg may use (0: as many as it
+    likes); several videos at once each get a share of them."""
     if not FFMPEG:
         return None
+    # Shrunk by ffmpeg and passed as plain pixels: a 4K frame as a PNG was
+    # most of the time a video's thumbnail took.
+    edge = VIDEO_FRAME_EDGE
+    shrink = f"scale='min({edge},iw)':'min({edge},ih)':force_original_aspect_ratio=decrease"
     for args in (["-ss", "1"], []):
         try:
             proc = subprocess.run(
-                [FFMPEG, "-v", "quiet", *args, "-i", dates.long_path(path), "-frames:v", "1",
-                 "-f", "image2pipe", "-vcodec", "png", "-"],
+                [FFMPEG, "-v", "quiet", "-threads", str(max(0, threads)), *args,
+                 "-i", dates.long_path(path), "-frames:v", "1", "-vf", shrink,
+                 "-f", "image2pipe", "-vcodec", "bmp", "-"],
                 capture_output=True, timeout=45, check=False,
                 # Started without a console (at sign-in, by pythonw), Windows
-                # would otherwise flash a black window for every video.
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                # would otherwise flash a black window for every video. For
+                # a scan it runs below the gallery, as the scan does (Linux
+                # and macOS pass that on by themselves).
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                | (parallel.WIN_BELOW_NORMAL_CLASS
+                   if sys.platform == "win32" and parallel.in_background() else 0))
             if proc.returncode == 0 and proc.stdout:
                 return Image.open(io.BytesIO(proc.stdout)).convert("RGB")
         except (subprocess.SubprocessError, OSError, ValueError):
@@ -448,14 +478,15 @@ def video_frame(path: str) -> Image.Image | None:
 
 
 def make_thumbnails(path: str, kind: str, thumbs_dir: Path, asset_id: int,
-                    sizes: tuple[str, ...] = ("s", "l"), rotation: int = 0) -> tuple[bool, str | None]:
+                    sizes: tuple[str, ...] = ("s", "l"), rotation: int = 0,
+                    threads: int = 0) -> tuple[bool, str | None]:
     """Write the thumbnails named in *sizes* ("s" 256 px, "l" 640 px), turned
     by *rotation* (the index's answer for a photograph without a camera tag).
 
     Returns (made, colour): colour is the picture's average, '#rrggbb', which
     the grid paints while the thumbnail loads. ``made`` is False when no
     picture can be made (a video without ffmpeg, a damaged file); the gallery
-    then shows a plain tile.
+    then shows a plain tile. *threads* goes to ffmpeg (:func:`video_frame`).
     """
     edge = max(THUMB_SIZES[s] for s in sizes)
     gate = nullcontext()
@@ -465,7 +496,7 @@ def make_thumbnails(path: str, kind: str, thumbs_dir: Path, asset_id: int,
             if img.width * img.height >= HEAVY_PIXELS:
                 gate = _HEAVY
         else:
-            img = video_frame(path)
+            img = video_frame(path, threads)
     except Exception as exc:  # noqa: BLE001
         log.debug("no thumbnail for %s: %s", path, exc)
         return False, None
