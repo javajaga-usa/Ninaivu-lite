@@ -25,6 +25,10 @@ Updates are put in by hand, and safely:
   the version from before an update, with **Restart** to run the new one. The release notes,
   README, `README-PORTABLE.txt` and both user guides say the same; the photos, people,
   settings, index and backups are never touched by an update.
+- **The Windows installer gives a stopping Ninaivu Lite a moment.** It waits up to 15
+  seconds for the old program to let go of its files before asking to Retry, and a silent
+  install (`/S`) that cannot replace them stops with an error instead of waiting for ever
+  on a question nobody can answer.
 - The Windows release build now also installs over its own running copy and checks that the
   data folder is untouched and Ninaivu Lite is started again.
 

@@ -17,6 +17,7 @@
   !macro WaitUntilNotInUse
     ; One id for this insertion's labels (the macro is used twice).
     !define U ${__COUNTER__}
+    StrCpy $nl_waited 0
     IfFileExists "$INSTDIR\Python\pythonw.exe" 0 not_in_use_${U}
     ExecWait '"$INSTDIR\Python\pythonw.exe" -m ninaivu_lite.control --stop'
     check_${U}:
@@ -30,7 +31,16 @@
       FileClose $0
       Goto not_in_use_${U}
     in_use_${U}:
-      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION \
+      ; A server asked to stop lets go of its files a moment after it stops
+      ; answering: a few seconds' grace before anyone is asked.
+      IntOp $nl_waited $nl_waited + 1
+      IntCmp $nl_waited 15 ask_${U} 0 ask_${U}
+      Sleep 1000
+      Goto check_${U}
+    ask_${U}:
+      StrCpy $nl_waited 0
+      ; With /S nobody can answer: Cancel, rather than wait for ever.
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION /SD IDCANCEL \
         "Ninaivu Lite is still running, so its files cannot be replaced.$\r$\n$\r$\nIn the Ninaivu Lite Control Panel press Stop (or close the window Ninaivu Lite was started from), then close the Control Panel itself, and press Retry." \
         IDRETRY check_${U}
       Abort "Ninaivu Lite is still running. Stop it and close the Control Panel, then run this installer again."
@@ -49,6 +59,8 @@
   VIAddVersionKey "LegalCopyright" "(c) 2026 Jagadeesh Rajendran. MIT licence."
   ; "1" once the install folder is found to hold a Ninaivu Lite already: an upgrade.
   Var nl_ours
+  ; Seconds waited for the old program to let go of its files (WaitUntilNotInUse).
+  Var nl_waited
   ; "1" when the earlier version was running when the upgrade began: it is
   ; started again at the end, so phones do not lose the library until
   ; somebody presses Start (with /S nobody would).

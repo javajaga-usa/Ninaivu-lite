@@ -244,7 +244,11 @@ jobs:
           $userData = Join-Path $env:LOCALAPPDATA "Ninaivu-lite"
           $marker = Join-Path $userData "kept-by-the-update.txt"
           Set-Content -Path $marker -Value "kept"
-          Start-Process -FilePath $installer -ArgumentList "/S", "/INSTDIR=$dir" -Wait
+          # Waited for by itself: -Wait would also wait for the server it starts again, which
+          # does not stop.
+          $update = Start-Process -FilePath $installer -ArgumentList "/S", "/INSTDIR=$dir" -PassThru
+          if (-not $update.WaitForExit(300000)) { throw "the update did not finish in five minutes" }
+          if ($update.ExitCode -ne 0) { throw "the update failed with exit code $($update.ExitCode)" }
           if ((Get-Content $marker -ErrorAction SilentlyContinue) -ne "kept") { throw "the update touched the data folder" }
           if (-not (Test-Path (Join-Path $userData "ninaivu-lite.db"))) { throw "the update lost the index" }
           $up = $false
