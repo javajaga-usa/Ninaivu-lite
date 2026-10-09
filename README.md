@@ -86,7 +86,7 @@ and downloads nothing.
 | | |
 | --- | --- |
 | Windows 10 / 11 | `Ninaivu-Lite-<version>-windows-x64.exe` — the Control Panel opens when it finishes |
-| Windows portable | `Ninaivu-Lite-<version>-windows-x64-portable.zip` — extract and open `Ninaivu Lite Control Panel.vbs`; data stays beside the program |
+| Windows portable | `Ninaivu-Lite-<version>-windows-x64-portable.zip` — extract and open `Ninaivu Lite.exe`; only it and its log sit at the top, the program is in `app`, the data in `data` |
 | Linux PC | `sh Ninaivu-Lite-<version>-linux-amd64.sh` (with `sudo`, for a server: see below) |
 | Raspberry Pi 4 / 5 (64-bit OS) | `sh Ninaivu-Lite-<version>-linux-arm64.sh` |
 | macOS | the `.dmg` for Apple silicon (`arm64`) or Intel (`x86_64`) |
@@ -113,7 +113,7 @@ index forward on its own, after keeping a copy of it as it was in the data folde
 `backups` (a `before-update-…` zip). If you forget to stop it, the Windows and Linux
 installers offer to stop it for you, and refuse to replace a copy they cannot stop rather
 than leave it half updated. For the portable zip, extract the new version to a new folder
-and copy the old `data` folder into it (see `README-PORTABLE.txt`).
+and copy the old `data` folder into it (see `app\README-PORTABLE.txt`).
 
 **The releases are not code-signed yet.** Free signing through the
 [SignPath Foundation](https://signpath.org) has been applied for and is pending; until then
@@ -193,7 +193,7 @@ Lite first):
 | --- | --- |
 | Windows installer, or Linux without `sudo` | `ninaivu-lite --reset-password NAME` (a new Command Prompt on Windows) |
 | Linux with `sudo` | `sudo systemctl stop ninaivu-lite`, then `sudo -u ninaivu-lite /usr/local/bin/ninaivu-lite --reset-password NAME` |
-| Windows portable zip | in its folder: `Python\python.exe -m ninaivu_lite --data "<that folder>\data" --reset-password NAME` |
+| Windows portable zip | in its `Ninaivu Lite` folder: `app\Python\python.exe -m ninaivu_lite --data "<that folder>\data" --reset-password NAME` |
 | this repository | `python -m ninaivu_lite --reset-password NAME`, inside the activated `.venv` |
 | Docker | `docker compose -f installers/docker/docker-compose.yml run --rm ninaivu-lite python -m ninaivu_lite --data /data --reset-password NAME` |
 

@@ -52,6 +52,35 @@ def install_kind(root: Path | None = None) -> str:
     return "checkout"
 
 
+#: The portable zip's one program, at the top of its folder beside the log;
+#: everything else is in app\ (the program) and data\ (the family's).
+PORTABLE_EXE = "Ninaivu Lite.exe"
+PORTABLE_LOG = "Ninaivu Lite.log"
+
+
+def portable_home(root: Path | None = None) -> Path | None:
+    """The folder a portable copy was extracted to (<home>/app/pkgs/ninaivu_lite,
+    with Ninaivu Lite.exe in <home>), or None for any other copy."""
+    root = root or ROOT
+    if install_kind(root) != "portable" or root.parent.name.lower() != "app":
+        return None
+    home = root.parent.parent
+    return home if (home / PORTABLE_EXE).is_file() else None
+
+
+def log_path(data_dir: str | Path, root: Path | None = None) -> Path:
+    """Where the server writes its log: beside Ninaivu Lite.exe for a portable
+    copy on its own data folder, so it is one of the two things at its top;
+    in the data folder's logs folder otherwise."""
+    data = Path(data_dir)
+    home = portable_home(root)
+    if home is not None:
+        same = os.path.normcase(os.path.abspath(home / "data")) == os.path.normcase(os.path.abspath(data))
+        if same:
+            return home / PORTABLE_LOG
+    return data / "logs" / "ninaivu-lite.log"
+
+
 # --- the server's side --------------------------------------------------------------------
 
 def write_state(data_dir: str | Path, port: int, setup_code: str | None = None) -> str:
@@ -381,7 +410,7 @@ class Controller:
 
     @property
     def log_file(self) -> Path:
-        return self.data_dir / "logs" / "ninaivu-lite.log"
+        return log_path(self.data_dir)
 
     @staticmethod
     def reveal(path: Path) -> None:

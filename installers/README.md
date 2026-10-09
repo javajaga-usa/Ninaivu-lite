@@ -116,21 +116,24 @@ is in `NINAIVU_SIGN_THUMBPRINT`.
 Every Windows build also makes `Ninaivu-Lite-<version>-windows-x64-portable.zip`,
 for running without installing. The release workflow installs the installer
 silently, copies the installed folder once Ninaivu Lite has been stopped, leaves
-out `uninstall.exe`, and adds the two files in `windows/portable/`:
-*Ninaivu Lite Control Panel.vbs*, which opens the Control Panel with
-`--data <this folder>\data`, and `README-PORTABLE.txt` (English and Tamil). The
-private Python finds the packages through its `._pth` file (`..\pkgs`), so the
-folder runs from any path. The workflow then extracts the zip to a path with a
-space and Tamil letters, opens the Control Panel through the launcher, starts
-and stops Ninaivu Lite from it, and checks its data was written beside it.
+out `uninstall.exe`, and hands it to `windows/portable/build-portable.ps1`. That
+puts the folder in `app\` with `README-PORTABLE.txt` (English and Tamil), and
+builds `windows/portable/launcher.nsi` with NSIS into *Ninaivu Lite.exe*, a small
+program that opens the Control Panel (`app\Python\pythonw.exe -m
+ninaivu_lite.panel --data <this folder>\data`) and is gone. The zip's top holds
+only that exe; once started, the `data` folder appears beside it and the log is
+`Ninaivu Lite.log` beside the exe (older logs go to `data\logs`). The private
+Python finds the packages through its `._pth` file (`..\pkgs`), so the folder
+runs from any path. The workflow then extracts the zip to a path with a space and
+Tamil letters, checks its top, opens the Control Panel through the exe, starts
+and stops Ninaivu Lite, and checks its data and log were written beside it.
 
 **Signing and the zip.** A zip needs no signing to be made or shared, but it does
 not avoid Windows' download checks: what comes out of a downloaded zip carries
-the same *from the internet* mark as the zip. The program that runs is the
-Python Software Foundation's signed `pythonw.exe`, so SmartScreen has no unsigned
-`.exe` to stop; Windows instead asks once before running the `.vbs`, unless the
-zip is unblocked (*Properties → Unblock*) before it is extracted. Signing the
-installer (above) does not change the zip.
+the same *from the internet* mark as the zip. *Ninaivu Lite.exe* is not signed, so SmartScreen asks about it (*More info →
+Run anyway*) unless the zip is unblocked (*Properties → Unblock*) before it is
+extracted; the Python it starts is the Python Software Foundation's signed
+`pythonw.exe`. Signing the installer (above) does not sign the launcher.
 
 ## Linux and Raspberry Pi
 

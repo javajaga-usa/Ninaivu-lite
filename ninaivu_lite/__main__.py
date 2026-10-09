@@ -40,7 +40,8 @@ def use_utf8_output() -> None:
 
 def setup_logging(data_dir: str) -> None:
     """Warnings to the console; everything to logs/ninaivu-lite.log (1 MB, three kept) for
-    when something needs looking into after the window is closed."""
+    when something needs looking into after the window is closed. A portable copy writes
+    "Ninaivu Lite.log" beside its exe instead, and keeps the older ones in logs/."""
     fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
     root = logging.getLogger()
     root.setLevel(logging.INFO)
@@ -52,10 +53,14 @@ def setup_logging(data_dir: str) -> None:
         console.addFilter(lambda record: record.name != REFUSED)   # printed already
         root.addHandler(console)
     try:
+        from .control import log_path
         folder = Path(data_dir) / "logs"
         folder.mkdir(parents=True, exist_ok=True)
-        handler = RotatingFileHandler(folder / "ninaivu-lite.log", maxBytes=1_000_000,
-                                      backupCount=3, encoding="utf-8")
+        path = log_path(data_dir)
+        handler = RotatingFileHandler(path, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+        if path.parent != folder:
+            # Only the current log at the top of a portable folder; the older ones in logs/.
+            handler.namer = lambda name: str(folder / Path(name).name)
         handler.setFormatter(fmt)
         root.addHandler(handler)
     except OSError as exc:

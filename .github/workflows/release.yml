@@ -268,9 +268,9 @@ jobs:
           Write-Host "installed, ran, stopped and removed"
 
       # The same program as a zip that runs from wherever it is extracted (a
-      # folder, a pendrive), with nothing installed: the installed folder
-      # without its uninstaller, a launcher that keeps the data folder beside
-      # it, and a note in English and Tamil (installers/windows/portable/).
+      # folder, a pendrive), with nothing installed: one program at the top,
+      # Ninaivu Lite.exe, and the installed folder without its uninstaller in
+      # app\ (installers/windows/portable/build-portable.ps1).
       - name: The portable zip, and try it
         shell: pwsh
         env:
@@ -285,35 +285,30 @@ jobs:
           }
           $installer = Get-ChildItem installers\windows\build\nsis\Ninaivu-Lite-*-windows-x64.exe
           $zip = Join-Path $installer.DirectoryName ($installer.BaseName + "-portable.zip")
-          $source = Join-Path $env:RUNNER_TEMP "portable-source"
-          Remove-Item (Join-Path $source "uninstall.exe")
-          Get-ChildItem $source -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
-          Copy-Item installers\windows\portable\* $source
-          # One folder inside the zip, so Extract All gives "Ninaivu Lite" and not loose files.
-          $stage = Join-Path $env:RUNNER_TEMP "portable-stage"
-          New-Item -ItemType Directory $stage | Out-Null
-          Move-Item $source (Join-Path $stage "Ninaivu Lite")
-          Compress-Archive -Path (Join-Path $stage "Ninaivu Lite") -DestinationPath $zip -CompressionLevel Optimal
-          Write-Host "$zip $([math]::Round((Get-Item $zip).Length / 1MB, 1)) MB"
+          & installers\windows\portable\build-portable.ps1 -Source (Join-Path $env:RUNNER_TEMP "portable-source") -Zip $zip
 
           # Extracted somewhere else, with a space and Tamil letters in the path.
           $out = Join-Path $env:RUNNER_TEMP "கையடக்கம் test"
           Expand-Archive $zip -DestinationPath $out
           $dir = Join-Path $out "Ninaivu Lite"
-          foreach ($file in @("Python\pythonw.exe", "Ninaivu Lite Control Panel.vbs", "README-PORTABLE.txt")) {
-            if (-not (Test-Path (Join-Path $dir $file))) { throw "not in the zip: $file" }
+          $app = Join-Path $dir "app"
+          # At the top only the program; the rest in app\.
+          $top = @(Get-ChildItem $dir -Force | ForEach-Object Name | Sort-Object)
+          if (($top -join "|") -ne "app|Ninaivu Lite.exe") { throw "the top of the zip is not just app and Ninaivu Lite.exe: $($top -join ', ')" }
+          foreach ($file in @("Python\pythonw.exe", "pkgs\ninaivu_lite\__init__.py", "README-PORTABLE.txt")) {
+            if (-not (Test-Path (Join-Path $app $file))) { throw "not in the zip's app folder: $file" }
           }
-          if (Test-Path (Join-Path $dir "uninstall.exe")) { throw "the zip carries the uninstaller" }
+          if (Test-Path (Join-Path $app "uninstall.exe")) { throw "the zip carries the uninstaller" }
           $data = Join-Path $dir "data"
 
-          # The launcher opens the Control Panel with the data folder beside it.
-          Start-Process -FilePath "wscript.exe" -ArgumentList "`"$(Join-Path $dir 'Ninaivu Lite Control Panel.vbs')`""
+          # Ninaivu Lite.exe opens the Control Panel with the data folder beside it.
+          Start-Process -FilePath (Join-Path $dir "Ninaivu Lite.exe")
           $panel = $null
           foreach ($i in 1..30) {
             $panel = Get-CimInstance Win32_Process -Filter "Name = 'pythonw.exe'" | Where-Object { $_.CommandLine -like "*ninaivu_lite.panel*" }
             if ($panel) { break } else { Start-Sleep 1 }
           }
-          if (-not $panel) { throw "the launcher did not open the Control Panel" }
+          if (-not $panel) { throw "Ninaivu Lite.exe did not open the Control Panel" }
           Write-Host "Control Panel: $($panel.CommandLine)"
           if ($panel.CommandLine -notlike "*--data `"$data`"*") { throw "the Control Panel was not given the folder's own data folder" }
           Start-Sleep 3
@@ -321,22 +316,27 @@ jobs:
           Stop-Process -Id $panel.ProcessId
 
           # What its Start button runs, from the extracted copy.
-          $python = Join-Path $dir "Python\python.exe"
-          Push-Location $dir
+          $python = Join-Path $app "Python\python.exe"
+          $log = Join-Path $dir "Ninaivu Lite.log"
+          Push-Location $app
           try {
             & $python -c "import tkinter, ninaivu_lite, ninaivu_lite.panel, ninaivu_lite.app; r = tkinter.Tk(); r.update(); r.destroy(); print('portable', ascii(ninaivu_lite.__file__))"
             if ($LASTEXITCODE) { throw "the extracted Python could not load Ninaivu Lite" }
-            Start-Process -FilePath (Join-Path $dir "Python\pythonw.exe") -ArgumentList "-m", "ninaivu_lite", "--no-browser", "--data", "`"$data`""
+            Start-Process -FilePath (Join-Path $app "Python\pythonw.exe") -ArgumentList "-m", "ninaivu_lite", "--no-browser", "--data", "`"$data`""
             $up = $false
             foreach ($i in 1..40) {
               try { $health = Invoke-RestMethod http://127.0.0.1:8080/api/health -TimeoutSec 2; $up = $true; break } catch { Start-Sleep 1 }
             }
-            if (-not $up) { Get-Content (Join-Path $data "logs\ninaivu-lite.log") -ErrorAction SilentlyContinue; throw "the portable server did not answer" }
+            if (-not $up) { Get-Content $log -ErrorAction SilentlyContinue; throw "the portable server did not answer" }
             Write-Host "answering: $($health.app) $($health.version)"
             & $python -m ninaivu_lite.control --data $data --stop --status
           } finally { Pop-Location }
           if (-not (Test-Path (Join-Path $data "ninaivu-lite.db"))) { throw "the data did not stay in the extracted folder" }
-          Write-Host "extracted, opened, ran and stopped, with its data beside it"
+          if (-not (Test-Path $log)) { throw "the log is not beside Ninaivu Lite.exe" }
+          if (Test-Path (Join-Path $data "logs\ninaivu-lite.log")) { throw "the portable copy also wrote a log in data\logs" }
+          $top = @(Get-ChildItem $dir -Force | ForEach-Object Name | Sort-Object)
+          if (($top -join "|") -ne "app|data|Ninaivu Lite.exe|Ninaivu Lite.log") { throw "after a run the top is not app, data, the exe and its log: $($top -join ', ')" }
+          Write-Host "extracted, opened, ran and stopped, with its data and log beside it"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -537,7 +537,7 @@ jobs:
           {
             echo "Ninaivu Lite $version — your family's photographs, at home."
             echo
-            echo "**Windows:** \`Ninaivu-Lite-$version-windows-x64.exe\`, or \`Ninaivu-Lite-$version-windows-x64-portable.zip\` to run without installing (extract it, then open *Ninaivu Lite Control Panel.vbs*; its data stays in the folder). **macOS:** the \`.dmg\` for Apple silicon (\`arm64\`) or Intel (\`x86_64\`). **Linux and Raspberry Pi:** \`Ninaivu-Lite-$version-linux-amd64.sh\` for a PC, \`-linux-arm64.sh\` for a Raspberry Pi 4 or 5 with a 64-bit OS — run it with \`sh\`, no root needed."
+            echo "**Windows:** \`Ninaivu-Lite-$version-windows-x64.exe\`, or \`Ninaivu-Lite-$version-windows-x64-portable.zip\` to run without installing (extract it, then open *Ninaivu Lite.exe*; its data and log stay in the folder). **macOS:** the \`.dmg\` for Apple silicon (\`arm64\`) or Intel (\`x86_64\`). **Linux and Raspberry Pi:** \`Ninaivu-Lite-$version-linux-amd64.sh\` for a PC, \`-linux-arm64.sh\` for a Raspberry Pi 4 or 5 with a 64-bit OS — run it with \`sh\`, no root needed."
             echo "Every installer carries its own Python and every package: nothing is downloaded at install time. Checksums are in \`SHA256SUMS.txt\`."
             echo
             echo "**Updating:** Stop Ninaivu Lite first (press **Stop** in the Control Panel, then close it; on a Linux server \`sudo systemctl stop ninaivu-lite\`), then run the new installer over the old one. Photos, people, settings, the index and backups are kept, and the index is copied to \`backups\` before it is brought forward. Ninaivu Lite never checks for updates by itself: new versions are only here, when you choose to download one."
