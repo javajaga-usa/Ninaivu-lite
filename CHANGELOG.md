@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- **No update section in the Control Panel.** A first install opened on an *Updating* card
+  ("To update, run the newer setup file…" and **Get ready to update**), as if an update were
+  under way. The card and its button are gone. There is still no update check: to update,
+  press **Stop**, close the panel and run the newer setup file (the installers still offer
+  to stop a running copy, and photos, people, settings and the index are kept). A server
+  left running from before an update is still pointed out, with **Restart**.
+- **A portable copy's Control Panel no longer shows the installed copy's server as its own.**
+  With both on one computer, a portable copy whose data folder had not yet been named by a
+  server of its own read the installed copy's server on port 8080 as *Running*, said
+  "Started from its own window: stop it there.", and its **Start** answered that Ninaivu
+  Lite was already running. A data folder with no name yet now counts no server as its own,
+  so the portable copy starts its own server on the next free port.
+
 ## 1.10.0 — 2026-10-08
 
 The index is unchanged (version 9), so 1.10.0, 1.9.0, 1.8.0 and 1.7.0 can open each other's

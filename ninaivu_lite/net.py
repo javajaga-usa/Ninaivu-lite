@@ -124,7 +124,9 @@ def already_running(port: int, instance: str | None = None) -> bool:
     """Is Ninaivu Lite itself already answering on this port, and, given
     *instance* (the data folder's name, see lock.instance_id), is it the one
     on this data folder? A server too old to say which folder it is on
-    counts as this one."""
+    counts as this one. A folder with no name yet has never had a server
+    of 1.7.0 or later (one names its folder before it answers), so a server
+    that names its own folder is another copy's."""
     import json
     import urllib.request
 
@@ -136,4 +138,4 @@ def already_running(port: int, instance: str | None = None) -> bool:
     if not isinstance(data, dict) or data.get("app") != "Ninaivu Lite":
         return False
     theirs = data.get("instance")
-    return instance is None or theirs is None or theirs == instance
+    return theirs is None or theirs == instance

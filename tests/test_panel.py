@@ -7,7 +7,6 @@ from __future__ import annotations
 import os
 import re
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -48,8 +47,6 @@ def test_the_panel_builds_and_closes(tmp_path, monkeypatch):
         # root is made after the first was destroyed.)
         view = panel.Panel(root, Controller(str(tmp_path)))
         root.update()
-        assert view.update_text.get() == panel.UPDATE_ADVICE
-        assert "Stop Ninaivu Lite and close this panel first" in view.update_text.get()
         # What the old update check kept goes.
         assert not (tmp_path / "update-check.json").exists()
         # A drive plugged in: the question builds over the panel, and closing
@@ -60,17 +57,6 @@ def test_the_panel_builds_and_closes(tmp_path, monkeypatch):
         root.after(300, lambda: [w.destroy() for w in root.winfo_children()
                                  if isinstance(w, tk.Toplevel)])
         assert view.ask_drive(drives.Drive("usb1", str(tmp_path), "PENDRIVE", 1, 1)) is None
-        opened = []
-        monkeypatch.setattr(panel.webbrowser, "open", lambda url: opened.append(url))
-        # Declined: the advice stays on the notice line, and no page opens.
-        monkeypatch.setattr(view, "ask", lambda question: False)
-        view.is_running = True
-        view.prepare_update()
-        assert opened == []
-        assert view.notice.get().startswith("Before updating: press Stop, then close")
-        view.is_running = False
-        view.prepare_update()
-        assert view.notice.get().startswith("Before updating, close this Control Panel")
         # A server left running from before an update is pointed out, once.
         view.say_if_stale("0.0.1")
         assert "0.0.1 is still running from before the update" in view.notice.get()
@@ -79,19 +65,9 @@ def test_the_panel_builds_and_closes(tmp_path, monkeypatch):
         assert view.notice.get() == "something else"
         view.say_if_stale(panel.__version__)
         assert view.stale_version is None
-        # Accepted while running: the server is stopped, then the panel closes.
-        stopped = []
-        monkeypatch.setattr(view, "ask", lambda question: True)
-        monkeypatch.setattr(view.controller, "can_stop", lambda: True)
-        monkeypatch.setattr(view.controller, "stop", lambda: stopped.append(1) or "Stopped.")
-        view.is_running = True
-        view.prepare_update()
-        for _ in range(60):
-            root.update()
-            if view.finished.is_set():
-                break
-            time.sleep(0.05)
-        assert stopped == [1]
+        # No update section: the panel opens on what is going on, not on updating.
+        assert "updates" not in panel.CARD_ACCENT
+        view.close()
         assert view.finished.is_set()
     finally:
         try:
