@@ -121,7 +121,7 @@ Updating Ninaivu Lite
 =====================
 
 1. Stop Ninaivu Lite first: in the Ninaivu Lite Control Panel press Stop, then
-   quit the Control Panel (or press "Get ready to update", which does both).
+   quit the Control Panel.
 2. Drag the new Ninaivu Lite into Applications and choose Replace.
 3. Open the Control Panel again and press Start.
 
@@ -133,7 +133,7 @@ checks for updates by itself.
 ==============================
 
 1. முதலில் நினைவு லைட்டை நிறுத்துங்கள்: Ninaivu Lite Control Panel-இல் Stop
-   அழுத்தி, Control Panel-ஐ மூடுங்கள் ("Get ready to update" இரண்டையும் செய்யும்).
+   அழுத்தி, Control Panel-ஐ மூடுங்கள்.
 2. புதிய Ninaivu Lite-ஐ Applications-க்குள் இழுத்து Replace தேர்ந்தெடுங்கள்.
 3. Control Panel-ஐ மீண்டும் திறந்து Start அழுத்துங்கள்.
 

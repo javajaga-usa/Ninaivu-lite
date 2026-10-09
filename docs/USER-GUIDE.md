@@ -54,12 +54,10 @@ addresses to open, and has:
   with no window to keep open;
 - **Open the family app** and **Open the console**;
 - **Start Ninaivu Lite when I sign in** — tick it once and it starts with the computer;
-- **Open the log** and **Open the data folder**, for when something needs looking into;
-- **Updating** — Ninaivu Lite never looks for updates by itself and asks nothing of GitHub.
-  When you have a newer setup file, first stop Ninaivu Lite: press **Stop**, then close the
-  Control Panel. **Get ready to update** does both for you. A program that is in use cannot
-  be replaced, and the installer offers to stop it, and waits, if you forget. Your settings,
-  people, index, backups and photographs are untouched by an update.
+- **Open the log** and **Open the data folder**, for when something needs looking into.
+
+Ninaivu Lite never looks for updates by itself and asks nothing of GitHub. Before running a
+newer setup file, press **Stop** and close the Control Panel (see *Updating* below).
 
 Closing the Control Panel leaves Ninaivu Lite running. On a Raspberry Pi or a server without
 a screen, the Linux installer sets up a service that starts it at boot. Installed with `sudo`,
@@ -260,7 +258,7 @@ later. The visitor does not see the file's name.
   favourites, albums and share links come back if the same folder is added again.
 - **Updating** — Ninaivu Lite never checks for a newer version; download one from the
   releases page when you choose to. **First stop Ninaivu Lite**: press **Stop** in the Control
-  Panel and close it (**Get ready to update** does both); on a Linux server,
+  Panel and close it; on a Linux server,
   `sudo systemctl stop ninaivu-lite`. Then, with an installer, run the new installer; on
   Linux, run the newer `.sh` the same way as the first; on a Mac, drag the new app over the
   old one in Applications. For the portable zip, extract the new version to a new folder and

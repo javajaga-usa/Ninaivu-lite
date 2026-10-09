@@ -42,9 +42,11 @@ def test_nothing_asks_about_newer_versions():
     assert "github" not in source.lower() and "urllib.request" not in source
 
 
-def test_the_panel_says_how_to_update_and_to_stop_first():
-    assert "Stop Ninaivu Lite and close this panel first" in panel.UPDATE_ADVICE
-    assert "kept" in panel.UPDATE_ADVICE
+def test_the_panel_has_no_update_card_or_button():
+    """The household asked for no update section at all (it showed on a
+    first install as if an update were under way); the guides say how."""
+    source = (PACKAGE / "panel.py").read_text(encoding="utf-8")
+    assert "UPDATING" not in source and "Get ready to update" not in source
 
 
 def test_the_panel_points_out_a_server_left_running_from_before_an_update():

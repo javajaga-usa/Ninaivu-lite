@@ -101,7 +101,7 @@ else: a newer version is a setup file you download from the
 [releases page](https://github.com/javajaga-usa/Ninaivu-lite/releases) when you choose to.
 
 1. **First stop Ninaivu Lite.** In the Control Panel press **Stop**, then close the Control
-   Panel (**Get ready to update** in it does both). On a Linux server:
+   Panel. On a Linux server:
    `sudo systemctl stop ninaivu-lite`.
 2. **Run the newer installer** over the old one: the same `.exe`, `.sh` or `.dmg` as the
    first time. On a Mac, drag the new app over the old one in Applications.
