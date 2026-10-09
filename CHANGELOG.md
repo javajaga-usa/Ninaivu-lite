@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **A new look for the Control Panel.** The window opens on a dark band with the app's icon,
+  its name and a status pill (a green dot for *Running*, grey for *Stopped*, a blue dot that
+  pulses while it starts, stops or restarts). Buttons are rounded and carry icons: **Start**
+  in green, **Stop** in soft red, **Open the family app** in blue. *Where to open it*,
+  *Library* and *This computer* are rounded cards with an icon each, and *Library* and
+  *This computer* sit side by side. Addresses can be clicked to open them, and each address
+  and the setup code has a **Copy** button. *Library* shows the number of photos and videos
+  indexed in large type above its folders. Messages appear in a light blue strip with an
+  information icon. Every control and what it does is unchanged; the window is drawn with
+  Tk alone, so it looks the same on Windows, macOS and Linux and in the portable copy.
 - **No update section in the Control Panel.** A first install opened on an *Updating* card
   ("To update, run the newer setup file…" and **Get ready to update**), as if an update were
   under way. The card and its button are gone. There is still no update check: to update,

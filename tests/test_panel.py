@@ -65,6 +65,31 @@ def test_the_panel_builds_and_closes(tmp_path, monkeypatch):
         assert view.notice.get() == "something else"
         view.say_if_stale(panel.__version__)
         assert view.stale_version is None
+        # The drawn buttons are switched on and off as ttk buttons are, and a
+        # disabled one does nothing when pressed.
+        pressed = []
+        view.start_button.command = lambda: pressed.append("start")
+        view.start_button.state(["disabled"])
+        assert view.start_button.state() == ("disabled",)
+        view.start_button.invoke()
+        view.start_button.state(["!disabled"])
+        view.start_button.invoke()
+        assert pressed == ["start"]
+        # The library card: the count, and the first three folders of four.
+        # (The readings stop first, so none redraws the card meanwhile.)
+        view.finished.set()
+        while not view.events.empty():
+            view.events.get_nowait()
+        root.update()
+        view.show_library(["/a", "/b", "/c", "/d"], 1247)
+        texts = [w.cget("text") for w in view.library_box.winfo_children()
+                 for w in [w, *w.winfo_children()] if w.winfo_class() == "Label"]
+        assert "1,247" in texts and "/c" in texts and "/d" not in texts
+        assert "and 1 more" in texts
+        # Copy puts an address on the clipboard and says so.
+        view.copy("http://localhost:8080/", "the address")
+        assert root.clipboard_get() == "http://localhost:8080/"
+        assert "Copied the address" in view.notice.get()
         # No update section: the panel opens on what is going on, not on updating.
         assert "updates" not in panel.CARD_ACCENT
         view.close()
