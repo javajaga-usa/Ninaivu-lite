@@ -212,8 +212,13 @@ class Panel:
         # Nothing here asks the internet anything: there is no update check.
         # A newer version is a setup file (or zip) someone downloads on
         # purpose; this card says how to put it in safely and gets the
-        # computer ready for it.
+        # computer ready for it. It is folded away until it is wanted
+        # (Updating… beside the version line, or a server left running from
+        # before an update), so a first install does not open on updating.
         body = self._card(outer, "updates", "UPDATING")
+        self.update_card = body.master.master          # the card's stripe
+        self.update_card.pack_forget()
+        self.updating_shown = False
         row = tk.Frame(body, bg=SURFACE)
         row.pack(fill="x")
         self.update_text = tk.StringVar(value=UPDATE_ADVICE)
@@ -224,13 +229,18 @@ class Panel:
         self.prepare_button.pack(side="right")
 
         self.notice = tk.StringVar(value="Closing this panel leaves Ninaivu Lite running.")
-        tk.Label(outer, textvariable=self.notice, font=(FONT, 10), bg=BG, fg=MUTED,
-                 wraplength=640, justify="left", anchor="w").pack(fill="x", pady=(8, 0))
+        self.notice_label = tk.Label(outer, textvariable=self.notice, font=(FONT, 10), bg=BG,
+                                     fg=MUTED, wraplength=640, justify="left", anchor="w")
+        self.notice_label.pack(fill="x", pady=(8, 0))
 
         # -- who made it -------------------------------------------------------------
         tk.Frame(outer, bg="#cbd5e1", height=1).pack(fill="x", pady=(10, 6))
-        tk.Label(outer, text=f"{APP_NAME} {__version__}  ·  {COPYRIGHT}  ·  {LICENCE} licence",
-                 font=(FONT, 9), bg=BG, fg=MUTED).pack(anchor="w")
+        row = tk.Frame(outer, bg=BG)
+        row.pack(fill="x")
+        tk.Label(row, text=f"{APP_NAME} {__version__}  ·  {COPYRIGHT}  ·  {LICENCE} licence",
+                 font=(FONT, 9), bg=BG, fg=MUTED).pack(side="left")
+        self.updating_button = ttk.Button(row, text="Updating…", command=self.toggle_updating)
+        self.updating_button.pack(side="right")
 
         self._set_buttons()
         # Placed, not sized: the window keeps fitting its contents as the
@@ -481,6 +491,20 @@ class Panel:
 
     # -- updating ----------------------------------------------------------------------
 
+    def show_updating(self, shown: bool = True) -> None:
+        """Unfold (or fold away) the UPDATING card, above the notice line."""
+        if shown == self.updating_shown:
+            return
+        self.updating_shown = shown
+        if shown:
+            self.update_card.pack(fill="x", pady=(6, 0), before=self.notice_label)
+        else:
+            self.update_card.pack_forget()
+        self.updating_button.configure(text="Hide updating" if shown else "Updating…")
+
+    def toggle_updating(self) -> None:
+        self.show_updating(not self.updating_shown)
+
     def say_if_stale(self, version) -> None:
         """A server still running the version from before an update (the new
         program was put in while it ran: a Mac app replaced, a zip extracted)
@@ -491,6 +515,7 @@ class Panel:
             return
         self.stale_version = stale
         if stale:
+            self.show_updating()
             self.notice.set(f"Ninaivu Lite {stale} is still running from before the update. "
                             f"Press Restart to run version {__version__}.")
 

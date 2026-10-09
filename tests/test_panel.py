@@ -50,6 +50,16 @@ def test_the_panel_builds_and_closes(tmp_path, monkeypatch):
         root.update()
         assert view.update_text.get() == panel.UPDATE_ADVICE
         assert "Stop Ninaivu Lite and close this panel first" in view.update_text.get()
+        # A fresh panel does not open on updating: the card is folded away
+        # until Updating… is pressed, and folds away again.
+        assert not view.updating_shown and not view.update_card.winfo_manager()
+        view.toggle_updating()
+        root.update()
+        assert view.updating_shown and view.update_card.winfo_manager() == "pack"
+        assert view.updating_button.cget("text") == "Hide updating"
+        view.toggle_updating()
+        root.update()
+        assert not view.updating_shown and not view.update_card.winfo_manager()
         # What the old update check kept goes.
         assert not (tmp_path / "update-check.json").exists()
         # A drive plugged in: the question builds over the panel, and closing
@@ -74,6 +84,7 @@ def test_the_panel_builds_and_closes(tmp_path, monkeypatch):
         # A server left running from before an update is pointed out, once.
         view.say_if_stale("0.0.1")
         assert "0.0.1 is still running from before the update" in view.notice.get()
+        assert view.updating_shown      # the update in progress unfolds the card
         view.notice.set("something else")
         view.say_if_stale("0.0.1")
         assert view.notice.get() == "something else"

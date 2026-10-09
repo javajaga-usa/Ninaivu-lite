@@ -55,7 +55,8 @@ addresses to open, and has:
 - **Open the log** and **Open the data folder**, for when something needs looking into;
 - **Updating** — Ninaivu Lite never looks for updates by itself and asks nothing of GitHub.
   When you have a newer setup file, first stop Ninaivu Lite: press **Stop**, then close the
-  Control Panel. **Get ready to update** does both for you. A program that is in use cannot
+  Control Panel. **Get ready to update** does both for you (press **Updating…** at the
+  bottom of the panel to show it; a first install keeps it out of the way). A program that is in use cannot
   be replaced, and the installer offers to stop it, and waits, if you forget. Your settings,
   people, index, backups and photographs are untouched by an update.
 

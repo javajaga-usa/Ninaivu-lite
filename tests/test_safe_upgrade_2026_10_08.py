@@ -49,11 +49,14 @@ def test_the_panel_says_how_to_update_and_to_stop_first():
 
 def test_the_panel_points_out_a_server_left_running_from_before_an_update():
     said = []
-    view = SimpleNamespace(stale_version=None, notice=SimpleNamespace(set=said.append))
+    shown = []
+    view = SimpleNamespace(stale_version=None, notice=SimpleNamespace(set=said.append),
+                           show_updating=lambda: shown.append(True))
     view.say_if_stale = lambda version: panel.Panel.say_if_stale(view, version)
     panel.Panel.say_if_stale(view, "1.0.0")
     assert said and "1.0.0 is still running from before the update" in said[0]
     assert "Restart" in said[0]
+    assert shown == [True]                                  # the UPDATING card unfolds
     panel.Panel.say_if_stale(view, "1.0.0")                 # said once
     assert len(said) == 1
     panel.Panel.say_if_stale(view, panel.__version__)       # the same version: nothing

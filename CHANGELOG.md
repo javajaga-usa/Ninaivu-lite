@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **The Control Panel no longer opens on updating.** A first install showed the *Updating*
+  card, with its "To update, run the newer setup file…" advice and **Get ready to update**,
+  as if an update were under way. The card is now folded away behind a small **Updating…**
+  button beside the version line, and opens by itself only when a server from before an
+  update is still running. Nothing is looked up online: there is still no update check, and
+  **Get ready to update** still stops Ninaivu Lite and closes the panel, keeping the photos,
+  people, settings and index.
+
 ## 1.10.0 — 2026-10-08
 
 The index is unchanged (version 9), so 1.10.0, 1.9.0, 1.8.0 and 1.7.0 can open each other's
