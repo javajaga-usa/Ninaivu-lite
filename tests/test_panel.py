@@ -49,14 +49,13 @@ def test_the_panel_builds_and_closes(tmp_path, monkeypatch):
         root.update()
         # What the old update check kept goes.
         assert not (tmp_path / "update-check.json").exists()
-        # A drive plugged in: the question builds over the panel, and closing
-        # its window is Not now.
-        import tkinter as tk
-
+        # A drive plugged in: no window of its own, a line in the panel.
         from ninaivu_lite import drives
-        root.after(300, lambda: [w.destroy() for w in root.winfo_children()
-                                 if isinstance(w, tk.Toplevel)])
-        assert view.ask_drive(drives.Drive("usb1", str(tmp_path), "PENDRIVE", 1, 1)) is None
+        before = len(root.winfo_children())
+        view.offer_drive(drives.Drive("usb1", str(tmp_path), "PENDRIVE", 1, 1))
+        root.update()
+        assert len(root.winfo_children()) == before
+        assert f"A drive was connected: PENDRIVE ({tmp_path})" in view.notice.get()
         # A server left running from before an update is pointed out, once.
         view.say_if_stale("0.0.1")
         assert "0.0.1 is still running from before the update" in view.notice.get()

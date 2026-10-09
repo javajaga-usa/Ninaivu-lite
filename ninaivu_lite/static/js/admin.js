@@ -67,6 +67,7 @@ const adminApi = {
   folders: () => json('/api/admin/folders'),
   preview: (query) => json(`/api/admin/preview?${new URLSearchParams(query)}`),
   settings: (body) => json('/api/admin/settings', { method: 'POST', body }),
+  askAboutDrivesAgain: () => json('/api/admin/drives/ask-again', { method: 'POST' }),
   setFolderVisibility: (folder, visibility, confirm = false) =>
     json('/api/visibility/folder',
       { method: 'POST', body: { folder, visibility, confirm } }),
@@ -940,6 +941,32 @@ function renderLibrary() {
       showOpenFamily();
       where.appendChild(openFamily);
     }
+  }
+
+  // Drives and phones whose notice was answered with Don't ask again.
+  const quiet = data.app.quiet_drives || 0;
+  if (quiet) {
+    const drivesBlock = el('div', 'setting-field');
+    drivesBlock.appendChild(el('label', null, i18n.t('Plugged-in drives')));
+    const drivesRow = el('div', 'row');
+    drivesRow.appendChild(el('p', 'hint', i18n.t('Drives and phones set to Don’t ask again: {count}. Ask again shows their notice the next time they are plugged in.',
+      { count: quiet.toLocaleString() })));
+    const again = el('button', 'btn small', i18n.t('Ask again'));
+    again.type = 'button';
+    again.onclick = async () => {
+      try {
+        await adminApi.askAboutDrivesAgain();
+      } catch (exc) {
+        toast(exc.message, true);
+        return;
+      }
+      state.overview.app.quiet_drives = 0;
+      drivesBlock.remove();
+      toast(i18n.t('Every drive and phone will be mentioned again when it is plugged in.'));
+    };
+    drivesRow.appendChild(again);
+    drivesBlock.appendChild(drivesRow);
+    settings.appendChild(drivesBlock);
   }
 }
 

@@ -23,7 +23,6 @@ import sys
 import threading
 import webbrowser
 from pathlib import Path
-from urllib.parse import urlencode
 
 from . import drives
 from .control import Controller
@@ -368,89 +367,35 @@ class Panel:
     # -- a drive plugged in ------------------------------------------------------------------
 
     def look_for_drives(self, folders: list[str]) -> None:
-        """On the watch thread: each drive or phone newly plugged in is offered once.
-        The drive the library or the data folder lives on is not a visitor."""
+        """On the watch thread: each drive or phone newly plugged in is mentioned
+        once. The drive the library or the data folder lives on is not a
+        visitor, and a drive answered with Don't ask again in the console is
+        not mentioned at all."""
         home = [*folders, str(self.controller.data_dir)]
+        never = set(self.controller.drives_never_ask())
         for drive in self.drive_watcher.pending():
             self.drive_watcher.answer(drive.id)
+            if drive.id in never:
+                continue
             if drive.kind == "phone" or not any(drives.is_within(path, drive.path)
                                                 for path in home if path):
                 self.events.put(("drive", drive))
 
     def offer_drive(self, drive: drives.Drive) -> None:
-        """The question, in Tamil and English, since the panel has no language
-        of its own; the answer is carried out in the console."""
-        choice = self.ask_drive(drive)
-        if choice not in ("import", "export"):
-            return
-        query = urlencode({"drive": drive.path, "do": choice})
-        webbrowser.open(f"{self.controller.url(True)}?{query}")
-        self.notice.set("Opening the console in your browser to "
-                        + ("import from " if choice == "import" else "copy the library to ")
-                        + f"{drive.label}.")
-
-    def ask_drive(self, drive: drives.Drive) -> str | None:
-        """A small window over the panel: Import, Export or Not now. A test
-        replaces it."""
-        tk = self.tk
-        from tkinter import ttk
-        win = tk.Toplevel(self.root)
-        win.title(TITLE)
-        win.configure(bg=SURFACE)
-        win.transient(self.root)
-        win.resizable(False, False)
-        answer: dict[str, str | None] = {"choice": None}
-
-        def pick(choice: str | None) -> None:
-            answer["choice"] = choice
-            win.destroy()
-
-        body = tk.Frame(win, bg=SURFACE, padx=20, pady=16)
-        body.pack(fill="both", expand=True)
+        """No window of its own: a line in the panel, in Tamil and English since
+        the panel has no language of its own. The console shows the drive as a
+        notice at its top, where Import, Export and Don't ask again are."""
         phone = drive.kind == "phone"
         name = drive.label if drive.label == drive.path or drive.shell \
             else f"{drive.label} ({drive.path})"
-        heading = ("ஒரு தொலைபேசி இணைக்கப்பட்டது  ·  A phone was connected" if phone
-                   else "ஒரு டிரைவ் இணைக்கப்பட்டது  ·  A drive was connected")
-        tk.Label(body, text=heading,
-                 font=(FONT, 13, "bold"), bg=SURFACE, fg=INK).pack(anchor="w")
-        tk.Label(body, text=name, font=(FONT, 11), bg=SURFACE, fg=MUTED).pack(anchor="w",
-                                                                             pady=(4, 10))
-        tk.Label(body, text="இதை வைத்து என்ன செய்ய விரும்புகிறீர்கள்?\n"
-                            "What would you like to do with it?",
-                 font=(FONT, 10), bg=SURFACE, fg=INK, justify="left").pack(anchor="w")
-        buttons = tk.Frame(body, bg=SURFACE)
-        buttons.pack(fill="x", pady=(12, 0))
-        ttk.Button(buttons, text="இறக்குமதி  ·  Import media from this "
-                                 + ("phone" if phone else "drive"),
-                   style="Accent.TButton",
-                   command=lambda: pick("import")).pack(fill="x", pady=(0, 6))
-        if not phone:   # a phone's storage is no place for the whole library
-            ttk.Button(buttons, text="ஏற்றுமதி  ·  Export media to this drive",
-                       command=lambda: pick("export")).pack(fill="x", pady=(0, 6))
-        ttk.Button(buttons, text="இப்போது வேண்டாம்  ·  Not now",
-                   command=lambda: pick(None)).pack(fill="x")
-        win.protocol("WM_DELETE_WINDOW", lambda: pick(None))
-        win.bind("<Escape>", lambda _event: pick(None))
-        win.update_idletasks()
-        if not win.winfo_exists():
-            # Closed while it was being laid out (macOS Tk can handle events
-            # here): that is Not now, and there is nothing left to place.
-            return answer["choice"]
-        x = self.root.winfo_rootx() + max(0, (self.root.winfo_width() - win.winfo_reqwidth()) // 2)
-        y = self.root.winfo_rooty() + 60
-        win.geometry(f"+{x}+{y}")
-        # Over everything: the drive was just plugged in, the person is
-        # looking at the computer, and may well not be looking at this window.
-        win.lift()
-        win.attributes("-topmost", True)
-        win.focus_force()
-        try:
-            win.grab_set()
-        except tk.TclError:
-            pass
-        self.root.wait_window(win)
-        return answer["choice"]
+        self.notice.set(
+            (f"{name} — ஒரு தொலைபேசி இணைக்கப்பட்டது. " if phone
+             else f"{name} — ஒரு டிரைவ் இணைக்கப்பட்டது. ")
+            + "இறக்குமதி செய்ய console-ஐத் திறவுங்கள்.\n"
+            + (f"A phone was connected: {name}. " if phone
+               else f"A drive was connected: {name}. ")
+            + "Open the console: its notice at the top imports from it"
+            + ("." if phone else " or exports to it."))
 
     # -- the rest ---------------------------------------------------------------------------
 

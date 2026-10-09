@@ -219,6 +219,17 @@ class Controller:
             pass
         return list(self.cfg.folders)
 
+    def drives_never_ask(self) -> list[str]:
+        """The drives answered with Don't ask again in the console (only read)."""
+        try:
+            data = json.loads((self.data_dir / "settings.json").read_text(encoding="utf-8"))
+            found = data.get("drives_never_ask") if isinstance(data, dict) else None
+            if isinstance(found, list):
+                return [d for d in found if isinstance(d, str)]
+        except (OSError, ValueError):
+            pass
+        return []
+
     def library_summary(self) -> dict:
         """Folders and how many items are indexed, read without the server."""
         import sqlite3
