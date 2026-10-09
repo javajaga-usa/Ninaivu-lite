@@ -14,6 +14,16 @@
   "Started from its own window: stop it there.", and its **Start** answered that Ninaivu
   Lite was already running. A data folder with no name yet now counts no server as its own,
   so the portable copy starts its own server on the next free port.
+- **A tidy portable zip.** Extracted, the portable copy's `Ninaivu Lite` folder now shows only
+  **`Ninaivu Lite.exe`**, which opens the Control Panel, and, once it has run, its log
+  `Ninaivu Lite.log` (older logs go to `data\logs`). The program (the private Python, the
+  packages, `README-PORTABLE.txt`) is in an `app` folder, and the family's settings, index,
+  previews and backups stay in the `data` folder as before. `Ninaivu Lite Control Panel.vbs`
+  is gone. To move to this layout, extract the new zip to a new folder and copy the old
+  `data` folder into its `Ninaivu Lite` folder, beside `Ninaivu Lite.exe`. The exe is not
+  code-signed: unblock the zip before extracting it (*Properties → Unblock*), or Windows
+  asks once (*More info → Run anyway*). For a forgotten password the command is now
+  `app\Python\python.exe -m ninaivu_lite --data "<folder>\data" --reset-password NAME`.
 
 ## 1.10.0 — 2026-10-08
 

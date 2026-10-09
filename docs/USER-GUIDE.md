@@ -22,13 +22,15 @@ with `sudo` (a server, or a computer the whole house uses), it runs as its own
 
 **Without installing anything** (Windows): download the `…-windows-x64-portable.zip` from the
 releases page, right-click it, choose *Properties*, tick *Unblock*, then *Extract All* to a
-folder that stays put (or a pendrive). Double-click **`Ninaivu Lite Control Panel.vbs`** in it.
-Everything stays in that folder: the program, and the family's settings, people and index
-in the `data` folder that appears beside it the first time. To upgrade, extract the new
-version to a new folder and copy the old `data` folder into it. Press **Stop** in the old
+folder that stays put (or a pendrive). Open the `Ninaivu Lite` folder it makes and double-click
+**`Ninaivu Lite.exe`**, the Control Panel. Everything stays in that folder, and its top holds
+only `Ninaivu Lite.exe` and its log, `Ninaivu Lite.log`: the program is in the `app` folder,
+and the family's settings, people and index in the `data` folder that appears beside it the
+first time. To upgrade, extract the new version to a new folder and copy the old `data`
+folder into its `Ninaivu Lite` folder. Press **Stop** in the old
 copy's Control Panel and close it first; if the old copy starts when you sign in, untick that
-in its Control Panel first and tick it in the new one. Its
-`README-PORTABLE.txt` says how to move or remove it.
+in its Control Panel first and tick it in the new one. `app\README-PORTABLE.txt` says how to
+move or remove it.
 
 **Without an installer, from the source:**
 
@@ -241,8 +243,8 @@ later. The visitor does not see the file's name.
   - **Linux with `sudo`:** `sudo systemctl stop ninaivu-lite`, then
     `sudo -u ninaivu-lite /usr/local/bin/ninaivu-lite --reset-password <username>`, then
     `sudo systemctl start ninaivu-lite`.
-  - **Portable zip:** in its folder, `Python\python.exe -m ninaivu_lite --data "<that
-    folder>\data" --reset-password <username>`.
+  - **Portable zip:** in its `Ninaivu Lite` folder, `app\Python\python.exe -m ninaivu_lite
+    --data "<that folder>\data" --reset-password <username>`.
   - **A copy of the source:** `python -m ninaivu_lite --reset-password <username>` (inside the
     folder, after `.venv\Scripts\activate` on Windows or `source .venv/bin/activate`
     elsewhere).
