@@ -131,9 +131,11 @@ class Controller:
         if not isinstance(data, dict) or data.get("app") != "Ninaivu Lite":
             return None
         # Another copy's server (an installed one beside this portable one)
-        # on the same port is not this library's.
+        # on the same port is not this library's. A data folder with no name
+        # yet has no server of its own running (a server names its folder
+        # before it answers), so one that names a folder is another copy's.
         mine, theirs = known_instance(self.data_dir), data.get("instance")
-        if mine and theirs and mine != theirs:
+        if theirs and theirs != mine:
             return None
         return data
 

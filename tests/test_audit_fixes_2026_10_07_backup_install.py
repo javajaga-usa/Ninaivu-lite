@@ -585,7 +585,10 @@ def test_a103_another_copys_server_is_not_already_running(monkeypatch):
     fake_health(monkeypatch, {"app": "Ninaivu Lite", "instance": "theirs"})
     assert net.already_running(8080, "mine") is False
     assert net.already_running(8080, "theirs") is True
-    assert net.already_running(8080, None) is True      # a folder that has no name yet
+    # A folder that has no name yet has never had a server that names one:
+    # one that does is another copy's (a portable data folder beside an
+    # installed copy's server).
+    assert net.already_running(8080, None) is False
     fake_health(monkeypatch, {"app": "Ninaivu Lite"})   # a server from before names
     assert net.already_running(8080, "mine") is True
     fake_health(monkeypatch, {"app": "Something else", "instance": "mine"})
@@ -600,6 +603,19 @@ def test_a103_the_panel_does_not_take_another_copys_server_for_its_own(tmp_path,
     assert c.health() is None and not c.running()
     fake_health(monkeypatch, {"app": "Ninaivu Lite", "instance": mine})
     assert c.health() is not None and c.running()
+
+
+def test_a_fresh_portable_panel_does_not_take_the_installed_copys_server(tmp_path, monkeypatch):
+    """A portable copy's panel, on a data folder no server has named yet,
+    showed the installed copy's server on port 8080 as its own: Running,
+    "Started from its own window: stop it there.", and Start said it was
+    already running."""
+    c = control.Controller(str(tmp_path / "data"))
+    assert lock.known_instance(c.data_dir) is None
+    fake_health(monkeypatch, {"app": "Ninaivu Lite", "instance": "the-installed-copy"})
+    assert c.health() is None and not c.running()
+    fake_health(monkeypatch, {"app": "Ninaivu Lite"})    # a server from before names
+    assert c.running()
 
 
 def test_a103_a_start_on_the_port_of_another_copy_does_not_stop(tmp_path, monkeypatch,

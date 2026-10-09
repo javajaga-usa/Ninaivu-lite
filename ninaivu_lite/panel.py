@@ -45,12 +45,7 @@ STATUS = {  # foreground, background, border
     "stopped": ("#475569", "#f8fafc", "#cbd5e1"),
     "busy": ("#1d4ed8", "#eff6ff", "#93c5fd"),
 }
-CARD_ACCENT = {"addresses": "#10b981", "library": "#3b82f6", "options": "#64748b",
-               "updates": "#f59e0b"}
-#: What the UPDATING card says. Nothing is checked or downloaded by the panel.
-UPDATE_ADVICE = (f"This is version {__version__}. To update, run the newer setup file (or "
-                 "extract the newer zip) you were given. Stop Ninaivu Lite and close this "
-                 "panel first. Photos, people, settings and the index are kept.")
+CARD_ACCENT = {"addresses": "#10b981", "library": "#3b82f6", "options": "#64748b"}
 FONT = "Segoe UI" if sys.platform == "win32" else "Helvetica"
 #: ▶ ■ ↻ as in Ninaivu where the font surely has them (Segoe UI); words alone elsewhere.
 SYMBOL = sys.platform == "win32"
@@ -91,8 +86,6 @@ class Panel:
         self.finished = threading.Event()
         self.busy = False
         self.is_running = False
-        #: set by Get ready to update: once the stop it asked for is done, the panel closes
-        self.close_when_done = False
         #: the version of a server still running from before an update, once said
         self.stale_version: str | None = None
         #: pendrives and external drives plugged in while the panel is open
@@ -208,39 +201,14 @@ class Panel:
         ttk.Button(row, text="Open the data folder",
                    command=lambda: self.reveal(controller.data_dir)).pack(side="right", padx=(0, 6))
 
-        # -- updating -----------------------------------------------------------------
-        # Nothing here asks the internet anything: there is no update check.
-        # A newer version is a setup file (or zip) someone downloads on
-        # purpose; this card says how to put it in safely and gets the
-        # computer ready for it. It is folded away until it is wanted
-        # (Updating… beside the version line, or a server left running from
-        # before an update), so a first install does not open on updating.
-        body = self._card(outer, "updates", "UPDATING")
-        self.update_card = body.master.master          # the card's stripe
-        self.update_card.pack_forget()
-        self.updating_shown = False
-        row = tk.Frame(body, bg=SURFACE)
-        row.pack(fill="x")
-        self.update_text = tk.StringVar(value=UPDATE_ADVICE)
-        tk.Label(row, textvariable=self.update_text, font=(FONT, 10), bg=SURFACE, fg=INK,
-                 anchor="w", justify="left", wraplength=440).pack(side="left", fill="x", expand=True)
-        self.prepare_button = ttk.Button(row, text="Get ready to update",
-                                         command=self.prepare_update)
-        self.prepare_button.pack(side="right")
-
         self.notice = tk.StringVar(value="Closing this panel leaves Ninaivu Lite running.")
-        self.notice_label = tk.Label(outer, textvariable=self.notice, font=(FONT, 10), bg=BG,
-                                     fg=MUTED, wraplength=640, justify="left", anchor="w")
-        self.notice_label.pack(fill="x", pady=(8, 0))
+        tk.Label(outer, textvariable=self.notice, font=(FONT, 10), bg=BG, fg=MUTED,
+                 wraplength=640, justify="left", anchor="w").pack(fill="x", pady=(8, 0))
 
         # -- who made it -------------------------------------------------------------
         tk.Frame(outer, bg="#cbd5e1", height=1).pack(fill="x", pady=(10, 6))
-        row = tk.Frame(outer, bg=BG)
-        row.pack(fill="x")
-        tk.Label(row, text=f"{APP_NAME} {__version__}  ·  {COPYRIGHT}  ·  {LICENCE} licence",
-                 font=(FONT, 9), bg=BG, fg=MUTED).pack(side="left")
-        self.updating_button = ttk.Button(row, text="Updating…", command=self.toggle_updating)
-        self.updating_button.pack(side="right")
+        tk.Label(outer, text=f"{APP_NAME} {__version__}  ·  {COPYRIGHT}  ·  {LICENCE} licence",
+                 font=(FONT, 9), bg=BG, fg=MUTED).pack(anchor="w")
 
         self._set_buttons()
         # Placed, not sized: the window keeps fitting its contents as the
@@ -336,9 +304,6 @@ class Panel:
                     self.progress.place_forget()
                     self.notice.set(event[1])
                     self._set_buttons()
-                    if self.close_when_done:
-                        self.close()
-                        return
                 elif event[0] == "notice":
                     self.notice.set(event[1])
                 elif event[0] == "drive":
@@ -491,20 +456,6 @@ class Panel:
 
     # -- updating ----------------------------------------------------------------------
 
-    def show_updating(self, shown: bool = True) -> None:
-        """Unfold (or fold away) the UPDATING card, above the notice line."""
-        if shown == self.updating_shown:
-            return
-        self.updating_shown = shown
-        if shown:
-            self.update_card.pack(fill="x", pady=(6, 0), before=self.notice_label)
-        else:
-            self.update_card.pack_forget()
-        self.updating_button.configure(text="Hide updating" if shown else "Updating…")
-
-    def toggle_updating(self) -> None:
-        self.show_updating(not self.updating_shown)
-
     def say_if_stale(self, version) -> None:
         """A server still running the version from before an update (the new
         program was put in while it ran: a Mac app replaced, a zip extracted)
@@ -515,38 +466,8 @@ class Panel:
             return
         self.stale_version = stale
         if stale:
-            self.show_updating()
             self.notice.set(f"Ninaivu Lite {stale} is still running from before the update. "
                             f"Press Restart to run version {__version__}.")
-
-    def prepare_update(self) -> None:
-        """The one thing a setup file needs: nothing of the old program in
-        use. Windows cannot replace a file in use, and a running Ninaivu Lite
-        or this panel keeps the program in use (elsewhere, a program replaced
-        while it runs carries on half old), so the panel offers to stop the
-        one and close the other, before the installer has to ask. Nothing is
-        downloaded or looked up."""
-        if self.is_running:
-            question = ("Before running the newer setup file, Ninaivu Lite must be stopped and "
-                        "this panel closed: files in use cannot be replaced. Your photos, "
-                        "people, settings and index are kept.\n\n"
-                        "Stop Ninaivu Lite and close this panel now?")
-        else:
-            question = ("Before running the newer setup file, this panel must be closed: files "
-                        "in use cannot be replaced.\n\nClose this panel now?")
-        if not self.ask(question):
-            self.notice.set(("Before updating: press Stop, then close this Control Panel.")
-                            if self.is_running
-                            else "Before updating, close this Control Panel.")
-            return
-        if self.is_running and self.controller.can_stop():
-            self.close_when_done = True
-            self.run(self.controller.stop, "Stopping…")
-        elif self.is_running:
-            self.notice.set("Ninaivu Lite was started from its own window: close that window, "
-                            "then close this panel, before updating.")
-        else:
-            self.close()
 
     def stop_asking(self, action, doing: str) -> None:
         """Stop or Restart, asking first when it would cut a copy short (it
