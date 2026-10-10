@@ -271,7 +271,7 @@ later. The visitor does not see the file's name.
   Your data folder stays as it is. The first start after an update brings the index forward
   by itself, after keeping a copy of it as it was (`backups/before-update-…zip`). If a Mac
   app was replaced while Ninaivu Lite ran, the Control Panel says the old version is still
-  running: press **Restart**. Going back from 1.10.0 to 1.9.0, 1.8.0 or 1.7.0 needs nothing special.
+  running: press **Restart**. Going back from 1.11.0 to 1.10.0, 1.9.0, 1.8.0 or 1.7.0 needs nothing special.
   Going back to 1.6.0 or older means restoring a backup made before the update: 1.6.0
   cannot open the index of 1.7.0 or later.
 - **Linux, installed with `sudo`** — Ninaivu Lite runs as a service under its own

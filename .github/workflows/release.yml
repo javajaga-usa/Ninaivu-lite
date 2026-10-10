@@ -542,6 +542,8 @@ jobs:
             echo
             echo "**Updating:** Stop Ninaivu Lite first (press **Stop** in the Control Panel, then close it; on a Linux server \`sudo systemctl stop ninaivu-lite\`), then run the new installer over the old one. Photos, people, settings, the index and backups are kept, and the index is copied to \`backups\` before it is brought forward. Ninaivu Lite never checks for updates by itself: new versions are only here, when you choose to download one."
             echo
+            echo "**Portable zip:** to move up from an older portable copy, extract the new zip to a new folder and copy the old \`data\` folder beside the new *Ninaivu Lite.exe*. That exe is not code-signed: unblock the zip before extracting it (*Properties → Unblock*), or choose **More info → Run anyway** the first time."
+            echo
             if [ "$HAS_PFX" != "true" ]; then
               echo "> **The Windows installer is not signed.** SmartScreen will say *Windows protected your PC*: choose **More info → Run anyway**."
               echo
