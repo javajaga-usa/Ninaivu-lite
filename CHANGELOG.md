@@ -12,6 +12,19 @@
   indexed in large type above its folders. Messages appear in a light blue strip with an
   information icon. Every control and what it does is unchanged; the window is drawn with
   Tk alone, so it looks the same on Windows, macOS and Linux and in the portable copy.
+- **A plugged-in drive is a notice, not a pop-up.** A pendrive, memory card, external drive or
+  phone plugged into the computer no longer opens a box: not over the console, and no longer
+  a window of its own from the Control Panel. It appears as a notice at the top of the
+  console, on whichever page is open. Clicking the notice opens *Import* with that drive as
+  the source (a phone Windows shows only in Explorer is imported straight away, as before).
+  Under it are **Export** (copy the library onto the drive; its progress and **Stop** then
+  show in the same notice, and a phone has no Export), **Don’t ask again** and **×**. ×
+  brings the notice back when the drive is next plugged in; **Don’t ask again** never
+  mentions that drive again, and **Ask again** under *Plugged-in drives* in *Settings* undoes
+  it. The Control Panel now only says in its own window that a drive was connected and
+  points to the console. English and Tamil, and phone widths; the user guides show the new
+  notice.
+
 - **No update section in the Control Panel.** A first install opened on an *Updating* card
   ("To update, run the newer setup file…" and **Get ready to update**), as if an update were
   under way. The card and its button are gone. There is still no update check: to update,

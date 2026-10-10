@@ -1,5 +1,6 @@
 """A pendrive, an external hard drive or a phone was plugged in: the console
-asks whether to bring its photos in or to copy the library out to it.
+shows a notice at its top: bring its photos in, copy the library out to it,
+or never mention that drive again.
 
 Every route is for an administrator. Bringing photos in is the Import page,
 with the drive as its source, or for a phone Windows reaches only through
@@ -47,10 +48,12 @@ def _drive() -> drives.Drive:
 def listed():
     require_admin()
     pending = {d.id for d in watcher().pending()}
+    never = set(cfg().drives_never_ask)
     out = []
     for d in watcher().drives():
         home = _holds_library(d)
-        out.append({**d.to_json(), "holds_library": home, "pending": d.id in pending and not home})
+        out.append({**d.to_json(), "holds_library": home,
+                    "pending": d.id in pending and not home and d.id not in never})
     return jsonify({"drives": out,
                     "export": exporter().progress(),
                     "phone": phone_import_job().progress(engine())})
@@ -58,9 +61,29 @@ def listed():
 
 @bp.post("/api/admin/drives/answer")
 def answer():
-    """Import chosen (the Import page takes it from here) or Not now."""
+    """Import chosen (the Import page takes it from here), or the notice closed with ×."""
     require_admin()
     watcher().answer(_drive().id)
+    return jsonify({"ok": True})
+
+
+@bp.post("/api/admin/drives/never")
+def never():
+    """Don't ask again: this drive's notice never comes back, plugged in or not."""
+    require_admin()
+    drive = _drive()
+    watcher().answer(drive.id)
+    c = cfg()
+    if drive.id not in c.drives_never_ask:
+        c.update(drives_never_ask=[*c.drives_never_ask, drive.id][-200:])
+    return jsonify({"ok": True})
+
+
+@bp.post("/api/admin/drives/ask-again")
+def ask_again():
+    """Settings: every drive set to Don't ask again is offered once more."""
+    require_admin()
+    cfg().update(drives_never_ask=[])
     return jsonify({"ok": True})
 
 

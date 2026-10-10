@@ -181,19 +181,23 @@ file with its hash.
 ### A pendrive, an external drive or a phone plugged in
 
 Plug a USB pendrive, a memory card, an external hard drive or a phone (by its cable) into the
-computer Ninaivu Lite runs on, and the console (and the Control Panel, if it is open) asks
-what to do with it:
+computer Ninaivu Lite runs on. No box pops up: the drive appears as a **notice at the top of
+the console**, on whichever page is open. (The Control Panel, if it is open, mentions it in
+its own window and points you to the console.)
 
-- **Import media from this drive** opens *Import* with the drive as the source. Check the
+- **Click the notice** to import: *Import* opens with the drive as the source. Check the
   destination and press *Start consolidation*. Nothing on the drive is changed.
-- **Export media to this drive** copies the library's photos and videos onto the drive, into
-  a `Ninaivu Lite` folder, keeping the library's own folders. Only what is new is copied the
-  next time; nothing already on the drive is overwritten or deleted.
-- **Not now** asks again only when the drive is next plugged in.
+- **Export**, under the notice, copies the library's photos and videos onto the drive, into
+  a `Ninaivu Lite` folder, keeping the library's own folders. The notice shows the progress
+  and a *Stop* button. Only what is new is copied the next time; nothing already on the
+  drive is overwritten or deleted.
+- **Don’t ask again** means that drive is never mentioned again, even on another day. Undo it
+  with *Ask again* under *Plugged-in drives* in *Settings*.
+- **×** closes the notice; it comes back when the drive is next plugged in.
 
-The computer's own disks, and a drive the library itself is on, are never asked about.
+The computer's own disks, and a drive the library itself is on, never get a notice.
 
-**A phone** is offered *Import media from this phone* only. Unlock it and choose *File
+**A phone** has no *Export*: clicking its notice imports from it. Unlock it and choose *File
 transfer* (Android) or *Trust this computer* (iPhone), or Windows cannot see its photos. On
 Windows, Ninaivu Lite copies the camera folders (DCIM, Pictures, Movies) across the cable,
 imports them into the archive, then removes its temporary copies; the next time, only new

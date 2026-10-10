@@ -68,6 +68,10 @@ class Config:
     import_sources: list[str] = field(default_factory=list)
     import_destination: str = ""
     import_kinds: list[str] = field(default_factory=lambda: ["image", "video"])
+    #: Drives and phones whose notice was answered with Don't ask again
+    #: (their ids, see drives.Drive): never offered again, until Ask again
+    #: in Settings clears the list.
+    drives_never_ask: list[str] = field(default_factory=list)
     host: str = "0.0.0.0"
     port: int = DEFAULT_PORT
     #: Set when the settings file was missing or damaged and the library
@@ -80,7 +84,8 @@ class Config:
 
     SAVED = ("folders", "active", "house_name", "open_browsing", "language", "watch",
              "video_originals", "allowed_hosts", "allow_internet",
-             "first_day_done", "import_sources", "import_destination", "import_kinds")
+             "first_day_done", "import_sources", "import_destination", "import_kinds",
+             "drives_never_ask")
 
     @property
     def settings_path(self) -> Path:
@@ -118,6 +123,8 @@ class Config:
         cfg.folders = [str(f) for f in cfg.folders if isinstance(f, str) and f.strip()]
         cfg.import_sources = [str(f) for f in cfg.import_sources
                               if isinstance(f, str) and f.strip()]
+        cfg.drives_never_ask = [str(d) for d in cfg.drives_never_ask
+                                 if isinstance(d, str) and d.strip()]
         cfg.allowed_hosts = [str(h) for h in cfg.allowed_hosts if isinstance(h, str) and h.strip()]
         cfg.import_kinds = [k for k in ("image", "video") if k in cfg.import_kinds]
         if cfg.language not in ("en", "ta"):

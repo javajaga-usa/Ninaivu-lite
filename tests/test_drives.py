@@ -142,13 +142,15 @@ def test_a_different_file_with_the_same_name_is_kept_beside_it(app, admin, plugg
     assert (theirs.parent / "beach (2).jpg").read_bytes() == (root / "2019" / "beach.jpg").read_bytes()
 
 
-def test_the_control_panel_offers_a_new_drive_once(tmp_path, monkeypatch):
+def test_the_control_panel_mentions_a_new_drive_once(tmp_path, monkeypatch):
     monkeypatch.setattr(drives, "CACHE_SECONDS", 0)
     library_disk = tmp_path / "Disk"
-    present = [fake_drive(tmp_path / "USB"), fake_drive(library_disk, "DISK", "disk1")]
+    quiet = fake_drive(tmp_path / "Quiet", "QUIET", "quiet1")
+    present = [fake_drive(tmp_path / "USB"), fake_drive(library_disk, "DISK", "disk1"), quiet]
     view = SimpleNamespace(drive_watcher=drives.Watcher(lister=lambda: list(present)),
                            events=queue.Queue(),
-                           controller=SimpleNamespace(data_dir=tmp_path / "data"))
+                           controller=SimpleNamespace(data_dir=tmp_path / "data",
+                                                      drives_never_ask=lambda: ["quiet1"]))
     panel.Panel.look_for_drives(view, [str(library_disk / "Photos")])
     panel.Panel.look_for_drives(view, [str(library_disk / "Photos")])
     offered = []
@@ -156,15 +158,42 @@ def test_the_control_panel_offers_a_new_drive_once(tmp_path, monkeypatch):
         offered.append(view.events.get_nowait())
     assert [(kind, d.label) for kind, d in offered] == [("drive", "USB STICK")]
 
-    # The answer opens the console, which carries it out.
+    # No window and no browser opened: a line in the panel points at the console.
     opened = []
     monkeypatch.setattr(panel.webbrowser, "open", lambda url: opened.append(url))
-    view.ask_drive = lambda drive: "import"
-    view.notice = SimpleNamespace(set=lambda text: None)
-    view.controller.url = lambda admin=False: "http://localhost:8080/admin"
+    said = []
+    view.notice = SimpleNamespace(set=said.append)
     panel.Panel.offer_drive(view, offered[0][1])
-    assert opened and opened[0].startswith("http://localhost:8080/admin?drive=")
-    assert opened[0].endswith("&do=import")
+    assert not opened
+    assert "A drive was connected: USB STICK" in said[0] and "Open the console" in said[0]
+
+
+def test_the_panel_reads_dont_ask_again_from_the_settings(tmp_path):
+    from ninaivu_lite.control import Controller
+    controller = Controller(str(tmp_path))
+    assert controller.drives_never_ask() == []
+    (tmp_path / "settings.json").write_text('{"folders": [], "drives_never_ask": ["usb1", 3]}',
+                                            encoding="utf-8")
+    assert controller.drives_never_ask() == ["usb1"]
+
+
+def test_dont_ask_again_is_kept_until_ask_again(app, admin, plugged):
+    assert admin.post("/api/admin/drives/never", json={"id": "usb1"}).status_code == 200
+    assert admin.get("/api/admin/drives").get_json()["drives"][0]["pending"] is False
+    overview = admin.get("/api/admin/overview").get_json()
+    assert overview["app"]["quiet_drives"] == 1
+    # Taken out and plugged back in: still not mentioned.
+    watcher = app.config["DRIVES"]
+    watcher.answered.clear()
+    assert admin.get("/api/admin/drives").get_json()["drives"][0]["pending"] is False
+    # Kept in the settings file, so a restart does not forget it.
+    from ninaivu_lite.config import Config
+    saved = Config.load(app.config["LITE"].data_dir)
+    assert saved.drives_never_ask == ["usb1"]
+    assert admin.post("/api/admin/drives/ask-again").status_code == 200
+    assert admin.get("/api/admin/overview").get_json()["app"]["quiet_drives"] == 0
+    assert admin.get("/api/admin/drives").get_json()["drives"][0]["pending"] is True
+    assert admin.post("/api/admin/drives/never", json={"id": "nope"}).status_code == 404
 
 
 # --- phones on a cable --------------------------------------------------------------------
