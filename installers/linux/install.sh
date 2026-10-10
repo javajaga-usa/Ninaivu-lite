@@ -44,6 +44,15 @@ fi
 prefix=${prefix:-$default_prefix}
 say "Ninaivu Lite $version → $prefix"
 
+# Unpacked where no program may run (a /tmp mounted noexec, as hardened
+# servers have it): the right file for this machine, so not the advice below.
+if [ ! -x "$payload/python/bin/python3" ]; then
+    echo "Programs cannot be run from $(dirname "$payload"), where this installer unpacks itself" >&2
+    echo "(mounted noexec?). Run it again with a folder of your own for that, for example:" >&2
+    echo "  TMPDIR=\"\$HOME\" sh <this installer>" >&2
+    echo "Nothing was changed." >&2
+    exit 1
+fi
 # The Python inside must run on this machine before anything is stopped or
 # replaced (A167): the other architecture's file, or a 32-bit OS, cannot.
 if ! "$payload/python/bin/python3" -c '' >/dev/null 2>&1; then
