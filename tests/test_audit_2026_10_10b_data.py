@@ -115,11 +115,13 @@ def test_two_copies_before_a_change_in_the_same_second_both_stay(tmp_path, monke
     assert first != second and first.is_file() and second.is_file()
     assert second.name == "before-deleting-person-2026-10-10-143042-2.zip"
     assert backups._taken_at(second) > backups._taken_at(first)
-    # Pruning still keeps the newest five, the -2 one among them.
-    for _ in range(5):
-        backups.before_change(data, "removing-folder")
+    # Pruning keeps the five taken last, whatever each was taken before, and
+    # a name pruning frees is never given to a later copy (which would then
+    # sort as one of the oldest and could be the next to go).
+    made = [first, second] + [backups.before_change(data, "removing-folder") for _ in range(5)]
+    assert len({p.name for p in made}) == len(made)
     left = sorted(p.name for p in (data / "backups").glob("before-*.zip"))
-    assert len(left) == backups.KEEP_BEFORE and first.name not in left
+    assert left == sorted(p.name for p in made[-backups.KEEP_BEFORE:])
 
 
 def test_fat_and_exfat_are_known_from_the_mount_table(tmp_path):
