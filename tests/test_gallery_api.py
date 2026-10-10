@@ -347,7 +347,7 @@ def test_asset_shape_and_guest_privacy(app, admin, guest):
     a = admin.get(f"/api/asset/{i['beach.jpg']}").json
     for key in ("id", "name", "folder", "ext", "kind", "size_h", "date", "date_source", "width",
                 "height", "duration", "favorite", "has_thumb", "thumb_v", "blurhash", "playable",
-                "needs_proxy", "src", "view", "rotation", "rotation_source", "visibility",
+                "needs_proxy", "src", "view", "rotation", "mirror", "rotation_source", "visibility",
                 "visibility_source", "tags", "is_live", "live_src", "duplicate"):
         assert key in a, key
     assert a["download"] == f"/api/download/{a['id']}" and a["camera"] == "Canon EOS 80D"

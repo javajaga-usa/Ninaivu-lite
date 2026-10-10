@@ -266,7 +266,8 @@ def me_avatar():
     if not os.path.isfile(long_path(source)):
         fail(404, "This file is not available right now.")
     try:
-        square = media.profile_picture(source, row["rotation"] or 0)
+        square = media.profile_picture(source, row["rotation"] or 0,
+                                       mirror=bool(row["mirror"]))
     except Exception:  # noqa: BLE001 — a file Pillow cannot open
         fail(400, "This photograph cannot be opened.")
     moment = time.time()

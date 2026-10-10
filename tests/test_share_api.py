@@ -15,7 +15,7 @@ from ninaivu_lite import auth, db
 from test_gallery_api import jpeg_with_gps, rescan, set_vis
 
 SHARED_KEYS = {"id", "ext", "kind", "width", "height", "duration", "blurhash", "color",
-               "rotation", "has_thumb", "playable", "src", "thumb", "view"}
+               "rotation", "mirror", "has_thumb", "playable", "src", "thumb", "view"}
 
 
 def conn_of(app) -> sqlite3.Connection:

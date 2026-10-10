@@ -3249,5 +3249,18 @@
   "Save (Enter)": "சேமி (Enter)",
   "Not saved yet": "இன்னும் சேமிக்கவில்லை",
   "Rotation saved. The original file is not changed.": "சுழற்றியது சேமிக்கப்பட்டது. மூலக் கோப்பு மாற்றப்படவில்லை.",
-  "Rotation not saved": "சுழற்றியது சேமிக்கப்படவில்லை"
+  "Rotation not saved": "சுழற்றியது சேமிக்கப்படவில்லை",
+  "Only photographs and videos can be turned.": "புகைப்படங்களையும் காணொளிகளையும் மட்டுமே திருப்ப முடியும்.",
+  "Mirror must be true or false.": "கண்ணாடிப் புரட்டல் true அல்லது false ஆக இருக்க வேண்டும்.",
+  "Flip horizontal (H)": "கிடைமட்டமாகப் புரட்டு (H)",
+  "Flip horizontal": "கிடைமட்டமாகப் புரட்டு",
+  "Flip vertical (V)": "செங்குத்தாகப் புரட்டு (V)",
+  "Flip vertical": "செங்குத்தாகப் புரட்டு",
+  "Rotate selected": "தேர்ந்தெடுத்தவற்றைச் சுழற்று",
+  "Rotate selected left": "தேர்ந்தெடுத்தவற்றை இடப்புறம் சுழற்று",
+  "Rotate selected right": "தேர்ந்தெடுத்தவற்றை வலப்புறம் சுழற்று",
+  "Turned {count}. The files are not changed.": "{count} திருப்பப்பட்டன. கோப்புகள் மாற்றப்படவில்லை.",
+  "Turned {count}; {skipped} could not be turned. The files are not changed.": "{count} திருப்பப்பட்டன; {skipped} திருப்ப முடியவில்லை. கோப்புகள் மாற்றப்படவில்லை.",
+  "Play": "இயக்கு",
+  "Position in the video": "காணொளியில் இடம்"
 }

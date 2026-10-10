@@ -34,7 +34,8 @@ from .api_gallery import (
     thumb_response,
     viewing_response,
 )
-from .common import body, conn, fail, playable, require_family, visible, visible_asset
+from .common import (body, conn, fail, playable, require_family, turn_query, visible,
+                     visible_asset)
 
 bp = Blueprint("api_share", __name__)
 
@@ -251,12 +252,15 @@ def shared_item(row: sqlite3.Row, token: str) -> dict[str, Any]:
     # A photograph turned by hand since the link was last opened is a new
     # picture: the turn and the thumbnail's version are in its addresses, so a
     # browser that cached the old way up for an hour asks again.
-    turn = f"?r={row['rotation']}" if row["rotation"] else ""
+    picture = row["kind"] == "picture"
+    turn = turn_query(row) if picture else ""
     src = f"/api/share/{token}/file/{row['id']}{turn}"
     item.update({
         "blurhash": None,
         "color": row["color"],
-        "rotation": 0,
+        # A photograph's turn is baked into its copy; a video's is played turned.
+        "rotation": 0 if picture else (row["rotation"] or 0),
+        "mirror": False if picture else bool(row["mirror"]),
         "has_thumb": row["thumb"] != db.THUMB_NONE,
         "playable": can_play,
         "src": src,
@@ -341,7 +345,7 @@ def shared_thumb(token: str, asset_id: int):
 def shared_file(token: str, asset_id: int):
     row = shared_asset(token, asset_id)
     path = original_path(row)
-    if may_carry_location(row) or row["rotation"]:
+    if may_carry_location(row) or (row["kind"] == "picture" and (row["rotation"] or row["mirror"])):
         # The share page is told rotation 0, so the index's turn is baked in.
         return _no_referrer(viewing_response(row, path, 3600, turned=True))
     if row["kind"] == "video":
@@ -355,6 +359,7 @@ def shared_preview(token: str, asset_id: int):
     if row["kind"] != "picture":
         fail(404, "Not found.")
     path = original_path(row)
-    if media.browser_native(row["name"]) and not may_carry_location(row) and not row["rotation"]:
+    if media.browser_native(row["name"]) and not may_carry_location(row) \
+            and not row["rotation"] and not row["mirror"]:
         return _no_referrer(original_response(row, path))
     return _no_referrer(viewing_response(row, path, 3600, turned=True))

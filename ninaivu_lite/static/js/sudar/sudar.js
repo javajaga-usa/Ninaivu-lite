@@ -360,15 +360,15 @@ export function openSudar({item=null, returnFocus=document.activeElement, canSav
     await preview();
   }
 
-  async function load(file, rotation=0, libraryId=null) {
+  async function load(file, rotation=0, libraryId=null, mirror=false) {
     if(busy || !file || !confirmDiscard()) return; lock(true); status(i18n.t('Analyzing photograph…'));
     try {
       let next = await decode(file); if(closed){next.close(); return;}
       const angle = ((rotation % 360) + 360) % 360;
-      if(angle) {
+      if(angle || mirror) {
         const canvas = document.createElement('canvas');
         canvas.width = angle % 180 ? next.height : next.width; canvas.height = angle % 180 ? next.width : next.height;
-        const ctx = canvas.getContext('2d'); ctx.translate(canvas.width/2, canvas.height/2); ctx.rotate(angle * Math.PI / 180); ctx.drawImage(next, -next.width/2, -next.height/2);
+        const ctx = canvas.getContext('2d'); ctx.translate(canvas.width/2, canvas.height/2); ctx.rotate(angle * Math.PI / 180); if(mirror) ctx.scale(-1, 1); ctx.drawImage(next, -next.width/2, -next.height/2);
         next.close(); next = await createImageBitmap(canvas);
         if(closed){next.close(); return;}
       }
@@ -555,7 +555,7 @@ export function openSudar({item=null, returnFocus=document.activeElement, canSav
         response ||= await fetch(url, {signal: controller.signal, credentials: 'same-origin'});
         if(!response.ok) throw new Error(i18n.t('Photo could not be loaded.'));
         const blob = await response.blob(); if(closed) return;
-        lock(false); await load(new File([blob], item.name || i18n.t('Current photo'), {type: blob.type}), item.rotation || 0, item.id);
+        lock(false); await load(new File([blob], item.name || i18n.t('Current photo'), {type: blob.type}), item.rotation || 0, item.id, !!item.mirror);
       } catch(error){ if(!closed){ lock(false); status(errorText(error, i18n.t)); } }
     })();
   }

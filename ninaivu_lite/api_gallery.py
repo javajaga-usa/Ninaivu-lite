@@ -626,6 +626,8 @@ def asset_poster(asset_id: int):
             frame = sent.convert("RGB")
     except (ValueError, OSError, Image.DecompressionBombError):
         fail(400, "That is not a picture this can use.")
+    # A video turned or flipped by hand: its picture is too.
+    frame = media.turn(frame, row["rotation"] or 0, bool(row["mirror"]))
     colour = media.save_thumbnails(frame, scanner().thumbs_dir, asset_id)
     version = int(time.time() * 1000) % 2_000_000_000
     c = conn()
@@ -636,23 +638,61 @@ def asset_poster(asset_id: int):
     return jsonify(asset_public(visible_asset(asset_id))), 201
 
 
-@bp.post("/api/asset/<int:asset_id>/rotate")
-def asset_rotate(asset_id: int):
-    """Turn a photograph by hand: the index's answer, never the file's. For
-    the one the scan could not judge, or judged wrong."""
-    require_admin()
-    row = visible_asset(asset_id)
-    if row["kind"] != "picture":
-        fail(400, "Only photographs can be turned.")
-    data = body()
+TURNABLE = ("picture", "video")
+
+
+def quarter_turn(value: Any) -> int:
+    """0, 90, 180 or 270 from a request, or a 400."""
     try:
-        rotation = int(data.get("rotation", (row["rotation"] + 90) % 360))
+        rotation = int(value)
     except (TypeError, ValueError, OverflowError):
         fail(400, "Rotation must be 0, 90, 180 or 270.")
     if rotation % 360 not in media.ROTATIONS:
         fail(400, "Rotation must be 0, 90, 180 or 270.")
-    scanner().set_rotation(conn(), asset_id, rotation % 360, "manual")
+    return rotation % 360
+
+
+@bp.post("/api/asset/<int:asset_id>/rotate")
+def asset_rotate(asset_id: int):
+    """Turn or flip a photograph or video by hand: the index's answer, never
+    the file's. For the one the scan could not judge, or judged wrong, or one
+    taken in a mirror. ``mirror`` left out keeps it; 0 and no mirror is the
+    file as it is (Reset to original)."""
+    require_admin()
+    row = visible_asset(asset_id)
+    if row["kind"] not in TURNABLE:
+        fail(400, "Only photographs and videos can be turned.")
+    data = body()
+    rotation = quarter_turn(data.get("rotation", (row["rotation"] + 90) % 360))
+    mirror = data.get("mirror")
+    if mirror is not None and not isinstance(mirror, bool):
+        fail(400, "Mirror must be true or false.")
+    scanner().set_rotation(conn(), asset_id, rotation, "manual", mirror=mirror)
     return jsonify(asset_public(visible_asset(asset_id)))
+
+
+@bp.post("/api/assets/rotate")
+def assets_rotate():
+    """Turn many at once by the same quarter turn (``turn``: 90 clockwise, 270
+    the other way, 180), each from the way it is shown now: a whole card of
+    photographs taken with the camera on its side. Never the files. The
+    thumbnails are made again in the background."""
+    who = require_admin()
+    data = body()
+    turn = quarter_turn(data.get("turn", 90))
+    seen = visible_ids(id_list(data), who)
+    rows = []
+    for start in range(0, len(seen), 500):
+        chunk = seen[start:start + 500]
+        rows += conn().execute(
+            "SELECT id, rotation FROM assets WHERE kind IN ('picture', 'video') AND id IN ("
+            + ",".join("?" * len(chunk)) + ")", chunk).fetchall()
+    c, s = conn(), scanner()
+    turned = [r["id"] for r in rows
+              if s.set_rotation(c, r["id"], (r["rotation"] or 0) + turn, "manual", remake=False)]
+    if turned:
+        s.remake_later(turned)
+    return jsonify({"updated": len(rows), "skipped": sent_count(data) - len(rows)})
 
 
 @bp.post("/api/visibility")
@@ -791,15 +831,16 @@ def viewing_response(row: sqlite3.Row, path: str, max_age: int, turned: bool = F
     except OSError:
         fail(404, "This file is not available right now.")
     rotation = (row["rotation"] or 0) if turned else 0
+    mirror = bool(row["mirror"]) and turned
     cache = views_dir() / f"{row['id'] % 256:02x}" / \
         f"{row['id']}-{st.st_size}-{int(st.st_mtime)}{f'-t{rotation}' if rotation else ''}" \
-        f"-{VIEWS_FORMAT}.jpg"
+        f"{'-m' if mirror else ''}-{VIEWS_FORMAT}.jpg"
     if not cache.is_file():
         try:
             # A full photograph decoded and shrunk: a core's worth, so taken
             # in turn with the thumbnails being made for others.
             with VIEWS.slot():
-                data = media.viewing_copy(path, rotation=rotation)
+                data = media.viewing_copy(path, rotation=rotation, mirror=mirror)
         except parallel.Busy:
             fail(503, "Busy preparing other photographs. Try again in a moment.")
         except Exception as exc:  # noqa: BLE001 — damaged or unsupported: say so

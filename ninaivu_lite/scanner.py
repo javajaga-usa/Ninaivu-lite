@@ -264,6 +264,7 @@ class Scanner:
                            height=CASE WHEN assets.rot_source='manual' AND assets.rotation % 180 != 0
                                        THEN excluded.width ELSE excluded.height END,
                            rotation=CASE WHEN assets.rot_source='manual' THEN assets.rotation ELSE 0 END,
+                           mirror=CASE WHEN assets.rot_source='manual' THEN assets.mirror ELSE 0 END,
                            rot_source=CASE WHEN assets.rot_source='manual' THEN 'manual'
                                            ELSE excluded.rot_source END,
                            upright=CASE WHEN assets.rot_source='manual' THEN 1 ELSE excluded.upright END""",
@@ -431,7 +432,7 @@ class Scanner:
             chunk = gone_ids[start:start + 500]
             for old in conn.execute(
                     "SELECT id, name, kind, size, captured_at, visibility, vis_source, rotation, "
-                    "rot_source FROM assets WHERE id IN (" + ",".join("?" * len(chunk)) + ")",
+                    "mirror, rot_source FROM assets WHERE id IN (" + ",".join("?" * len(chunk)) + ")",
                     chunk):
                 found = [r for r in by_key.get((old["kind"], old["size"], old["captured_at"]), [])
                          if r["id"] not in used]
@@ -458,7 +459,8 @@ class Scanner:
                              "AND target_id = ?", (to, frm))
         for old, row in moves:
             if old["rot_source"] == "manual":
-                self.set_rotation(conn, row["id"], old["rotation"], "manual", remake=False)
+                self.set_rotation(conn, row["id"], old["rotation"], "manual", remake=False,
+                                  mirror=bool(old["mirror"]))
         log.info("%d moved or renamed photographs kept what was set for them", len(moves))
         self.generation += 1
 
@@ -577,7 +579,7 @@ class Scanner:
         total = conn.execute(
             f"SELECT COUNT(*) FROM assets a WHERE {where} AND a.missing = 0").fetchone()[0]
         self._set(state=state, thumbs_total=total, thumbs_left=total)
-        rows = self._queue(conn, where, "a.id, a.kind, a.dir, a.name, a.thumb, a.rotation")
+        rows = self._queue(conn, where, "a.id, a.kind, a.dir, a.name, a.thumb, a.rotation, a.mirror")
         # Written down as each is ready, not in date order: one slow file (a
         # damaged video ffmpeg gives 90 seconds, a 50 MP scan) no longer
         # leaves the other workers idle until it is done. And in batches,
@@ -663,24 +665,31 @@ class Scanner:
         return turned
 
     def set_rotation(self, conn: sqlite3.Connection, asset_id: int, rotation: int, source: str,
-                     remake: bool = True) -> bool:
-        """Store a quarter turn for one photograph (the index's answer, never the
-        file's), swapping its width and height as shown. The thumbnails are
-        remade now, or left for the thumbnail pass when *remake* is False.
-        Returns whether the picture turned a different way than before."""
-        row = conn.execute("SELECT rotation, width, height FROM assets WHERE id = ?",
+                     remake: bool = True, mirror: bool | None = None) -> bool:
+        """Store a quarter turn for one photograph or video (the index's answer,
+        never the file's), swapping its width and height as shown, and with
+        *mirror* (None keeps it) whether it is shown mirrored. The thumbnails
+        are remade now, or left for the thumbnail pass when *remake* is False.
+        Returns whether the picture shows a different way than before."""
+        row = conn.execute("SELECT rotation, mirror, width, height FROM assets WHERE id = ?",
                            (asset_id,)).fetchone()
         if row is None:
             return False
         rotation %= 360
-        changed = rotation != (row["rotation"] or 0)
-        swap = changed and (rotation % 180) != ((row["rotation"] or 0) % 180)
+        mirror = bool(row["mirror"]) if mirror is None else bool(mirror)
+        changed = rotation != (row["rotation"] or 0) or mirror != bool(row["mirror"])
+        swap = (rotation % 180) != ((row["rotation"] or 0) % 180)
         width, height = (row["height"], row["width"]) if swap else (row["width"], row["height"])
         with conn:
+            # A new thumbnail version at once: a tile asked for before the new
+            # thumbnail is made must not be answered by the browser's year-long
+            # cached copy of the old one.
             conn.execute(
-                "UPDATE assets SET rotation = ?, rot_source = ?, upright = 1, width = ?, height = ?"
-                + (", thumb = 0, large = 0" if changed else "") + " WHERE id = ?",
-                (rotation, source, width, height, asset_id))
+                "UPDATE assets SET rotation = ?, mirror = ?, rot_source = ?, upright = 1, "
+                "width = ?, height = ?"
+                + (", thumb = 0, large = 0, thumb_v = thumb_v + 1" if changed else "")
+                + " WHERE id = ?",
+                (rotation, int(mirror), source, width, height, asset_id))
         if changed:
             # The old thumbnails show the old way up: gone now, so nothing can
             # serve them before the new ones exist.
@@ -692,12 +701,37 @@ class Scanner:
             self.generation += 1
             if remake:
                 row = conn.execute(
-                    """SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.rotation, f.path AS root
+                    """SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.rotation, a.mirror,
+                              f.path AS root
                        FROM assets a JOIN folders f ON f.id = a.folder_id WHERE a.id = ?""",
                     (asset_id,)).fetchone()
                 if row is not None:
                     self._thumbnail(conn, row, ("s", "l"))
         return changed
+
+    def remake_later(self, asset_ids: list[int]) -> None:
+        """Make the thumbnails of *asset_ids* again, in the background, one at
+        a time: for many turned at once (Rotate on a selection), where making
+        them all before answering would keep the person waiting. A tile on
+        screen meanwhile is made at once when it is asked for."""
+        def work() -> None:
+            parallel.background()
+            conn = db.connect(self.data_dir)
+            try:
+                for asset_id in asset_ids:
+                    if self._stop.is_set():
+                        return
+                    row = self._now_row(conn, asset_id)
+                    if row is None or row["thumb"] != 0:
+                        continue
+                    try:
+                        if self._thumbnail(conn, row, ("s", "l")):
+                            self.generation += 1
+                    except Exception:  # noqa: BLE001 — the thumbnail pass tries again
+                        log.debug("could not remake thumbnails for %s", asset_id, exc_info=True)
+            finally:
+                conn.close()
+        threading.Thread(target=work, name="remake-thumbnails", daemon=True).start()
 
     def _thumbnail(self, conn: sqlite3.Connection, row: sqlite3.Row,
                    sizes: tuple[str, ...], threads: int = 0) -> bool:
@@ -721,7 +755,8 @@ class Scanner:
         if row["kind"] == "video":
             sizes = ("s", "l")   # one ffmpeg call makes both
         ok, colour = media.make_thumbnails(full, row["kind"], self.thumbs_dir, row["id"], sizes,
-                                           rotation=row["rotation"] or 0, threads=threads)
+                                           rotation=row["rotation"] or 0, threads=threads,
+                                           mirror=bool(row["mirror"]))
         return sizes, ok, colour
 
     def _record(self, conn: sqlite3.Connection, row: sqlite3.Row, sizes: tuple[str, ...],
@@ -779,7 +814,8 @@ class Scanner:
     @staticmethod
     def _now_row(conn: sqlite3.Connection, asset_id: int) -> sqlite3.Row | None:
         return conn.execute(
-            """SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.large, a.rotation, f.path AS root
+            """SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.large, a.rotation, a.mirror,
+                      f.path AS root
                FROM assets a JOIN folders f ON f.id = a.folder_id WHERE a.id = ?""",
             (asset_id,)).fetchone()
 

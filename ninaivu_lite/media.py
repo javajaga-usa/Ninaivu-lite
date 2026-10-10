@@ -303,8 +303,11 @@ _CASCADES = ("haarcascade_frontalface_default.xml", "haarcascade_profileface.xml
 _cascades = threading.local()
 
 
-def turn(img: Image.Image, rotation: int) -> Image.Image:
-    """*img* turned clockwise by a quarter-turn multiple."""
+def turn(img: Image.Image, rotation: int, mirror: bool = False) -> Image.Image:
+    """*img* turned clockwise by a quarter-turn multiple, mirrored left to
+    right first when *mirror* (the index's Flip)."""
+    if mirror:
+        img = ImageOps.mirror(img)
     rotation %= 360
     return img if not rotation else img.rotate(-rotation, expand=True)
 
@@ -479,9 +482,10 @@ def video_frame(path: str, threads: int = 0) -> Image.Image | None:
 
 def make_thumbnails(path: str, kind: str, thumbs_dir: Path, asset_id: int,
                     sizes: tuple[str, ...] = ("s", "l"), rotation: int = 0,
-                    threads: int = 0) -> tuple[bool, str | None]:
+                    threads: int = 0, mirror: bool = False) -> tuple[bool, str | None]:
     """Write the thumbnails named in *sizes* ("s" 256 px, "l" 640 px), turned
-    by *rotation* (the index's answer for a photograph without a camera tag).
+    by *rotation* and mirrored by *mirror* (the index's answer: the scan's for
+    a photograph without a camera tag, or a person's, for a video too).
 
     Returns (made, colour): colour is the picture's average, '#rrggbb', which
     the grid paints while the thumbnail loads. ``made`` is False when no
@@ -506,8 +510,7 @@ def make_thumbnails(path: str, kind: str, thumbs_dir: Path, asset_id: int,
         try:
             if kind == "picture":
                 img = _upright(img)
-            colour = save_thumbnails(turn(img, rotation) if kind == "picture" else img,
-                                     thumbs_dir, asset_id, sizes)
+            colour = save_thumbnails(turn(img, rotation, mirror), thumbs_dir, asset_id, sizes)
             return True, colour
         except Exception as exc:  # noqa: BLE001
             log.debug("thumbnail failed for %s: %s", path, exc)
@@ -550,23 +553,24 @@ def save_thumbnails(img: Image.Image, thumbs_dir: Path, asset_id: int,
 NO_METADATA = {"comment": b""}
 
 
-def profile_picture(path: str, rotation: int = 0, size: int = 256) -> bytes:
+def profile_picture(path: str, rotation: int = 0, size: int = 256, mirror: bool = False) -> bytes:
     """The middle of a photograph as a small square JPEG, upright, no metadata:
     a profile picture for the sign-in screen."""
     with _open_photo(path, size * 2) as img:
-        img = turn(img.convert("RGB"), rotation)
+        img = turn(img.convert("RGB"), rotation, mirror)
         img = ImageOps.fit(img, (size, size), Image.Resampling.LANCZOS)
         out = io.BytesIO()
         img.save(out, "JPEG", quality=88, optimize=True, **NO_METADATA)
         return out.getvalue()
 
 
-def viewing_copy(path: str, max_edge: int = 2560, rotation: int = 0) -> bytes:
+def viewing_copy(path: str, max_edge: int = 2560, rotation: int = 0,
+                 mirror: bool = False) -> bytes:
     """A JPEG a browser can show, upright and without metadata: for HEIC and
     TIFF, which browsers cannot open, and for guests, who get no EXIF.
-    *rotation* is the index's own quarter turn, on top of the camera's tag."""
+    *rotation* and *mirror* are the index's own, on top of the camera's tag."""
     with _open_photo(path, max_edge) as img:
-        img = turn(img.convert("RGB"), rotation)
+        img = turn(img.convert("RGB"), rotation, mirror)
         img.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
         out = io.BytesIO()
         img.save(out, "JPEG", quality=86, optimize=True, **NO_METADATA)

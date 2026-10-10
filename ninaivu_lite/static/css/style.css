@@ -1626,6 +1626,10 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 .viewer-tools .vis-picker button:hover { color: #fff; }
 
 .sel-visibility { display: flex; align-items: center; gap: 6px; margin-left: 6px; }
+.sel-rotate { display: flex; align-items: center; gap: 6px; }
+.sel-rotate[hidden] { display: none; }
+.sel-rotate .btn { display: inline-flex; align-items: center; gap: 5px; }
+.sel-rotate .btn svg { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 /* Turning the files themselves. Icon buttons rather than words, because
    the selection bar is already crowded and an arrow curling round a
    baseline reads faster than "anticlockwise" does. */
@@ -2753,7 +2757,9 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 @keyframes rotate-bar-rise { from { opacity: 0; transform: translate(-50%, 12px); } }
 @supports (color: color-mix(in srgb, red 50%, blue)) { .rotate-bar { background: color-mix(in srgb, var(--bg-elev) 92%, transparent); } }
 .rotate-bar[hidden] { display: none; }
+.rotate-tools { display: flex; gap: 2px; flex: none; }
 .rotate-bar .icon-btn { width: 38px; height: 38px; flex: none; }
+.rotate-bar .icon-btn:disabled { opacity: .35; }
 .rotate-note { font-size: 13px; color: var(--text-2); min-width: 0; overflow-wrap: anywhere; }
 .rotate-note:empty { display: none; }
 .rotate-actions { display: flex; gap: 8px; flex: none; }
@@ -2765,7 +2771,8 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 @media (max-width: 620px) {
   .rotate-bar { bottom: calc(16px + env(safe-area-inset-bottom)); }
   .rotate-note { flex-basis: 100%; text-align: center; order: -1; }
-  .viewer.rotating .viewer-stage { padding-bottom: calc(108px + env(safe-area-inset-bottom)); }
+  .rotate-tools { flex-basis: 100%; justify-content: center; }
+  .viewer.rotating .viewer-stage { padding-bottom: calc(160px + env(safe-area-inset-bottom)); }
 }
 /* A short window held sideways: the filmstrip is there, so is the bar, smaller. */
 @media (max-height: 440px) {
@@ -2774,6 +2781,23 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
   .viewer.rotating .viewer-stage { padding-bottom: calc(132px + env(safe-area-inset-bottom)); }
 }
 @media (prefers-reduced-motion: reduce) { .rotate-bar { animation: none; } }
+
+/* A turned or flipped video's own play bar, always the right way up. */
+.video-turned-controls {
+  position: absolute; z-index: 5; left: 50%; transform: translateX(-50%);
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: 10px;
+  width: min(520px, calc(100% - 32px)); padding: 6px 12px 6px 6px;
+  border-radius: 999px; color: #fff; background: rgba(0, 0, 0, .55);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.video-turned-controls[hidden], .viewer.rotating .video-turned-controls { display: none; }
+.video-turned-controls .icon-btn { color: #fff; flex: none; }
+.video-turned-controls input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); }
+.video-turned-time { font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 620px) {
+  .video-turned-controls { bottom: calc(16px + env(safe-area-inset-bottom)); }
+}
 
 /* The wordmark: lettering with some care taken over it. Tight, heavy and
    slightly larger, inked from the page's own text colour into the accents, and

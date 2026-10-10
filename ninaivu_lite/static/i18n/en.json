@@ -3148,5 +3148,18 @@
   "Save (Enter)": "Save (Enter)",
   "Not saved yet": "Not saved yet",
   "Rotation saved. The original file is not changed.": "Rotation saved. The original file is not changed.",
-  "Rotation not saved": "Rotation not saved"
+  "Rotation not saved": "Rotation not saved",
+  "Only photographs and videos can be turned.": "Only photographs and videos can be turned.",
+  "Mirror must be true or false.": "Mirror must be true or false.",
+  "Flip horizontal (H)": "Flip horizontal (H)",
+  "Flip horizontal": "Flip horizontal",
+  "Flip vertical (V)": "Flip vertical (V)",
+  "Flip vertical": "Flip vertical",
+  "Rotate selected": "Rotate selected",
+  "Rotate selected left": "Rotate selected left",
+  "Rotate selected right": "Rotate selected right",
+  "Turned {count}. The files are not changed.": "Turned {count}. The files are not changed.",
+  "Turned {count}; {skipped} could not be turned. The files are not changed.": "Turned {count}; {skipped} could not be turned. The files are not changed.",
+  "Play": "Play",
+  "Position in the video": "Position in the video"
 }

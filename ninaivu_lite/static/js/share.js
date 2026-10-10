@@ -88,7 +88,27 @@ function renderOne(item) {
       stage.appendChild(el('p', 'error', reason || i18n.t('This media could not be displayed.')));
     }
   };
-  if (isVideo) { node.controls = true; node.playsInline = true; }
+  if (isVideo) {
+    node.controls = true; node.playsInline = true;
+    // A video turned or flipped by hand in the gallery plays that way here too
+    // (a photograph's turn is already in its copy). A quarter turn is shrunk
+    // to fit, as the gallery's viewer does.
+    const rotation = Number(item.rotation || 0) % 360;
+    if (rotation || item.mirror) {
+      const fit = () => {
+        let scale = 1;
+        if (rotation % 180 && node.videoWidth && node.offsetWidth) {
+          const contain = Math.min(node.offsetWidth / node.videoWidth, node.offsetHeight / node.videoHeight);
+          scale = Math.min(node.offsetWidth / (node.videoHeight * contain),
+            node.offsetHeight / (node.videoWidth * contain));
+        }
+        node.style.transform = `scale(${scale}) rotate(${rotation}deg)` + (item.mirror ? ' scaleX(-1)' : '');
+      };
+      node.addEventListener('loadedmetadata', fit);
+      window.addEventListener('resize', fit);
+      fit();
+    }
+  }
   else { node.alt = i18n.t('Shared photograph'); }
   stage.appendChild(node);
   main.replaceChildren(stage);

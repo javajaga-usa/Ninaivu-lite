@@ -1379,6 +1379,26 @@ function wireVisibility() {
     };
   });
 
+  // Rotate on a selection: each turned a quarter from the way it is shown,
+  // in the index only. The thumbnails are made again in the background.
+  document.querySelectorAll('[data-sel-turn]').forEach((button) => {
+    button.onclick = async () => {
+      const ids = [...grid.selection];
+      if (!ids.length || button.disabled) return;
+      button.disabled = true;
+      try {
+        const result = await api.rotateMany(ids, Number(button.dataset.selTurn));
+        ids.forEach((id) => viewer.cache.delete(id));
+        toast(result.skipped
+          ? i18n.t('Turned {count}; {skipped} could not be turned. The files are not changed.',
+            { count: result.updated, skipped: result.skipped })
+          : i18n.t('Turned {count}. The files are not changed.', { count: result.updated }));
+        reload();
+      } catch (exc) { toast(exc.message, true); }
+      finally { button.disabled = false; }
+    };
+  });
+
   document.querySelectorAll('#v-visibility button').forEach((button) => {
     button.onclick = async () => {
       const item = viewer.item;

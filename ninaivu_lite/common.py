@@ -309,6 +309,14 @@ def playable(row: sqlite3.Row) -> bool:
     return media.browser_native(row["name"])
 
 
+def turn_query(row: sqlite3.Row) -> str:
+    """How a copy with the index's turn baked in is told apart from the copy
+    before a turn or flip ('' for neither): browsers cache such copies."""
+    if not row["rotation"] and not row["mirror"]:
+        return ""
+    return f"?r={row['rotation'] or 0}" + ("&m=1" if row["mirror"] else "")
+
+
 def asset_public(row: sqlite3.Row, who: auth.User | None = None) -> dict[str, Any]:
     """One photo or video in the shape Ninaivu's viewer reads (``_public``)."""
     who = who or user()
@@ -318,7 +326,7 @@ def asset_public(row: sqlite3.Row, who: auth.User | None = None) -> dict[str, An
         and (row["ext"] or "").lower() not in ("gif", "bmp")
     # A guest's copy has the turn baked in and is cached for up to a day: a
     # photograph turned by hand since gets a new address, so it is fetched again.
-    turn = f"?r={row['rotation']}" if served_turned and row["rotation"] else ""
+    turn = turn_query(row) if served_turned else ""
     out: dict[str, Any] = {
         "id": asset_id,
         "name": row["name"],
@@ -346,6 +354,7 @@ def asset_public(row: sqlite3.Row, who: auth.User | None = None) -> dict[str, An
         # A guest is served a re-encoded copy with the index's turn already in
         # it (api_gallery.guarded_file), so the viewer must not turn it again.
         "rotation": 0 if served_turned else (row["rotation"] or 0),
+        "mirror": False if served_turned else bool(row["mirror"]),
         "rotation_source": row["rot_source"] or "none",
         "visibility": db.VIS_NAMES.get(row["visibility"], "family"),
         "visibility_source": row["vis_source"],

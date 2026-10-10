@@ -101,7 +101,8 @@ def test_an_administrator_turns_by_hand_and_the_turn_outlives_a_rescan(app, admi
     with Image.open(io.BytesIO(admin.get(f"/api/thumb/{target}?s=640").data)) as img:
         assert img.size == (480, 640)
     assert admin.post(f"/api/asset/{target}/rotate", json={"rotation": 45}).status_code == 400
-    assert admin.post(f"/api/asset/{ids(app)['clip.mp4']}/rotate", json={}).status_code == 400
+    # A video turns too (since Rotate and Save): only audio and the like cannot.
+    assert admin.post(f"/api/asset/{ids(app)['clip.mp4']}/rotate", json={}).status_code == 200
     # The file changed on disk (re-saved); the scan keeps the person's answer.
     make_jpeg(root / "2019" / "beach.jpg", "2019:05:12 10:00:00", size=(640, 480), color=(1, 2, 3))
     os.utime(root / "2019" / "beach.jpg", None)
