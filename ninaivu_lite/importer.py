@@ -1080,6 +1080,14 @@ class Importer:
                 or not row["dest_hash"] or not is_within(row["destination"], destination):
             return False
         try:
+            # Damage (a bad sector, bit rot) changes the bytes where they lie;
+            # anything that saves the file (a photo editor's crop or turn)
+            # gives it a new time or size. Such a copy is the family's edit,
+            # never written over: the fresh copy goes beside it.
+            st = os.stat(long_path(row["destination"]))
+            if row["mtime"] is None or st.st_size != row["size"] \
+                    or abs(st.st_mtime - row["mtime"]) > 2:
+                return False
             return hash_file(row["destination"], self.gate) != row["dest_hash"]
         except OSError:
             return False

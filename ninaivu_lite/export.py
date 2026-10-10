@@ -16,6 +16,7 @@ What carries across unchanged:
   PINs are hashed the same way;
 * folder rules and each person's assigned folder, by library folder and the
   path inside it, so who sees what is the same after the move;
+* turns and flips set by hand, which exist only in the index;
 * share links: the token is kept, so a link already sent keeps working if
   Ninaivu answers on the same address.
 """
@@ -47,7 +48,8 @@ def build(conn: sqlite3.Connection, cfg) -> dict[str, Any]:
     users = {r["id"]: r for r in conn.execute("SELECT * FROM users ORDER BY id")}
     name_of = {uid: r["username"] for uid, r in users.items()}
     assets = {r["id"]: r for r in conn.execute(
-        "SELECT a.id, a.dir, a.name, a.visibility, a.vis_source, f.path AS root FROM assets a "
+        "SELECT a.id, a.dir, a.name, a.visibility, a.vis_source, a.rotation, a.mirror, "
+        "a.rot_source, f.path AS root FROM assets a "
         "JOIN folders f ON f.id = a.folder_id")}
 
     out: dict[str, Any] = {
@@ -90,6 +92,13 @@ def build(conn: sqlite3.Connection, cfg) -> dict[str, Any]:
                        for r in conn.execute(
                            "SELECT * FROM user_assets WHERE favorite = 1 ORDER BY added_at")
                        if r["asset_id"] in assets],
+        # A turn or flip somebody set by hand (Rotate and Flip in the viewer).
+        # It lives only in the index, never in the file, so this is the one
+        # place it can move from: mirrored left to right first, then turned
+        # "rotation" degrees clockwise.
+        "turns": [{**_ref(a), "rotation": a["rotation"], "mirror": bool(a["mirror"])}
+                  for a in assets.values() if a["rot_source"] == "manual"
+                  and (a["rotation"] or a["mirror"])],
         "albums": [],
         "shares": [],
     }

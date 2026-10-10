@@ -384,7 +384,9 @@ def test_a92_the_same_photo_still_replaces_its_damaged_copy(tmp_path):
     source = noisy_jpeg(card / "IMG_0001.jpg", "2020:01:01 10:00:00", seed=1)
     run(data, [card], dest)
     archived = dest / "2020" / "01" / "01" / "IMG_0001.jpg"
+    kept = archived.stat()            # damage where it lies: same size and time
     archived.write_bytes(archived.read_bytes()[:-10] + b"\0" * 10)
+    os.utime(archived, ns=(kept.st_atime_ns, kept.st_mtime_ns))
     run(data, [card], dest, "verify")
     run(data, [card], dest)
     assert archived.read_bytes() == source.read_bytes()

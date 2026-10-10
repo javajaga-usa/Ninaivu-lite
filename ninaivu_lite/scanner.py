@@ -671,16 +671,20 @@ class Scanner:
         *mirror* (None keeps it) whether it is shown mirrored. The thumbnails
         are remade now, or left for the thumbnail pass when *remake* is False.
         Returns whether the picture shows a different way than before."""
-        row = conn.execute("SELECT rotation, mirror, width, height FROM assets WHERE id = ?",
-                           (asset_id,)).fetchone()
-        if row is None:
-            return False
         rotation %= 360
-        mirror = bool(row["mirror"]) if mirror is None else bool(mirror)
-        changed = rotation != (row["rotation"] or 0) or mirror != bool(row["mirror"])
-        swap = (rotation % 180) != ((row["rotation"] or 0) % 180)
-        width, height = (row["height"], row["width"]) if swap else (row["width"], row["height"])
         with conn:
+            # Read under the write lock: the shape is swapped from what is
+            # stored now, and a turn somebody set by hand while the faces
+            # were being looked at is never replaced by the guess.
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT rotation, mirror, width, height, rot_source FROM assets "
+                               "WHERE id = ?", (asset_id,)).fetchone()
+            if row is None or (source != "manual" and row["rot_source"] == "manual"):
+                return False
+            mirror = bool(row["mirror"]) if mirror is None else bool(mirror)
+            changed = rotation != (row["rotation"] or 0) or mirror != bool(row["mirror"])
+            swap = (rotation % 180) != ((row["rotation"] or 0) % 180)
+            width, height = (row["height"], row["width"]) if swap else (row["width"], row["height"])
             # A new thumbnail version at once: a tile asked for before the new
             # thumbnail is made must not be answered by the browser's year-long
             # cached copy of the old one.
