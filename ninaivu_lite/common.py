@@ -23,7 +23,7 @@ from werkzeug.routing import IntegerConverter
 from . import auth, db, media
 from .config import Config
 from .dates import long_path
-from .scanner import Scanner, full_path
+from .scanner import Scanner, full_path, leads_away
 
 # --- the request's surroundings ---------------------------------------------------
 
@@ -46,11 +46,25 @@ def conn() -> sqlite3.Connection:
     return g.db
 
 
+#: An answer asked for with more than this in its parameters (a search or a
+#: folder a quarter of a megabyte long, from anyone on the network) is worked
+#: out but not kept: kept, 128 of them held hundreds of megabytes.
+KEY_KEEP_CHARS = 4096
+
+
+def small_key(params: Any) -> bool:
+    """Whether *params* are small enough to be part of a remembered key."""
+    return sum(len(str(p)) for p in params) <= KEY_KEEP_CHARS
+
+
 def counted(sql: str, params: list[Any] | tuple[Any, ...] = ()) -> list[tuple]:
     """The rows of a read-only count over the index, worked out again only
     when the index has changed since (see :class:`db.Remembered`)."""
-    return current_app.config["REMEMBERED"].get(
-        (sql, tuple(params)), lambda: [tuple(r) for r in conn().execute(sql, params)])
+    def compute() -> list[tuple]:
+        return [tuple(r) for r in conn().execute(sql, params)]
+    if not small_key(params):
+        return compute()
+    return current_app.config["REMEMBERED"].get((sql, tuple(params)), compute)
 
 
 #: A grid page larger than this is not kept (a 25,000-photo page is about
@@ -61,6 +75,8 @@ PAGES_KEPT = 6
 
 def remembered_page(key: tuple, compute: Callable[[], str]) -> str:
     """A grid page's answer, made again only when the index has changed."""
+    if not small_key(key):
+        return compute()
     return current_app.config["REMEMBERED_PAGES"].get(
         key, compute, keep=lambda body: len(body) <= PAGE_KEEP_BYTES)
 
@@ -130,13 +146,25 @@ def install_converters(state) -> None:
 JSON_MAX_BYTES = 1024 * 1024
 
 
+def json_sent() -> Any:
+    """The body read as JSON, or None when it is not JSON. Never more than
+    :data:`JSON_MAX_BYTES` (a 100 MB body of small objects took over 2 GB to
+    read), and never nested so deep that reading it fails."""
+    if (request.content_length or 0) > JSON_MAX_BYTES:
+        fail(413, "That is too large.")
+    try:
+        return request.get_json(silent=True)
+    except RecursionError:
+        return None
+
+
 def body() -> dict[str, Any]:
     """The JSON object sent, or {} for an empty body (logout, delete)."""
     if (request.content_length or 0) > JSON_MAX_BYTES:
         fail(413, "That is too large.")
     if not request.get_data(cache=True):
         return {}
-    data = request.get_json(silent=True)
+    data = json_sent()
     if not isinstance(data, dict):
         fail(400, "Send a JSON object.")
     return data
@@ -268,7 +296,13 @@ def visible_asset(asset_id: int, who: auth.User | None = None) -> sqlite3.Row:
 
 
 def asset_path(row: sqlite3.Row) -> str:
-    return full_path(row["root"], row["dir"], row["name"])
+    """Where the file is; a 404 when it leads, through a link, into the data
+    folder or to something that is not a photograph or video (see
+    :func:`scanner.leads_away`): a file can be made a link after it was indexed."""
+    path = full_path(row["root"], row["dir"], row["name"])
+    if leads_away(path, scanner().data_real):
+        fail(404, "This file is not available right now.")
+    return path
 
 
 def is_favourite(asset_id: int, who: auth.User | None = None) -> bool:
