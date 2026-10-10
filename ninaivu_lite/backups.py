@@ -285,9 +285,15 @@ def before_change(data_dir: str | Path, what: str) -> Path | None:
         folder.mkdir(parents=True, exist_ok=True)
         # Never over an earlier copy: two taken in the same second (two
         # people removed one after the other) get -2, -3. The name is
-        # claimed first, so two at once cannot both choose it.
-        stamp = f"before-{what}-{datetime.now():%Y-%m-%d-%H%M%S}"
-        for n in range(1, 1000):
+        # claimed first, so two at once cannot both choose it. Counted on
+        # from every copy of that second, whatever it was taken before, so a
+        # later copy always sorts as later, even after pruning freed a name.
+        when = f"{datetime.now():%Y-%m-%d-%H%M%S}"
+        stamp = f"before-{what}-{when}"
+        taken = [_taken_at(p) for p in folder.glob(f"before-*-{when}*.zip")]
+        first = max((int(t.rsplit("-", 1)[1]) for t in taken if t.startswith(when)),
+                    default=0) + 1
+        for n in range(first, first + 1000):
             target = folder / (f"{stamp}.zip" if n == 1 else f"{stamp}-{n}.zip")
             try:
                 with open(target, "xb"):
