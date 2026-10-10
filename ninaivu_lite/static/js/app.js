@@ -2221,6 +2221,14 @@ function wireKeyboard() {
     }
     if (event.defaultPrevented) return;
     if (event.key === 'Escape' && closeMenus()) return;
+    // The sidebar drawer of a narrow window (a phone, a small Pi screen):
+    // Escape shuts it like any other menu, and the focus goes back to its button.
+    if (event.key === 'Escape' && document.querySelector('.shell.mobile-open')) {
+      document.querySelector('.shell').classList.remove('mobile-open');
+      $('#sidebar-toggle')?.setAttribute('aria-expanded', 'false');
+      $('#sidebar-toggle')?.focus();
+      return;
+    }
     if (event.key === 'Escape' && $('#topbar-more').classList.contains('open')) {
       $('#topbar-more').classList.remove('open');
       $('#more-btn').setAttribute('aria-expanded', 'false');
