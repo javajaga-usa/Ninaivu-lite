@@ -62,6 +62,9 @@ function renderAlbum(data) {
   for (const item of data.items) {
     const link = document.createElement('a');
     link.href = item.view || item.src; link.target = '_blank'; link.rel = 'noopener';
+    // A video turned or flipped in the gallery would play the file's own way
+    // up on its own: it opens on this page instead, which plays it turned.
+    if (item.kind === 'video' && (item.rotation || item.mirror)) link.href = `${location.pathname}#item=${item.id}`;
     const img = document.createElement('img');
     img.src = item.thumb; img.alt = ''; img.loading = 'lazy';
     // Fades in when it arrives; a photograph that fails stays a quiet tile.
@@ -124,7 +127,10 @@ async function load() {
         data.error ? i18n.t(data.error) : i18n.t('This link is no longer available.')));
       return;
     }
-    if (data.scope === 'album') renderAlbum(data); else renderOne(data.item);
+    const one = Number(new URLSearchParams(location.hash.slice(1)).get('item'));
+    const chosen = data.scope === 'album' && one ? data.items.find((item) => item.id === one) : null;
+    if (chosen) renderOne(chosen);
+    else if (data.scope === 'album') renderAlbum(data); else renderOne(data.item);
   } catch (err) {
     main.replaceChildren(el('p', 'empty', i18n.t('This link could not be opened.')));
   }

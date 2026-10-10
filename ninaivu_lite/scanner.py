@@ -34,6 +34,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
+from PIL import Image, ImageOps
+
 from . import db, media, parallel
 from .dates import from_timestamp, long_path
 
@@ -82,6 +84,10 @@ class Scanner:
         self._everything = False
         #: Thumbnails being made for a request now, one at a time each.
         self._making = parallel.OneAtATime()
+        # Thumbnails to make again in the background (remake_later), in order.
+        self._remaking: dict[int, None] = {}
+        self._remaking_lock = threading.Lock()
+        self._remaker = False
         #: Goes up whenever the index changes, so cached answers know they are stale.
         self.generation = 0
         self.status: dict[str, Any] = {
@@ -677,7 +683,8 @@ class Scanner:
             # stored now, and a turn somebody set by hand while the faces
             # were being looked at is never replaced by the guess.
             conn.execute("BEGIN IMMEDIATE")
-            row = conn.execute("SELECT rotation, mirror, width, height, rot_source FROM assets "
+            row = conn.execute("SELECT kind, thumb, rotation, mirror, width, height, rot_source "
+                               "FROM assets "
                                "WHERE id = ?", (asset_id,)).fetchone()
             if row is None or (source != "manual" and row["rot_source"] == "manual"):
                 return False
@@ -694,6 +701,11 @@ class Scanner:
                 + (", thumb = 0, large = 0, thumb_v = thumb_v + 1" if changed else "")
                 + " WHERE id = ?",
                 (rotation, int(mirror), source, width, height, asset_id))
+        # A video's picture is its own thumbnail turned the new way: often the
+        # only one there is (a browser's poster, without ffmpeg), which making
+        # it again from the file would lose.
+        poster = self._turned_poster(asset_id, row, rotation, mirror) \
+            if changed and row["kind"] == "video" and row["thumb"] == db.THUMB_OK else None
         if changed:
             # The old thumbnails show the old way up: gone now, so nothing can
             # serve them before the new ones exist.
@@ -703,7 +715,19 @@ class Scanner:
                 except OSError:
                     pass
             self.generation += 1
-            if remake:
+            try:
+                colour = media.save_thumbnails(poster, self.thumbs_dir, asset_id) \
+                    if poster is not None else None
+            except (OSError, ValueError):
+                poster = None   # made from the file instead, as for a photograph
+            if poster is not None:
+                with conn:
+                    conn.execute("UPDATE assets SET thumb = ?, large = 1, color = ?, thumb_v = ? "
+                                 "WHERE id = ? AND rotation = ? AND mirror = ?",
+                                 (db.THUMB_OK, colour, int(time.time() * 1000) % 2_000_000_000,
+                                  asset_id, rotation, int(mirror)))
+                self.generation += 1
+            elif remake:
                 row = conn.execute(
                     """SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.rotation, a.mirror,
                               f.path AS root
@@ -713,29 +737,68 @@ class Scanner:
                     self._thumbnail(conn, row, ("s", "l"))
         return changed
 
+    def _turned_poster(self, asset_id: int, row: sqlite3.Row, rotation: int,
+                       mirror: bool) -> Image.Image | None:
+        """The video's big thumbnail as it would be turned *rotation* and
+        mirrored *mirror* from the frame itself, or None when it cannot be read."""
+        for size in ("l", "s"):
+            try:
+                with Image.open(media.thumb_path(self.thumbs_dir, asset_id, size)) as img:
+                    frame = img.convert("RGB")
+            except (OSError, ValueError):
+                continue
+            # Back to the frame as the video has it (the turn undone, then the
+            # mirror), then the new way.
+            frame = frame.rotate(row["rotation"] or 0, expand=True)
+            if row["mirror"]:
+                frame = ImageOps.mirror(frame)
+            return media.turn(frame, rotation, mirror)
+        return None
+
     def remake_later(self, asset_ids: list[int]) -> None:
         """Make the thumbnails of *asset_ids* again, in the background, one at
         a time: for many turned at once (Rotate on a selection), where making
         them all before answering would keep the person waiting. A tile on
-        screen meanwhile is made at once when it is asked for."""
-        def work() -> None:
-            parallel.background()
+        screen meanwhile is made at once when it is asked for. One worker for
+        all of them: a large selection comes in pieces, and a second Rotate
+        before the first is done adds to the same list rather than making the
+        same pictures twice at once."""
+        with self._remaking_lock:
+            self._remaking.update(dict.fromkeys(asset_ids))
+            if self._remaker:
+                return
+            self._remaker = True
+        threading.Thread(target=self._remake_work, name="remake-thumbnails", daemon=True).start()
+
+    def _remake_work(self) -> None:
+        parallel.background()
+        conn, finished = None, False
+        try:
             conn = db.connect(self.data_dir)
-            try:
-                for asset_id in asset_ids:
-                    if self._stop.is_set():
+            while not self._stop.is_set():
+                with self._remaking_lock:
+                    if not self._remaking:
+                        # Under the lock: one added now starts a new worker.
+                        self._remaker, finished = False, True
                         return
-                    row = self._now_row(conn, asset_id)
-                    if row is None or row["thumb"] != 0:
-                        continue
-                    try:
-                        if self._thumbnail(conn, row, ("s", "l")):
-                            self.generation += 1
-                    except Exception:  # noqa: BLE001 — the thumbnail pass tries again
-                        log.debug("could not remake thumbnails for %s", asset_id, exc_info=True)
-            finally:
+                    asset_id = next(iter(self._remaking))
+                    del self._remaking[asset_id]
+                row = self._now_row(conn, asset_id)
+                # Made already (a tile asked for it), or its folder taken out of
+                # the library meanwhile: nothing to do.
+                if row is None or row["thumb"] != 0 or row["missing"]:
+                    continue
+                try:
+                    if self._thumbnail(conn, row, ("s", "l")):
+                        self.generation += 1
+                except Exception:  # noqa: BLE001 — the thumbnail pass tries again
+                    log.debug("could not remake thumbnails for %s", asset_id, exc_info=True)
+        finally:
+            if not finished:
+                with self._remaking_lock:
+                    self._remaker = False
+            if conn is not None:
                 conn.close()
-        threading.Thread(target=work, name="remake-thumbnails", daemon=True).start()
 
     def _thumbnail(self, conn: sqlite3.Connection, row: sqlite3.Row,
                    sizes: tuple[str, ...], threads: int = 0) -> bool:
@@ -778,6 +841,15 @@ class Scanner:
     @staticmethod
     def _record_one(conn: sqlite3.Connection, row: sqlite3.Row, sizes: tuple[str, ...],
                     ok: bool, colour: str | None, version: int) -> None:
+        if conn.execute("SELECT 1 FROM assets WHERE id = ? AND rotation = ? AND mirror = ?",
+                        (row["id"], row["rotation"] or 0, int(bool(row["mirror"])))
+                        ).fetchone() is None:
+            # Turned or flipped while this was being made (Save in the viewer,
+            # Rotate on a selection): the picture is the old way up. Left to be
+            # made again, never written down as current.
+            conn.execute("UPDATE assets SET thumb = ?, large = 0 WHERE id = ? AND thumb != ?",
+                         (db.THUMB_PENDING, row["id"], db.THUMB_NONE))
+            return
         if "s" in sizes:
             # NONE only for a file that is there and cannot be read as a
             # picture: that is final until the file changes.
@@ -819,7 +891,7 @@ class Scanner:
     def _now_row(conn: sqlite3.Connection, asset_id: int) -> sqlite3.Row | None:
         return conn.execute(
             """SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.large, a.rotation, a.mirror,
-                      f.path AS root
+                      a.missing, f.path AS root
                FROM assets a JOIN folders f ON f.id = a.folder_id WHERE a.id = ?""",
             (asset_id,)).fetchone()
 

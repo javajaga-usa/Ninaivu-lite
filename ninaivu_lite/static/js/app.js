@@ -1694,7 +1694,7 @@ function renderAlbums() {
 
     if (album.cover_id) {
       const img = document.createElement('img');
-      img.src = thumbUrl(album.cover_id, 80);
+      img.src = thumbUrl(album.cover_id, 80, album.cover_v);
       img.alt = '';
       img.loading = 'lazy';
       button.appendChild(img);
@@ -1770,7 +1770,7 @@ function openAlbumModal(ids = []) {
 
       if (album.cover_id) {
         const img = document.createElement('img');
-        img.src = thumbUrl(album.cover_id, 64);
+        img.src = thumbUrl(album.cover_id, 64, album.cover_v);
         img.alt = '';
         row.appendChild(img);
       } else {
@@ -2239,7 +2239,9 @@ function wireKeyboard() {
     }
 
     if (viewer.isOpen) {
-      if (typing) return;
+      // The position bar of a turned video is a range input: Escape still
+      // leaves (or puts an unsaved turn back), as with the browser's own bar.
+      if (typing && !(event.key === 'Escape' && target.matches('input[type="range"]'))) return;
       if (viewer.handleKey(event)) event.preventDefault();
       return;
     }
