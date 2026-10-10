@@ -152,8 +152,10 @@ body.admin {
   color: var(--text-3); font-size: 20px;
 }
 .preview-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* The gold is the frame and the wash; gold lettering on its own wash was
+   under 2:1 in the light theme and hard to read. */
 .empty-note {
-  font-size: 13px; color: var(--gold);
+  font-size: 13px; color: var(--text-2);
   border: 1px solid color-mix(in srgb, var(--gold) 28%, transparent);
   border-radius: var(--r-sm); padding: 10px 12px;
 }
@@ -309,6 +311,14 @@ body.admin .ios-install-banner {
   border-bottom: 1px solid var(--border-soft);
 }
 .dir-list .gate-error { margin: 10px; }
+/* On a phone the typed path gets a line of its own, so Cancel and Use this
+   folder stay on the card (side by side with it they ran off the right edge). */
+@media (max-width: 560px) {
+  #folder-modal .modal-foot { flex-wrap: wrap; }
+  #fm-manual { flex: 1 1 100%; min-width: 0; }
+  #folder-modal .modal-foot .spacer { display: none; }
+  #fm-cancel, #fm-apply { flex: 1 1 auto; }
+}
 
 /* Library folders -------------------------------------------------------- */
 

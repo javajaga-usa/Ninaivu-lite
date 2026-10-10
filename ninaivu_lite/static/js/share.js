@@ -110,11 +110,51 @@ function renderOne(item) {
       node.addEventListener('loadedmetadata', fit);
       window.addEventListener('resize', fit);
       fit();
+      // The browser's own controls turn (or mirror) with the picture.
+      node.controls = false;
+      stage.append(node, turnedControls(node));
+      main.replaceChildren(stage);
+      return;
     }
   }
   else { node.alt = i18n.t('Shared photograph'); }
   stage.appendChild(node);
   main.replaceChildren(stage);
+}
+
+const clock = (seconds) => {
+  const s = Math.round(seconds || 0);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
+
+/** Play, pause and a position bar under a turned video, the right way up. */
+function turnedControls(video) {
+  const bar = el('div', 'turned-controls');
+  const play = el('button');
+  play.type = 'button';
+  const seek = document.createElement('input');
+  seek.type = 'range'; seek.min = '0'; seek.max = '1000'; seek.value = '0';
+  seek.setAttribute('aria-label', i18n.t('Position in the video'));
+  const time = el('span', 'turned-time');
+  const paint = () => {
+    const paused = video.paused || video.ended;
+    play.innerHTML = paused
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7Z"/></svg>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg>';
+    play.setAttribute('aria-label', i18n.t(paused ? 'Play' : 'Pause'));
+    play.title = play.getAttribute('aria-label');
+    const length = video.duration || 0;
+    if (length && document.activeElement !== seek) seek.value = String(Math.round(video.currentTime / length * 1000));
+    time.textContent = length ? `${clock(video.currentTime)} / ${clock(length)}` : '';
+  };
+  play.onclick = () => (video.paused || video.ended ? video.play().catch(() => {}) : video.pause());
+  seek.oninput = () => { if (video.duration) video.currentTime = Number(seek.value) / 1000 * video.duration; };
+  for (const name of ['play', 'pause', 'timeupdate', 'loadedmetadata', 'ended']) video.addEventListener(name, paint);
+  // Nothing to play: no controls under the reason why.
+  video.addEventListener('error', () => { bar.hidden = true; });
+  paint();
+  bar.append(play, seek, time);
+  return bar;
 }
 
 async function load() {
