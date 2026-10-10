@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+- **Polished screen elements, everywhere.** One set of controls across the console, the
+  family app, the first-day steps, Settings, Import, Sudar, share links and dialogs, in
+  English and Tamil, light and dark, at phone widths. Lists to choose from (role, folder,
+  language, sort, how long a share link lasts) have the same rounded box and chevron as the
+  fields beside them instead of each browser's own arrow. The sign-in, setup and "who's
+  watching" cards show the house in the same lit tile as the top bar. A share link's
+  password page has a lock and a clear question, and its **Open** button is set in the
+  app's font. The plugged-in drive notice has a round close button with an icon, a
+  white **Export** and a red **Stop**. Import's chart reads its years across. Nothing new is
+  loaded: no fonts, pictures or scripts, and no new blur, so old computers and the
+  Raspberry Pi are as quick as before. Fixed on the way (numbered from M16):
+  - **M16** The console used colour names that were never defined, so lines between
+    settings, extensions and face cards were drawn black in the light theme, the Straighten
+    cards were dark grey on a light page, and notes meant to be quiet were not.
+  - **M17** In Sudar the grouped tools (Undo/Redo/Reset, Compare/Edited/Original), the
+    *Adjust / AI assist / Magic tools* tabs, the looks, the suggestions and the idea chips
+    all came out as the same grey bordered button, so the view in use did not show. They
+    look as designed again: the pressed view is a raised white segment, the open tab is
+    tinted, and suggestions are tinted cards.
+  - **M18** The viewer's ⋮ menu centred a name that wrapped ("Use as my profile picture");
+    names now start at their icon, and a long one takes a second line inside its row.
+  - **M19** "Admin console" on the family app's library card was underlined like a link.
+  - **M20** The overview's count cards had a coloured top border that bent into a crescent
+    at the rounded corners; a short bar of the same colour replaces it.
+  - **M21** The **Open** button on a share link's password page used the browser's own font.
+
 - **A new look for the Control Panel.** The window opens on a dark band with the app's icon,
   its name and a status pill (a green dot for *Running*, grey for *Stopped*, a blue dot that
   pulses while it starts, stops or restarts). Buttons are rounded and carry icons: **Start**

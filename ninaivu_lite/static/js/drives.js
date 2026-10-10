@@ -240,13 +240,14 @@ export class DrivePrompt {
       return b;
     };
     if (this.job) {
-      this.stopButton = button('Stop', 'ghost', () => this.stopJob());
+      this.stopButton = button('Stop', 'danger', () => this.stopJob());
     } else {
       if (!phone) button('Export', '', () => this.run('export', drive));
       button('Don’t ask again', 'ghost', () => this.never(drive));
     }
-    const close = el('button', 'btn small ghost drive-notice-close', '×');
+    const close = el('button', 'btn small ghost drive-notice-close');
     close.type = 'button';
+    close.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
     close.onclick = () => this.notNow();
     close.setAttribute('aria-label', i18n.t('Close'));
     close.title = i18n.t('Close');
