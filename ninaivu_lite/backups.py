@@ -284,11 +284,15 @@ def before_change(data_dir: str | Path, what: str) -> Path | None:
     try:
         folder.mkdir(parents=True, exist_ok=True)
         # Never over an earlier copy: two taken in the same second (two
-        # people removed one after the other) get -2, -3. The name is
-        # claimed first, so two at once cannot both choose it.
-        stamp = f"before-{what}-{datetime.now():%Y-%m-%d-%H%M%S}"
+        # people removed one after the other) get -2, -3, counted across
+        # every kind of copy so they still sort in the order taken. The
+        # name is claimed first, so two at once cannot both choose it.
+        when = f"{datetime.now():%Y-%m-%d-%H%M%S}"
         for n in range(1, 1000):
-            target = folder / (f"{stamp}.zip" if n == 1 else f"{stamp}-{n}.zip")
+            suffix = "" if n == 1 else f"-{n}"
+            if any(folder.glob(f"before-*-{when}{suffix}.zip")):
+                continue
+            target = folder / f"before-{what}-{when}{suffix}.zip"
             try:
                 with open(target, "xb"):
                     break
