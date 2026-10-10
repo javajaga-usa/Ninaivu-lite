@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 1.11.0 — 2026-10-10
+
+The index is unchanged (version 9), so 1.11.0, 1.10.0, 1.9.0, 1.8.0 and 1.7.0 can open each
+other's data folder: going back needs no backup restore. Before installing 1.11.0, stop
+Ninaivu Lite: in the Control Panel press **Stop**, then close it (on a Linux server,
+`sudo systemctl stop ninaivu-lite`); the photos, people, settings, index and backups are kept.
+Coming from an older portable zip: extract the new zip to a new folder and copy the old
+`data` folder beside the new `Ninaivu Lite.exe`. That exe is not code-signed, so unblock the
+zip before extracting it (*Properties → Unblock*) or choose *More info → Run anyway* once.
+
 Ninaivu Lite keeps answering while it works: a second multitasking review (A130-A136; the
 index is unchanged, and the photographs are never touched):
 
