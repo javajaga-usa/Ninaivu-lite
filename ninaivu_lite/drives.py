@@ -609,7 +609,9 @@ def fat_like(path: str, mounts: str = "/proc/mounts") -> bool:
     macOS translates them itself) or when it cannot be told: False."""
     if not sys.platform.startswith("linux") and mounts == "/proc/mounts":
         return False
-    real = os.path.realpath(path)
+    # Only Linux paths are looked up; elsewhere realpath would make
+    # /media/... into C:\media\... and nothing would match.
+    real = os.path.realpath(path) if sys.platform.startswith("linux") else path
     best, kind = "", ""
     try:
         with open(mounts, encoding="utf-8", errors="replace") as f:
