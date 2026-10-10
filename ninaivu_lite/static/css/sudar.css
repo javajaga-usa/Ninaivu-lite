@@ -1156,3 +1156,53 @@
   -webkit-touch-callout: none;
 }
 .ap-stage img { -webkit-user-drag: none; }
+
+/* ==========================================================================
+   Polish: the studio's own controls look as they were drawn (M17, 2026-10-10)
+   ========================================================================== */
+/* "#ai-playground button" above outranks every class-only rule for a button,
+   so the segmented tools (Undo/Redo/Reset, Compare/Edited/Original), the
+   Adjust / AI assist / Magic tools tabs, the looks, the suggestion cards and
+   the idea chips all came out as the same grey bordered button, and the
+   pressed view showed no difference at all. The same rules, inside the
+   studio's own scope, so they win. */
+#ai-playground .ap-cluster button {
+  height: auto; border: 0; background: none; box-shadow: none;
+  color: var(--ap-muted); font-size: 12px; font-weight: 550;
+  padding: 6px 12px; border-radius: 7px;
+}
+#ai-playground .ap-cluster button:hover:enabled { background: var(--ap-btn-hover); color: var(--ap-text); }
+#ai-playground .ap-cluster button[aria-pressed="true"],
+#ai-playground .ap-cluster button.active {
+  background: var(--ap-input-bg); color: var(--ap-text); font-weight: 650;
+  box-shadow: 0 1px 2px var(--ap-shadow), inset 0 0 0 1px var(--ap-line);
+}
+#ai-playground .ap-mode-btn {
+  border: 0; background: transparent; color: var(--ap-muted);
+  padding: 8px 6px; font-size: 12px; font-weight: 550;
+}
+#ai-playground .ap-mode-btn:hover:enabled { background: var(--ap-btn-hover); color: var(--ap-text); }
+#ai-playground .ap-mode-btn.active {
+  background: var(--ap-accent-soft-hover); color: var(--ap-accent); font-weight: 650;
+  box-shadow: inset 0 0 0 1px var(--ap-accent-border);
+}
+#ai-playground .ap-preset-card {
+  padding: 9px 11px; background: var(--ap-card); border: 1px solid var(--ap-line); border-radius: 10px;
+}
+#ai-playground .ap-preset-card:hover:enabled {
+  background: var(--ap-accent-soft); border-color: var(--ap-accent);
+}
+#ai-playground .ap-card {
+  padding: 10px 12px; background: var(--ap-accent-soft); border: 1px solid var(--ap-accent-border); border-radius: 10px;
+}
+#ai-playground .ap-card:hover:enabled { background: var(--ap-accent-soft-hover); border-color: var(--ap-accent); }
+#ai-playground .ap-prompt-ideas .btn {
+  height: auto; font-size: 11.5px; padding: 5px 11px; border-radius: 999px;
+  background: var(--ap-btn-bg); border: 1px solid var(--ap-line); color: var(--ap-muted);
+}
+#ai-playground .ap-prompt-ideas .btn:hover:enabled {
+  color: var(--ap-text); background: var(--ap-btn-hover); border-color: var(--ap-btn-hover-border);
+}
+@media (prefers-reduced-motion: reduce) {
+  #ai-playground .ap-preset-card:hover:enabled, #ai-playground .ap-card:hover:enabled { transform: none; }
+}
