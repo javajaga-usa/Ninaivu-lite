@@ -542,6 +542,14 @@ def save_thumbnails(img: Image.Image, thumbs_dir: Path, asset_id: int,
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
+#: What a copy that leaves the family is saved with. Pillow writes the
+#: source's JPEG comment (its COM segment) into a new JPEG unless told
+#: otherwise, and it survives convert, thumbnail and turn: a caption such as
+#: "Amma, hospital, Chennai" went out on share links, to guests and on the
+#: sign-in screen's profile pictures (A145). An empty comment writes none.
+NO_METADATA = {"comment": b""}
+
+
 def profile_picture(path: str, rotation: int = 0, size: int = 256) -> bytes:
     """The middle of a photograph as a small square JPEG, upright, no metadata:
     a profile picture for the sign-in screen."""
@@ -549,7 +557,7 @@ def profile_picture(path: str, rotation: int = 0, size: int = 256) -> bytes:
         img = turn(img.convert("RGB"), rotation)
         img = ImageOps.fit(img, (size, size), Image.Resampling.LANCZOS)
         out = io.BytesIO()
-        img.save(out, "JPEG", quality=88, optimize=True)
+        img.save(out, "JPEG", quality=88, optimize=True, **NO_METADATA)
         return out.getvalue()
 
 
@@ -561,5 +569,5 @@ def viewing_copy(path: str, max_edge: int = 2560, rotation: int = 0) -> bytes:
         img = turn(img.convert("RGB"), rotation)
         img.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
         out = io.BytesIO()
-        img.save(out, "JPEG", quality=86, optimize=True)
+        img.save(out, "JPEG", quality=86, optimize=True, **NO_METADATA)
         return out.getvalue()

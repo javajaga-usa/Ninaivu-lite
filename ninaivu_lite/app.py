@@ -132,6 +132,9 @@ def host_allowed(host: str, extra: list[str] | tuple[str, ...] = ()) -> bool:
 #: Carrier-grade NAT, the range Tailscale gives its devices: not "private"
 #: to Python, but never a stranger on the internet.
 SHARED_RANGE = ipaddress.ip_network("100.64.0.0/10")
+#: IPv6 ranges Python calls "private" that no home device ever has: the
+#: documentation and benchmarking prefixes (A144).
+DOCUMENTATION_V6 = (ipaddress.ip_network("2001:db8::/32"), ipaddress.ip_network("2001:2::/48"))
 _ADDRESS_PART = re.compile(r"^[0-9A-Fa-f:.]+$")
 _same_network_seen: dict[str, bool] = {}
 _same_network_lock = threading.Lock()
@@ -185,6 +188,17 @@ def home_address(address: str | None) -> bool | None:
         return None
     if ip.version == 6 and ip.ipv4_mapped:
         ip = ip.ipv4_mapped
+    if ip.version == 6:
+        # Python counts Teredo (2001::/32) and 6to4 (2002::/16) as "private",
+        # but both are tunnels from the internet (A144). A Teredo client is
+        # somewhere out there; a 6to4 address carries its sender's IPv4
+        # address, which is what is judged.
+        if ip.teredo:
+            return False
+        if ip.sixtofour:
+            ip = ip.sixtofour
+        elif any(ip in net for net in DOCUMENTATION_V6):
+            return False
     if ip.is_loopback or ip.is_private or ip.is_link_local:
         return True
     if ip.version == 4 and ip in SHARED_RANGE:

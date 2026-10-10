@@ -37,7 +37,7 @@ internet** (no port forwarding, no public tunnels). HTTPS is planned for a later
 - **Your photos are never changed**: Lite only reads them, and never moves, edits or deletes
   one. It writes to its own data folder, and elsewhere only where an administrator asks it
   to: the *Import* archive, an edited copy that Sudar saves beside its original, a drive
-  chosen for *Export media to this drive*, and, for a phone import on Windows, a temporary
+  chosen with *Export* on its plugged-in drive notice, and, for a phone import on Windows, a temporary
   `… phone copies` folder beside the data folder.
 - **The Linux service** (installed with `sudo`) runs as its own unprivileged `ninaivu-lite`
   account, never as root, and reads only the photo folders it is given access to.

@@ -23,9 +23,12 @@ function askForPassword(message) {
   input.autocomplete = 'off'; input.placeholder = i18n.t('Password');
   input.setAttribute('aria-label', i18n.t('Share password'));
   const error = el('p', 'error', message || '');
+  // M24: read out, and placed under the field rather than under the button:
+  // on a phone held sideways the line below the button was off the screen.
+  error.setAttribute('role', 'alert');
   const button = el('button', null, i18n.t('Open'));
   button.type = 'submit';
-  form.append(input, button, error);
+  form.append(input, error, button);
   form.onsubmit = async (event) => {
     event.preventDefault();
     button.disabled = true;
@@ -36,7 +39,11 @@ function askForPassword(message) {
         body: JSON.stringify({ password: input.value }),
       });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) { error.textContent = body.error ? i18n.t(body.error) : i18n.t('That did not work.'); return; }
+      if (!res.ok) {
+        error.textContent = body.error ? i18n.t(body.error) : i18n.t('That did not work.');
+        button.scrollIntoView({ block: 'nearest' });
+        return;
+      }
       await load();
     } catch {
       error.textContent = i18n.t('Could not reach Ninaivu. Try opening the link again.');

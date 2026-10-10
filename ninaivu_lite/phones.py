@@ -81,7 +81,10 @@ $todo = New-Object System.Collections.ArrayList
 function NameOf($item) {
   $n = $item.ExtendedProperty('System.FileName')
   if (-not $n) { $n = $item.Name }
-  return ($n -replace '[<>:"/\\|?*]', '_')
+  $n = $n -replace '[<>:"/\\|?*]', '_'
+  # "." or ".." from a phone would climb out of the folder it is copied to (A147).
+  if ($n.Trim(' .') -eq '') { $n = '_' }
+  return $n
 }
 function Walk($folder, $rel) {
   foreach ($it in $folder.Items()) {
@@ -298,8 +301,13 @@ class PhoneImport:
             # archived as it is, cut short.
             failed = _read_list(imported_list(data_dir, drive, "failed"))
             for rel in failed:
+                path = os.path.normpath(os.path.join(mirror, rel))
+                # Only ever inside the phone's own copy: a name the phone gave
+                # must never reach a file anywhere else (A147).
+                if not is_within(path, mirror) or is_within(mirror, path):
+                    continue
                 try:
-                    os.remove(os.path.join(mirror, rel))
+                    os.remove(path)
                 except OSError:
                     pass
             self._set(phase="importing", done=0, total=0)

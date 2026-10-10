@@ -63,7 +63,8 @@ def test_a_person_chooses_a_photograph_as_their_picture(app, family, library):
     picture = anyone.get(me["avatar"])
     assert picture.status_code == 200
     assert picture.mimetype == "image/jpeg"
-    assert "public" in picture.headers["Cache-Control"]
+    # Asked again each time, answered 304 while unchanged (A146).
+    assert picture.headers["Cache-Control"] == "no-cache" and picture.headers.get("ETag")
     with Image.open(io.BytesIO(picture.data)) as img:
         assert img.size == (256, 256)
     picture.close()

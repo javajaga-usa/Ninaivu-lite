@@ -135,8 +135,11 @@ Public photograph; choose one you are happy to show.
 
 ## 5. Using the gallery
 
-- **Timeline** — newest first; drag the date bar on the right to jump to a year. On a phone
-  a row of years sits above the photographs instead: tap one to see that year.
+- **Timeline** — newest first; drag the date bar on the right to jump to a month or year, or
+  click the date button in the bottom corner (or press **D**): it lists only the years and
+  months that have photos (*Undated* last), for *Newest first* and *Oldest first*. On a phone
+  a row of years sits above the photographs: tap one to see that year; the date button opens
+  the list from the bottom of the screen.
 - **Folders** — the left menu lists folders with their counts.
 - **Search** — type a file name, a folder, a year or month, or a camera name.
 - **Viewer** — tap a photo. Swipe or use ← → to move, Esc to close. ♡ adds it to your

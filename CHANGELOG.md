@@ -2,6 +2,85 @@
 
 ## Unreleased
 
+A complete audit of 1.11.0 (A137-A179 and M22-M25; the report is in the project's audits
+folder). The index is unchanged (version 9), so 1.11.0 and earlier can still open the data
+folder. The photographs and videos are never touched.
+
+Screens:
+
+- **The Jump to button looks like a button again (M22).** In 1.11.0 a lost line in the style
+  sheet dropped its whole style, so it showed as a bare strip under the photographs. It is
+  the round button in the bottom corner again. A test now fails on any broken comment in
+  the style sheets.
+- **Sudar no longer lets the gallery's keys act behind it (A175).** With Sudar open, the
+  arrow keys moved the photo viewer behind it, *F* marked another photo a favourite, and the
+  first Escape closed the viewer instead of Sudar.
+- Escape closes the Details panel before the viewer (A177). Details says Photo, Video or
+  Audio in the chosen language instead of "picture" (A176).
+- Long names on *Who's watching?* end in "…" over up to two lines, with the lock still
+  shown (M23); a long unbroken name no longer pushes the console's People page sideways on a
+  phone (M25); a wrong share-link password shows its message on a phone held sideways (M24).
+- Tamil says காணொளி for videos everywhere, not sometimes வீடியோ (A178). The search box's
+  *Ctrl K* hint and the skip link are easier to read (A179).
+
+Photographs, drives and settings:
+
+- **An import never writes over a sidecar file already in the archive or library (A137).**
+  A re-import put the camera's old `.xmp` back over one edited later (ratings, face tags),
+  and a second camera's `IMG_0001.xmp` replaced the first's. Now an existing sidecar is kept;
+  another photograph's sidecar with the same stem travels as `IMG_0001.jpeg.xmp`.
+- Photographs recorded as duplicates in one archive are copied into a different archive,
+  instead of being stepped over as "already done" (A138).
+- A file too big for the drive's format (over 4 GB on a FAT32 pendrive, which Windows calls a
+  full disk) fails alone; the rest of the import or export carries on, and the export says
+  how many were too big (A139). A drive pulled out during an export says *Not finished*
+  instead of *Copied* (A140).
+- Two settings changed at the same moment are both kept (A141). The size count before an
+  import leaves out the library folders, as the import itself does (A142). A folder that
+  cannot be read is counted once, however often an import's folder is looked at again (A143).
+
+Who sees what:
+
+- **A library folder removed while a scan is walking it stays removed (A148)**, and **a folder
+  made Hidden while the scan is adding its new photographs hides them all (A149)**. Before,
+  some of them stayed in the gallery for the family.
+- Undoing a folder's visibility change puts photographs added to it since under the rules as
+  they are now (A150). Select all on a large library changes every photo chosen, not the first
+  5,000, and the message counts what really changed (A151).
+- Profile pictures leave the sign-in screen when their photograph is made Hidden or removed,
+  or the profile is switched off (A146). Viewing copies and profile pictures no longer carry
+  the photo's JPEG comment, which could hold a caption or place (A145); copies made earlier
+  are made again.
+- Addresses from internet tunnels (Teredo, 6to4) are no longer taken for the home network
+  (A144). A phone's file named `..` cannot reach outside its copy folder (A147). Numbers too
+  large for the index get a plain refusal instead of a server error in the log (A152). The
+  remembered gallery pages make room one at a time when full, so several people browsing at
+  once stay fast (A153).
+
+Installers and the Control Panel:
+
+- **Windows: the Control Panel opened at the end of setup, and the server started again after
+  an upgrade, no longer run as administrator (A165)**, so mapped network drives are seen.
+  The *Start Ninaivu Lite when I sign in* page comes after the folder page and keeps the
+  choice made for that folder on an upgrade (A166). The uninstaller names the right data
+  folder after an *All users* install (A168).
+- **Linux and Raspberry Pi: the installer checks the file matches the machine (64-bit, arm64
+  or x86-64) before changing anything (A167)**, and a failed first install no longer says an
+  earlier version is still installed. A server started on a chosen port comes back on it
+  after Restart or an upgrade, and the setup-code hint names the right place (A169). The
+  desktop entry works from a folder with a space in it (A173).
+- On a write-protected pendrive the Control Panel says the data folder cannot be written,
+  instead of pointing to a log that could not be made (A170). `--port` accepts 1-65535 only
+  (A171). Release runs queue one at a time and check the version again just before they
+  publish (A172).
+
+Guides: the Tamil guide describes the drive notice (not the old pop-up) and the preview
+workers as they are now; both Markdown guides describe the Jump to button; the README no
+longer mentions getting ready for an update; the Smart App Control tip no longer suggests the
+portable zip; backups kept and other wording corrected (A154-A161). The guide PDFs are
+rebuilt. Tests: no thread outlives its test, a timing race in one test is gone, and the guide
+labels are checked in CI (A162-A164).
+
 ## 1.11.0 — 2026-10-10
 
 The index is unchanged (version 9), so 1.11.0, 1.10.0, 1.9.0, 1.8.0 and 1.7.0 can open each

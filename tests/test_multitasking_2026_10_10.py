@@ -83,7 +83,10 @@ def test_a130_slots_limit_the_work_and_the_waiting():
 
     waiter = threading.Thread(target=wait_for_one)
     waiter.start()
-    time.sleep(0.05)
+    deadline = time.monotonic() + 5              # until the waiter holds the waiting place
+    while slots._waiting < 1 and time.monotonic() < deadline:
+        time.sleep(0.001)
+    assert slots._waiting == 1
     began = time.perf_counter()
     with pytest.raises(parallel.Busy):          # the waiting room is full: told at once
         with slots.slot():

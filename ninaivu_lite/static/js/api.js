@@ -186,6 +186,24 @@ export function buildQuery(filters) {
 
 let scanProgressMissing = false;
 //: Ninaivu's /api/events stream is not part of Ninaivu Lite.
+/**
+ * The server takes at most this many ids in one request (MAX_IDS). A larger
+ * selection (Select all on a big library) goes in pieces, and the answers are
+ * added up, so every photograph chosen is changed, not the first 5,000 (A151).
+ */
+export const IDS_PER_REQUEST = 5000;
+
+export async function inPieces(ids, send) {
+  const total = {};
+  for (let i = 0; i < ids.length; i += IDS_PER_REQUEST) {
+    const answer = await send(ids.slice(i, i + IDS_PER_REQUEST));
+    for (const [key, value] of Object.entries(answer || {})) {
+      total[key] = typeof value === 'number' && key !== 'batch_id' ? (total[key] || 0) + value : value;
+    }
+  }
+  return total;
+}
+
 const USE_EVENT_STREAM = false;
 
 export const api = {
@@ -223,8 +241,8 @@ export const api = {
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(fields ?? {}),
   }),
-  albumAdd: (id, ids) => post(`/api/albums/${id}/items`, { ids, remove: false }),
-  albumRemove: (id, ids) => post(`/api/albums/${id}/items`, { ids, remove: true }),
+  albumAdd: (id, ids) => inPieces(ids, (part) => post(`/api/albums/${id}/items`, { ids: part, remove: false })),
+  albumRemove: (id, ids) => inPieces(ids, (part) => post(`/api/albums/${id}/items`, { ids: part, remove: true })),
   deleteAlbum: (id) => request(`/api/albums/${id}`, { method: 'DELETE' }),
   segments: (filters, signal, { limit, offset = 0 } = {}) => {
     const params = buildQuery(filters);
@@ -234,7 +252,7 @@ export const api = {
   },
   asset: (id) => get(`/api/asset/${id}`),
   update: (id, fields) => post(`/api/asset/${id}`, fields),
-  bulk: (ids, fields) => post('/api/assets/bulk', { ids, ...fields }),
+  bulk: (ids, fields) => inPieces(ids, (part) => post('/api/assets/bulk', { ids: part, ...fields })),
   facets: () => get('/api/facets'),
   // The months (and the undated) the grid as filtered has photographs in.
   months: (filters, signal) => get(`/api/months?${buildQuery(filters)}`, { signal }),

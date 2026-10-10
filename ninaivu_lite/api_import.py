@@ -116,7 +116,8 @@ def capacity():
     token = str(data.get("progress_token") or "")
     if not _TOKEN.match(token):
         token = f"est-{int(time.time() * 1000)}"
-    return jsonify(engine().estimate(sources, destination, kinds, token))
+    return jsonify(engine().estimate(sources, destination, kinds, token,
+                                     library=list(cfg().folders)))
 
 
 @bp.get("/api/archive/capacity/progress")
@@ -166,9 +167,7 @@ def start():
         engine().start(sources, destination, kinds, mode, library=list(cfg().folders))
     except ValueError as exc:
         fail(409, str(exc))
-    c = cfg()
-    c.import_sources, c.import_destination, c.import_kinds = sources, destination, kinds
-    c.save()
+    cfg().update(import_sources=sources, import_destination=destination, import_kinds=kinds)
     message = {"copy": "Import started.", "dry-run": "Dry run started.",
                "verify": "Audit started."}[mode]
     return jsonify({"ok": True, "message": message, "resolution": resolution,

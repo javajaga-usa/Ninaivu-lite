@@ -13,7 +13,7 @@ import os
 
 from flask import Blueprint, current_app, jsonify
 
-from . import drives, importer, phones
+from . import config, drives, importer, phones
 from .common import body, cfg, fail, require_admin
 from .common import importer as engine
 
@@ -74,8 +74,9 @@ def never():
     drive = _drive()
     watcher().answer(drive.id)
     c = cfg()
-    if drive.id not in c.drives_never_ask:
-        c.update(drives_never_ask=[*c.drives_never_ask, drive.id][-200:])
+    with config.SAVING:     # read and change together, or a second answer is lost
+        if drive.id not in c.drives_never_ask:
+            c.update(drives_never_ask=[*c.drives_never_ask, drive.id][-200:])
     return jsonify({"ok": True})
 
 

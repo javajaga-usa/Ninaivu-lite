@@ -44,6 +44,18 @@ fi
 prefix=${prefix:-$default_prefix}
 say "Ninaivu Lite $version → $prefix"
 
+# The Python inside must run on this machine before anything is stopped or
+# replaced (A167): the other architecture's file, or a 32-bit OS, cannot.
+if ! "$payload/python/bin/python3" -c '' >/dev/null 2>&1; then
+    echo "The Python inside this installer cannot run on this machine ($(uname -m), $(getconf LONG_BIT 2>/dev/null || echo '?')-bit)." >&2
+    echo "Use the installer for this machine: linux-amd64 for a 64-bit PC, linux-arm64 for a" >&2
+    echo "Raspberry Pi 4 or 5 with the 64-bit Raspberry Pi OS. Nothing was changed." >&2
+    exit 1
+fi
+# Whether an earlier version is here, for what a failure says.
+had_old=0
+[ -x "$prefix/python/bin/python3" ] && had_old=1
+
 # An upgrade: stop the one that is running before its files are replaced. Its
 # service first (asked through the server, the service would only start it
 # again), then one started any other way. Whether it was running is
@@ -93,7 +105,11 @@ rm -rf "$prefix/python.new"
 failed_upgrade() {
     rm -rf "$prefix/python.new"
     start_old
-    echo "The upgrade did not finish. The earlier version is still installed$( [ "$was_running" = 1 ] && echo ' and was started again')." >&2
+    if [ "$had_old" = 1 ]; then
+        echo "The upgrade did not finish. The earlier version is still installed$( [ "$was_running" = 1 ] && echo ' and was started again')." >&2
+    else
+        echo "The installation did not finish (see the message above). Nothing was installed." >&2
+    fi
     exit 1
 }
 trap failed_upgrade EXIT
@@ -204,12 +220,13 @@ else
     ln -sf "$prefix/ninaivu-lite-panel" "$bindir/ninaivu-lite-panel"
     icon=$("$py" -c "import ninaivu_lite, os; print(os.path.join(os.path.dirname(ninaivu_lite.__file__), 'static', 'icons', 'icon-192.png'))")
     mkdir -p "$apps"
+    # Exec quoted: a --prefix with a space in it is one path (A173).
     cat > "$apps/ninaivu-lite.desktop" <<ENTRY
 [Desktop Entry]
 Type=Application
 Name=Ninaivu Lite Control Panel
 Comment=Start and stop Ninaivu Lite, and open the family's photographs
-Exec=$prefix/ninaivu-lite-panel
+Exec="$prefix/ninaivu-lite-panel"
 Icon=$icon
 Terminal=false
 Categories=Graphics;Photography;
@@ -246,6 +263,9 @@ print("\n".join(Config.load(sys.argv[1]).folders))' "$data" 2>/dev/null || true
 
 # The service: Ninaivu Lite at boot, restarted if it fails.
 started=0
+# Who started it decides where the setup code is to be found (A169): the
+# journal for the service, the Control Panel and the log otherwise.
+started_by=""
 if [ "$service" = 1 ] && command -v systemctl >/dev/null 2>&1; then
     run_as=""
     if [ "$(id -u)" = 0 ]; then
@@ -285,6 +305,8 @@ UMask=0027
 Restart=on-failure
 RestartSec=5
 $run_as
+# This file is written again by every upgrade: a port or other change of your
+# own goes in a drop-in (systemctl${scope:+ $scope} edit ninaivu-lite), which is kept (A169).
 
 [Install]
 WantedBy=$wanted
@@ -311,7 +333,7 @@ UNIT
     # restart, not enable --now: an upgrade's service may still be active.
     if systemctl $scope daemon-reload 2>/dev/null && systemctl $scope enable ninaivu-lite 2>/dev/null \
             && systemctl $scope restart ninaivu-lite 2>/dev/null; then
-        started=1
+        started=1; started_by=service
         say "Started as a service; it starts again at boot."
         if [ -n "$scope" ] && command -v loginctl >/dev/null 2>&1; then
             loginctl enable-linger "$(id -un)" 2>/dev/null && say "It keeps running when you sign out." || true
@@ -329,7 +351,7 @@ fi
 if [ "$started" != 1 ] && [ "$was_running" = 1 ]; then
     # Stopped for the upgrade, and nothing above started it again.
     if "$py" -m ninaivu_lite.control --data "$data" --start >/dev/null 2>&1; then
-        started=1; say "It was running before the upgrade, so it was started again."
+        started=1; started_by=control; say "It was running before the upgrade, so it was started again."
     else
         say "It was running before the upgrade and is stopped now."
     fi
@@ -346,9 +368,9 @@ say ""
 say "Ninaivu Lite $version is installed."
 if "$py" -m ninaivu_lite.control --data "$data" --needs-setup >/dev/null 2>&1; then
     say "  Open it:        http://${address:-localhost}:$port   (the first visit makes the administrator)"
-    [ "$started" = 1 ] && [ "$(id -u)" = 0 ] && say "  Setup code:     journalctl -u ninaivu-lite | grep code    (asked for when setting up from another device)"
-    [ "$started" = 1 ] && [ "$(id -u)" != 0 ] && say "  Setup code:     journalctl --user -u ninaivu-lite | grep code    (asked for when setting up from another device)"
-    if [ "$started" != 1 ]; then
+    [ "$started_by" = service ] && [ "$(id -u)" = 0 ] && say "  Setup code:     journalctl -u ninaivu-lite | grep code    (asked for when setting up from another device)"
+    [ "$started_by" = service ] && [ "$(id -u)" != 0 ] && say "  Setup code:     journalctl --user -u ninaivu-lite | grep code    (asked for when setting up from another device)"
+    if [ "$started_by" != service ]; then
         if [ "$(id -u)" = 0 ]; then say "  Setup code:     in $data/logs/ninaivu-lite.log    (asked for when setting up from another device)"
         else say "  Setup code:     in the Control Panel, and in $data/logs/ninaivu-lite.log    (asked for when setting up from another device)"; fi
     fi

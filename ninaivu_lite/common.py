@@ -18,6 +18,7 @@ from typing import Any, NoReturn
 
 from flask import Response, current_app, g, request
 from werkzeug.exceptions import HTTPException
+from werkzeug.routing import IntegerConverter
 
 from . import auth, db, media
 from .config import Config
@@ -95,6 +96,33 @@ class ApiError(HTTPException):
 
 def fail(status: int, message: str, **extra: Any) -> NoReturn:
     raise ApiError(status, message, **extra)
+
+
+#: The largest id (or count) SQLite can hold; one past it was a 500 (A152).
+MAX_ROW_ID = 2 ** 63 - 1
+
+
+def row_id(value: Any) -> int | None:
+    """*value* as a positive id the index can hold, or None."""
+    try:
+        number = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if 0 < number <= MAX_ROW_ID else None
+
+
+class RowIdConverter(IntegerConverter):
+    """``<int:...>`` in every route: a number too large for the index does
+    not match (404), instead of reaching SQLite and failing there (A152)."""
+
+    def __init__(self, map, *args: Any, **kwargs: Any) -> None:  # noqa: A002
+        kwargs.setdefault("max", MAX_ROW_ID)
+        super().__init__(map, *args, **kwargs)
+
+
+def install_converters(state) -> None:
+    """For ``Blueprint.record_once`` on the first blueprint with id routes."""
+    state.app.url_map.converters["int"] = RowIdConverter
 
 
 #: No JSON a screen sends is anywhere near this; a body claiming more is

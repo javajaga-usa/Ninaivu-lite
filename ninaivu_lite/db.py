@@ -15,6 +15,7 @@ import logging
 import os
 import sqlite3
 import threading
+from collections import OrderedDict
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -418,6 +419,11 @@ def sync_folders(conn: sqlite3.Connection, paths: list[str]) -> dict[str, int]:
                                  "WHERE id = ?", (fid,))
                     conn.execute("UPDATE assets SET missing = 1 WHERE folder_id = ?", (fid,))
                 del have[path]
+        # A scan that was walking a folder when it was taken out could put
+        # some of its photographs back (A148): whatever a set-aside folder
+        # shows is set aside again, on every sync.
+        conn.execute("UPDATE assets SET missing = 1 WHERE missing = 0 AND folder_id IN "
+                     "(SELECT id FROM folders WHERE detached_at IS NOT NULL)")
     return have
 
 
@@ -450,7 +456,7 @@ class Remembered:
         self._lock = threading.Lock()
         self._conn: sqlite3.Connection | None = None
         self._version: int | None = None
-        self._answers: dict[Any, Any] = {}
+        self._answers: OrderedDict[Any, Any] = OrderedDict()
 
     def _current(self) -> int | None:
         """The index's change counter now, or None when it cannot be asked
@@ -472,16 +478,22 @@ class Remembered:
         with self._lock:
             before = self._current()
             if before is not None and before == self._version and key in self._answers:
+                self._answers.move_to_end(key)
                 return self._answers[key]
         value = compute()
         if keep is not None and not keep(value):
             return value
         with self._lock:
             if before is not None and self._current() == before:
-                if self._version != before or len(self._answers) >= self._limit:
-                    self._answers = {}
+                if self._version != before:
+                    self._answers = OrderedDict()
                     self._version = before
                 self._answers[key] = value
+                self._answers.move_to_end(key)
+                # Full: the answer asked for longest ago gives way, not all of
+                # them, so several people browsing at once still find theirs (A153).
+                while len(self._answers) > self._limit:
+                    self._answers.popitem(last=False)
         return value
 
     def close(self) -> None:
@@ -490,17 +502,26 @@ class Remembered:
                 self._conn.close()
             except sqlite3.Error:
                 pass
-        self._conn, self._version, self._answers = None, None, {}
+        self._conn, self._version, self._answers = None, None, OrderedDict()
+
+
+def rules_of(conn: sqlite3.Connection, folder_id: int) -> dict[str, int]:
+    """A library folder's rules: folder inside it -> visibility."""
+    return {r[0]: int(r[1]) for r in conn.execute(
+        "SELECT dir, visibility FROM folder_rules WHERE folder_id = ?", (folder_id,))}
+
+
+def rule_in(rules: dict[str, int], rel_dir: str) -> int | None:
+    """The nearest of *rules* on *rel_dir* or above it, or None."""
+    parts = [p for p in rel_dir.split("/") if p] if rel_dir else []
+    for i in range(len(parts), -1, -1):
+        candidate = "/".join(parts[:i])
+        if candidate in rules:
+            return rules[candidate]
+    return None
 
 
 def rule_for(conn: sqlite3.Connection, folder_id: int, rel_dir: str) -> int | None:
     """The visibility a folder rule gives a file in *rel_dir*: the nearest rule
     on that folder or above it, or None when no rule applies."""
-    parts = [p for p in rel_dir.split("/") if p] if rel_dir else []
-    rules = {r["dir"]: r["visibility"] for r in conn.execute(
-        "SELECT dir, visibility FROM folder_rules WHERE folder_id = ?", (folder_id,))}
-    for i in range(len(parts), -1, -1):
-        candidate = "/".join(parts[:i])
-        if candidate in rules:
-            return int(rules[candidate])
-    return None
+    return rule_in(rules_of(conn, folder_id), rel_dir)

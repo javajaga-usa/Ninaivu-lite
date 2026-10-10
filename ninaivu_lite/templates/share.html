@@ -150,6 +150,13 @@
     .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     header { padding: 12px 16px; }
   }
+  /* M24: a phone on its side has about 360px of height. The card starts near
+     the top and is tighter, so the field, the error and Open all fit. */
+  @media (max-height: 480px) {
+    main { padding-top: 12px; padding-bottom: 16px; }
+    form { margin-top: 0; padding: 16px 22px; gap: 8px; }
+    form::before { width: 34px; height: 34px; border-radius: 11px; background-size: 20px 20px; }
+  }
   @media (prefers-reduced-motion: reduce) {
     main, form, .grid a { animation: none; }
     .grid a, .grid img, button { transition: none; }

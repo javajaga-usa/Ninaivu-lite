@@ -37,7 +37,8 @@ and it is in "Ninaivu Lite.log" beside Ninaivu Lite.exe ("Open the log").
 Forgotten password: press Stop, then in a Command Prompt in the "Ninaivu Lite"
 folder (where Ninaivu Lite.exe is) run
   app\Python\python.exe -m ninaivu_lite --data "%CD%\data" --reset-password NAME
-A daily backup is kept in data\backups (the last seven). To put one back,
+A daily backup is kept in data\backups (the last seven days, then one a week
+for four weeks and one a month for three months). To put one back,
 press Stop and run the same line with --restore <zip> in place of
 --reset-password NAME.
 
@@ -90,7 +91,8 @@ Stop அழுத்தி, "Start Ninaivu Lite when I sign in" தேர்வ�
 உள்ள இடம்) ஒரு Command Prompt-இல்
   app\Python\python.exe -m ninaivu_lite --data "%CD%\data" --reset-password NAME
 இயக்கவும் (NAME என்பது பயனர்பெயர்). தினசரி காப்புப் பிரதி data\backups இல்
-இருக்கும் (கடைசி ஏழு). ஒன்றைத் திரும்ப வைக்க, Stop அழுத்தி, அதே வரியில்
+இருக்கும் (கடைசி ஏழு நாட்கள், பிறகு நான்கு வாரங்களுக்கு வாரம் ஒன்று, மூன்று
+மாதங்களுக்கு மாதம் ஒன்று). ஒன்றைத் திரும்ப வைக்க, Stop அழுத்தி, அதே வரியில்
 --reset-password NAME க்குப் பதிலாக --restore <zip> கொடுத்து இயக்கவும்.
 
 கையொப்பம் இல்லை: நினைவு லைட் இலவசம்; அதற்குக் குறியீட்டுக் கையொப்பம் (code

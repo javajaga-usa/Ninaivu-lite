@@ -34,6 +34,7 @@ from flask import Blueprint, Response, current_app, jsonify, request, send_file
 from PIL import Image
 
 from . import auth, db, media, parallel
+from .api_auth import public_of
 from .common import (
     ApiError,
     asset_path,
@@ -87,6 +88,10 @@ STRIP_WAIT = 30.0
 #: The most the copies in views/ may take; past it the oldest go first.
 VIEWS_MAX_BYTES = 2 * 1024 ** 3
 VIEWS_CHECK_EVERY = 60.0
+#: In every viewing copy's name: an older copy carried its source's JPEG
+#: comment (A145), so those are never served again, only made anew (the old
+#: file goes when its replacement is written, or when views/ is trimmed).
+VIEWS_FORMAT = "v2"
 _strip_locks: dict[int, threading.Lock] = {}
 #: Thumbnails made while a phone waits for them, and viewing copies: a few at
 #: a time (see :class:`parallel.Slots`), so they never hold every one of the
@@ -134,7 +139,7 @@ def as_id(value: Any) -> int | None:
     return number if 0 < number <= MAX_ID else None
 
 
-def id_list(data: dict[str, Any], limit: int = MAX_IDS) -> list[int]:
+def id_list(data: dict[str, Any], limit: int | None = MAX_IDS) -> list[int]:
     """The ``ids`` of a request body, read loosely (non-ids skipped), or a 400."""
     values = data.get("ids")
     if values is None:
@@ -147,6 +152,12 @@ def id_list(data: dict[str, Any], limit: int = MAX_IDS) -> list[int]:
         if number is not None:
             out[number] = None
     return list(out)[:limit]
+
+
+def sent_count(data: dict[str, Any]) -> int:
+    """How many ids were sent, before :func:`id_list` left any out: what was
+    not done is told as skipped, never quietly dropped (A151)."""
+    return len(id_list(data, limit=None))
 
 
 def int_arg(name: str, default: int = 0) -> int:
@@ -253,7 +264,7 @@ def status():
         "libraries_away": len(away),
         "libraries_away_paths": away if who.is_admin else [],
         "restricted": False,
-        "user": who.public(),
+        "user": public_of(who),
         "scan": scan_snapshot() if who.is_admin else dict(IDLE_SCAN),
         "ai": {"engine": "off"},
         # The console is this same port, at /admin.
@@ -415,7 +426,7 @@ def segments():
     if sort not in SORTS:
         sort = "date_desc"
     limit = max(1, min(int_arg("limit", DEFAULT_LIMIT), MAX_LIMIT))
-    offset = max(0, int_arg("offset"))
+    offset = min(max(0, int_arg("offset")), MAX_ID)   # SQLite holds no more (A152)
     pageable = sort != "random"
     if not pageable:
         # A random order cannot be continued: one piece, as large as it was.
@@ -573,11 +584,11 @@ def assets_bulk():
     data = body()
     ids = id_list(data)
     if "favorite" not in data:
-        return jsonify({"updated": 0, "skipped": len(ids)})
+        return jsonify({"updated": 0, "skipped": sent_count(data)})
     seen = visible_ids(ids, who)
     if seen:
         set_favourite(who, seen, bool(data["favorite"]))
-    return jsonify({"updated": len(seen), "skipped": len(ids) - len(seen)})
+    return jsonify({"updated": len(seen), "skipped": sent_count(data) - len(seen)})
 
 
 POSTER_TYPES = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}
@@ -636,7 +647,7 @@ def asset_rotate(asset_id: int):
     data = body()
     try:
         rotation = int(data.get("rotation", (row["rotation"] + 90) % 360))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         fail(400, "Rotation must be 0, 90, 180 or 270.")
     if rotation % 360 not in media.ROTATIONS:
         fail(400, "Rotation must be 0, 90, 180 or 270.")
@@ -656,7 +667,7 @@ def set_visibility():
     level = db.VIS_VALUES[level_name]
     ids = visible_ids(id_list(data), who)
     if not ids:
-        return jsonify({"updated": 0, "visibility": level_name})
+        return jsonify({"updated": 0, "visibility": level_name, "skipped": sent_count(data)})
     c = conn()
     with c:
         exposed = 0
@@ -680,7 +691,8 @@ def set_visibility():
             c.execute(f"UPDATE assets SET visibility = ?, vis_source = 'item' "
                       f"WHERE id IN ({marks})", [level, *piece])
     scanner().generation += 1
-    return jsonify({"updated": len(ids), "visibility": level_name, "batch_id": batch})
+    return jsonify({"updated": len(ids), "visibility": level_name, "batch_id": batch,
+                    "skipped": sent_count(data) - len(ids)})
 
 
 # --- thumbnails and files ------------------------------------------------------------------------
@@ -780,7 +792,8 @@ def viewing_response(row: sqlite3.Row, path: str, max_age: int, turned: bool = F
         fail(404, "This file is not available right now.")
     rotation = (row["rotation"] or 0) if turned else 0
     cache = views_dir() / f"{row['id'] % 256:02x}" / \
-        f"{row['id']}-{st.st_size}-{int(st.st_mtime)}{f'-t{rotation}' if rotation else ''}.jpg"
+        f"{row['id']}-{st.st_size}-{int(st.st_mtime)}{f'-t{rotation}' if rotation else ''}" \
+        f"-{VIEWS_FORMAT}.jpg"
     if not cache.is_file():
         try:
             # A full photograph decoded and shrunk: a core's worth, so taken
