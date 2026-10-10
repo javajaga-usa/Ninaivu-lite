@@ -98,8 +98,13 @@ def test_a120_a_huge_picture_is_made_alone(tmp_path, monkeypatch):
     held: list[bool] = []
     real = media.save_thumbnails
 
+    me = threading.get_ident()
+
     def saving(*args, **kwargs):
-        held.append(media._HEAVY.locked())
+        # Only this test's own calls: a scanner thread an earlier test left
+        # running can make a thumbnail meanwhile (seen once on macOS CI).
+        if threading.get_ident() == me:
+            held.append(media._HEAVY.locked())
         return real(*args, **kwargs)
 
     monkeypatch.setattr(media, "save_thumbnails", saving)
