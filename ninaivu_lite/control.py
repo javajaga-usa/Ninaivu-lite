@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 
 from .config import DEFAULT_PORT, Config
-from .lock import known_instance
+from .lock import held_elsewhere, known_instance
 
 STATE_FILE = "server.json"
 ROOT = Path(__file__).resolve().parent.parent
@@ -123,6 +123,10 @@ def python_for_background() -> str:
     return str(exe)
 
 
+#: How long a busy server (see Controller.health) is given to answer the second time.
+BUSY_WAIT = 6.0
+
+
 class Controller:
     """What the panel can ask about and do. Every method is safe to call from
     a background thread; none of them touch Tk."""
@@ -150,23 +154,42 @@ class Controller:
 
     def health(self, timeout: float = 1.5) -> dict | None:
         """The server's answer to /api/health, or None if Ninaivu Lite is not
-        what is answering (or nothing is)."""
+        what is answering (or nothing is).
+
+        A server that is this data folder's (it holds the folder's lock) but
+        does not answer in time is busy, not stopped: it is asked once more,
+        patiently, and if it still has not answered it counts as running, so
+        the panel shows Running and offers Stop, not a Start that could only
+        be refused. Its answer then says ``slow``."""
+        data, late = self._ask(timeout)
+        if data is None and late and held_elsewhere(self.data_dir):
+            data, late = self._ask(BUSY_WAIT)
+            if data is None and late:
+                data = {"ok": True, "app": "Ninaivu Lite", "slow": True}
+        return data
+
+    def _ask(self, timeout: float) -> tuple[dict | None, bool]:
+        """(/api/health's answer or None, whether it timed out)."""
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/api/health",
                                         timeout=timeout) as response:
                 data = json.load(response)
-        except (OSError, ValueError, urllib.error.URLError):
-            return None
+        except TimeoutError:
+            return None, True
+        except urllib.error.URLError as exc:
+            return None, isinstance(exc.reason, TimeoutError)
+        except (OSError, ValueError):
+            return None, False
         if not isinstance(data, dict) or data.get("app") != "Ninaivu Lite":
-            return None
+            return None, False
         # Another copy's server (an installed one beside this portable one)
         # on the same port is not this library's. A data folder with no name
         # yet has no server of its own running (a server names its folder
         # before it answers), so one that names a folder is another copy's.
         mine, theirs = known_instance(self.data_dir), data.get("instance")
         if theirs and theirs != mine:
-            return None
-        return data
+            return None, False
+        return data, False
 
     def running(self) -> bool:
         return self.health() is not None

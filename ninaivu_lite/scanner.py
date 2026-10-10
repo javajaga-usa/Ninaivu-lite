@@ -57,6 +57,9 @@ THUMB_WORKERS = parallel.WORKERS
 #: New files' headers taking this long each (seconds) are read several at a
 #: time: a network drive or a hard disk, not a fast local disk.
 SLOW_HEADER = 0.002
+#: Thumbnails written to the index together (see :class:`Batch`).
+RECORD_EVERY_ROWS = 50
+RECORD_EVERY_SECONDS = 1.0
 
 
 class Scanner:
@@ -71,6 +74,11 @@ class Scanner:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
+        #: What the next look covers (see rescan).
+        self._within: set[str] = set()
+        self._everything = False
+        #: Thumbnails being made for a request now, one at a time each.
+        self._making = parallel.OneAtATime()
         #: Goes up whenever the index changes, so cached answers know they are stale.
         self.generation = 0
         self.status: dict[str, Any] = {
@@ -93,12 +101,31 @@ class Scanner:
         if self._thread:
             self._thread.join(timeout=10)
 
-    def rescan(self) -> None:
+    def rescan(self, within: str | None = None) -> None:
+        """Look at the library again. *within* asks for one folder only (an
+        import's destination, which just had files copied into it): walking
+        every library folder for it kept a large library on a network drive
+        walking for minutes a time, once a minute through an import, with no
+        thumbnails made meanwhile. A plain rescan (the Rescan button, a folder
+        added) looks at everything, and wins over any folders asked for."""
+        with self._lock:
+            if within is None:
+                self._everything = True
+            else:
+                self._within.add(within)
         self._wake.set()
+
+    def _asked(self) -> list[str] | None:
+        """The folders asked for since the last look, or None for everything."""
+        with self._lock:
+            within, everything = sorted(self._within), self._everything
+            self._within, self._everything = set(), False
+        return None if everything or not within else within
 
     def _run(self) -> None:
         parallel.background()
         conn = None
+        within: list[str] | None = None        # the first look is at everything
         try:
             while not self._stop.is_set():
                 try:
@@ -106,14 +133,19 @@ class Scanner:
                     # moment must not end scanning until the next restart.
                     if conn is None:
                         conn = db.connect(self.data_dir)
-                    self.scan_once(conn)
+                    self.scan_once(conn, within)
+                    failed = False
                 except Exception:  # noqa: BLE001 — the loop must survive anything
                     log.exception("scan failed; will try again later")
                     self._set(state="idle")
+                    failed = True
                 # With "watch" off it waits for the Rescan button only.
-                self._wake.wait(RETRY_EVERY if conn is None
-                                else RESCAN_EVERY if self.auto else None)
+                woken = self._wake.wait(RETRY_EVERY if conn is None
+                                        else RESCAN_EVERY if self.auto else None)
                 self._wake.clear()
+                asked = self._asked()
+                # The half-hourly look, and one after a failure, is at everything.
+                within = asked if woken and not failed else None
         finally:
             if conn is not None:
                 conn.close()
@@ -128,33 +160,47 @@ class Scanner:
         with self._lock:
             return dict(self.status)
 
-    def scan_once(self, conn: sqlite3.Connection) -> None:
+    def scan_once(self, conn: sqlite3.Connection, within: list[str] | None = None) -> None:
+        """Walk the library (or only the folders *within*, see rescan), then
+        make what thumbnails are missing."""
         ids = db.sync_folders(conn, self.folders)
         self.generation += 1
-        self._set(state="walking", found=0, new=0, added=0, removed=0, unreachable=[],
-                  unreadable=0, started=time.time())
+        self._set(state="walking", found=0, new=0, added=0, removed=0, started=time.time(),
+                  **({} if within else {"unreachable": [], "unreadable": 0}))
         unreachable = []
         started = int(time.time()) - 1
         self._gone_now: list[int] = []
         for path, folder_id in ids.items():
             if self._stop.is_set():
                 return
+            under = None
+            if within:
+                under = [rel for rel in (spelled(path, inside(folder, path)) for folder in within)
+                         if rel is not None and not self._in_data(path, rel)]
+                if not under:
+                    continue
             if not os.path.isdir(long_path(path)) or self._emptied(conn, folder_id, path):
                 unreachable.append(path)
                 continue
-            self._walk_folder(conn, folder_id, path)
+            self._walk_folder(conn, folder_id, path, None if "" in (under or ()) else under)
         self._carry_over(conn, started)
-        self._set(unreachable=unreachable)
+        if not within:
+            self._set(unreachable=unreachable)
         self._make_thumbnails(conn)
         if self._straighten(conn):
             self._make_thumbnails(conn)      # only the ones just turned
         self._set(state="idle", last_finished=time.time())
 
-    def _walk_folder(self, conn: sqlite3.Connection, folder_id: int, root: str) -> None:
+    def _walk_folder(self, conn: sqlite3.Connection, folder_id: int, root: str,
+                     under: list[str] | None = None) -> None:
+        """Index the files under *root*, or only under its folders *under*
+        (paths relative to it): what is gone is looked for there only."""
         known = {(r["dir"], r["name"]): (r["id"], r["size"], r["mtime"], r["missing"])
                  for r in conn.execute(
                      "SELECT id, dir, name, size, mtime, missing FROM assets WHERE folder_id = ?",
-                     (folder_id,))}
+                     (folder_id,))
+                 if under is None or any(r["dir"] == u or r["dir"].startswith(u + "/")
+                                         for u in under)}
         seen: set[int] = set()
         failed: list[str] = []          # folders inside the root that could not be read
         pending: list[tuple] = []
@@ -266,7 +312,7 @@ class Scanner:
         todo: list[tuple] = []
         slow = {"disk": False}
         try:
-            for rel_dir, name, full, st in self._files(root, failed):
+            for rel_dir, name, full, st in self._files(root, failed, under):
                 if self._stop.is_set():
                     break
                 kind = media.kind_of(name)
@@ -309,6 +355,11 @@ class Scanner:
                                  [(i,) for i in gone])
             self.generation += 1
             self._gone_now.extend(gone)
+
+    def _in_data(self, root: str, rel: str) -> bool:
+        """Whether *rel* in *root* is in (or is) this program's own data folder."""
+        real = os.path.realpath(os.path.join(root, *rel.split("/")) if rel else root)
+        return real == self._data_real or real.startswith(self._data_real.rstrip(os.sep) + os.sep)
 
     @staticmethod
     def _emptied(conn: sqlite3.Connection, folder_id: int, root: str) -> bool:
@@ -417,10 +468,12 @@ class Scanner:
         self.thumbnail_now(conn, asset_id, "s")
         return asset_id
 
-    def _files(self, root: str, failed: list[str] | None = None):
-        """(relative dir, name, full path, stat) for every file under *root*.
-        What could not be read is added to *failed*, as paths relative to it."""
-        stack = [""]
+    def _files(self, root: str, failed: list[str] | None = None,
+               under: list[str] | None = None):
+        """(relative dir, name, full path, stat) for every file under *root*
+        (or under its folders *under*). What could not be read is added to
+        *failed*, as paths relative to it."""
+        stack = sorted(set(under), reverse=True) if under else [""]
         visited: set[tuple[int, int]] = set()
         while stack:
             rel = stack.pop()
@@ -493,42 +546,56 @@ class Scanner:
         total = conn.execute(
             f"SELECT COUNT(*) FROM assets a WHERE {where} AND a.missing = 0").fetchone()[0]
         self._set(state=state, thumbs_total=total, thumbs_left=total)
+        rows = self._queue(conn, where, "a.id, a.kind, a.dir, a.name, a.thumb, a.rotation")
+        # Written down as each is ready, not in date order: one slow file (a
+        # damaged video ffmpeg gives 90 seconds, a 50 MP scan) no longer
+        # leaves the other workers idle until it is done. And in batches,
+        # not one commit each (see Batch).
+        made = parallel.as_done(rows, lambda row: self._render(row, sizes, share), pool, workers)
         tried = 0
-        # Each row is tried once per pass, in date order, newest first. The
-        # next page starts after the last row tried (not at an offset):
-        # rows done leave the queue and rows that failed stay in it, so
-        # an offset would skip work, and starting over would spin at full
-        # CPU on a row whose drive is asleep.
+        with Batch(conn, self._record_many) as batch:
+            try:
+                for row, result in made:
+                    tried += 1
+                    if result is not None:
+                        if batch.add((row, *result)):
+                            # Counted down here rather than counted again: on
+                            # a large library that count was a walk of the index.
+                            self._set(thumbs_left=max(0, total - tried))
+                            self.generation += 1
+                    if self._stop.is_set() or self._wake.is_set():
+                        return False  # a rescan was asked for: walk first, then carry on here
+            finally:
+                made.close()
+        self._set(thumbs_left=max(0, total - tried))
+        self.generation += 1
+        return not self._stop.is_set()
+
+    def _queue(self, conn: sqlite3.Connection, where: str, columns: str):
+        """The rows matching *where*, newest first, read a page at a time on
+        this thread as the workers want more.
+
+        Each row is tried once per pass. The next page starts after the last
+        row read (not at an offset): rows done leave the queue and rows that
+        failed stay in it, so an offset would skip work, and starting over
+        would spin at full CPU on a row whose drive is asleep. Starting after
+        the last row read, not the last one written down, the next page can
+        be read while this one is still being worked on, so the workers never
+        wait for the slowest of a page to finish."""
         after: tuple[float, int] | None = None
         while not self._stop.is_set():
             page = "" if after is None else \
                 "AND (a.captured_at < ? OR (a.captured_at = ? AND a.id < ?))"
             args = () if after is None else (after[0], after[0], after[1])
             rows = conn.execute(
-                f"""SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.rotation, a.captured_at,
-                           f.path AS root
+                f"""SELECT {columns}, a.captured_at, f.path AS root
                     FROM assets a JOIN folders f ON f.id = a.folder_id
                     WHERE {where} AND a.missing = 0 {page}
                     ORDER BY a.captured_at DESC, a.id DESC LIMIT 50""", args).fetchall()
-            # Counted down here rather than counted again for every page: on a
-            # large library that count was a walk of the whole index.
-            self._set(thumbs_left=max(0, total - tried))
             if not rows:
-                break
-            self.generation += 1
-            made = parallel.in_order(rows, lambda row: self._render(row, sizes, share),
-                                     pool, workers)
-            try:
-                for row, result in made:
-                    after = (row["captured_at"], row["id"])
-                    tried += 1
-                    if result is not None:
-                        self._record(conn, row, *result)
-                    if self._stop.is_set() or self._wake.is_set():
-                        return False  # a rescan was asked for: walk first, then carry on here
-            finally:
-                made.close()
-        return not self._stop.is_set()
+                return
+            after = (rows[-1]["captured_at"], rows[-1]["id"])
+            yield from rows
 
     # --- which way up ------------------------------------------------------------
 
@@ -539,32 +606,27 @@ class Scanner:
         the viewer turns the picture as it shows it. Returns how many turned."""
         if not media.FACES:
             return 0
+        if conn.execute("SELECT 1 FROM assets a WHERE a.upright = 0 AND a.kind = 'picture' "
+                        "AND a.missing = 0 LIMIT 1").fetchone() is None:
+            return 0
+        self._set(state="finishing", thumbs_total=0, thumbs_left=0)
         turned = 0
         workers = THUMB_WORKERS
         pool = parallel.pool(workers, "faces") if workers > 1 else None
+        rows = self._queue(conn, "a.upright = 0 AND a.kind = 'picture'",
+                           "a.id, a.dir, a.name, a.width, a.height")
+        # Looked at several at a time; each answer is written here, as it comes.
+        looked = parallel.as_done(
+            rows, lambda row: media.detect_rotation(
+                full_path(row["root"], row["dir"], row["name"])), pool, workers)
         try:
-            while not self._stop.is_set() and not self._wake.is_set():
-                rows = conn.execute(
-                    """SELECT a.id, a.dir, a.name, a.width, a.height, f.path AS root FROM assets a
-                       JOIN folders f ON f.id = a.folder_id
-                       WHERE a.upright = 0 AND a.kind = 'picture' AND a.missing = 0
-                       ORDER BY a.captured_at DESC LIMIT 50""").fetchall()
-                if not rows:
+            for row, rotation in looked:
+                turned += self.set_rotation(conn, row["id"], rotation,
+                                            "faces" if rotation else "none", remake=False)
+                if self._stop.is_set() or self._wake.is_set():
                     break
-                self._set(state="finishing", thumbs_total=0, thumbs_left=0)
-                # Looked at several at a time; each answer is written here.
-                looked = parallel.in_order(
-                    rows, lambda row: media.detect_rotation(
-                        full_path(row["root"], row["dir"], row["name"])), pool, workers)
-                try:
-                    for row, rotation in looked:
-                        turned += self.set_rotation(conn, row["id"], rotation,
-                                                    "faces" if rotation else "none", remake=False)
-                        if self._stop.is_set() or self._wake.is_set():
-                            return turned
-                finally:
-                    looked.close()
         finally:
+            looked.close()
             if pool is not None:
                 pool.shutdown(wait=False, cancel_futures=True)
         return turned
@@ -607,8 +669,8 @@ class Scanner:
         return changed
 
     def _thumbnail(self, conn: sqlite3.Connection, row: sqlite3.Row,
-                   sizes: tuple[str, ...]) -> bool:
-        made = self._render(row, sizes)
+                   sizes: tuple[str, ...], threads: int = 0) -> bool:
+        made = self._render(row, sizes, threads)
         if made is None:
             return False
         self._record(conn, row, *made)
@@ -633,26 +695,68 @@ class Scanner:
 
     def _record(self, conn: sqlite3.Connection, row: sqlite3.Row, sizes: tuple[str, ...],
                 ok: bool, colour: str | None) -> None:
+        self._record_many(conn, [(row, sizes, ok, colour)])
+
+    @staticmethod
+    def _record_many(conn: sqlite3.Connection, made: list[tuple]) -> None:
+        """Thumbnails made, written down in one transaction."""
         version = int(time.time() * 1000) % 2_000_000_000
         with conn:
-            if "s" in sizes:
-                # NONE only for a file that is there and cannot be read as a
-                # picture: that is final until the file changes.
-                conn.execute("UPDATE assets SET thumb = ?, color = COALESCE(?, color), "
-                             "thumb_v = ? WHERE id = ?",
-                             (db.THUMB_OK if ok else db.THUMB_NONE, colour, version, row["id"]))
-            if "l" in sizes:
-                # 2: tried and failed, so the finishing pass does not ask again;
-                # a request for the big one (thumbnail_now) still may.
-                conn.execute("UPDATE assets SET large = ? WHERE id = ?",
-                             (1 if ok else 2, row["id"]))
+            for row, sizes, ok, colour in made:
+                Scanner._record_one(conn, row, sizes, ok, colour, version)
 
-    def thumbnail_now(self, conn: sqlite3.Connection, asset_id: int, size: str = "s") -> bool:
-        """Make one thumbnail right away, for a picture that is on screen."""
-        row = conn.execute(
+    @staticmethod
+    def _record_one(conn: sqlite3.Connection, row: sqlite3.Row, sizes: tuple[str, ...],
+                    ok: bool, colour: str | None, version: int) -> None:
+        if "s" in sizes:
+            # NONE only for a file that is there and cannot be read as a
+            # picture: that is final until the file changes.
+            conn.execute("UPDATE assets SET thumb = ?, color = COALESCE(?, color), "
+                         "thumb_v = ? WHERE id = ?",
+                         (db.THUMB_OK if ok else db.THUMB_NONE, colour, version, row["id"]))
+        if "l" in sizes:
+            # 2: tried and failed, so the finishing pass does not ask again;
+            # a request for the big one (thumbnail_now) still may.
+            conn.execute("UPDATE assets SET large = ? WHERE id = ?",
+                         (1 if ok else 2, row["id"]))
+
+    def thumbnail_now(self, conn: sqlite3.Connection, asset_id: int, size: str = "s",
+                      slots: parallel.Slots | None = None) -> bool:
+        """Make one thumbnail right away, for a picture that is on screen.
+
+        With *slots*, it is made in turn with the others being made for
+        requests, and :class:`parallel.Busy` says too many are waiting. Two
+        requests for the same one at once (the family's television and a
+        phone on the same new folder) make it once: the second waits for the
+        first and finds it made."""
+        found = self._made_already(conn, asset_id, size)
+        if found is not None:
+            return found
+        with self._making.hold((asset_id, size)):
+            row = self._now_row(conn, asset_id)
+            found = self._made_already(conn, asset_id, size, row)
+            if found is not None:
+                return found
+            if slots is None:
+                return self._thumbnail(conn, row, (size,))
+            with slots.slot():
+                # A video's ffmpeg shares the cores with the other tiles
+                # being made right now, rather than each taking them all.
+                threads = max(1, parallel.cores() // max(1, slots.in_use))
+                return self._thumbnail(conn, row, (size,), threads)
+
+    @staticmethod
+    def _now_row(conn: sqlite3.Connection, asset_id: int) -> sqlite3.Row | None:
+        return conn.execute(
             """SELECT a.id, a.kind, a.dir, a.name, a.thumb, a.large, a.rotation, f.path AS root
                FROM assets a JOIN folders f ON f.id = a.folder_id WHERE a.id = ?""",
             (asset_id,)).fetchone()
+
+    def _made_already(self, conn: sqlite3.Connection, asset_id: int, size: str,
+                      row: sqlite3.Row | None = None) -> bool | None:
+        """True when the thumbnail is there and current, False when there can
+        be none, None when it is still to be made."""
+        row = row if row is not None else self._now_row(conn, asset_id)
         if row is None or row["thumb"] == db.THUMB_NONE:
             return False
         # A file on disk counts only when the index says it is current: after
@@ -660,12 +764,95 @@ class Scanner:
         current = row["thumb"] == db.THUMB_OK if size == "s" else row["large"] == 1
         if current and media.thumb_path(self.thumbs_dir, asset_id, size).exists():
             return True
-        return self._thumbnail(conn, row, (size,))
+        return None
+
+class Batch:
+    """Thumbnails written down a batch at a time: one transaction for up to
+    :data:`RECORD_EVERY_ROWS` of them, or :data:`RECORD_EVERY_SECONDS`,
+    whichever comes first.
+
+    One commit each wrote about 22 KB to the index's journal per thumbnail
+    (the row's page and the grid index's pages, again and again): 2 GB for a
+    first scan of 100,000 photographs, on a Raspberry Pi's SD card. Every
+    commit also tells the remembered counts (db.Remembered) the index has
+    changed, so during a scan every page load and every phone counted the
+    whole library again. Batched, the journal takes about 1 KB a thumbnail
+    and the counts are kept between batches. A thumbnail made but not yet
+    written down is at most a second old; a request for it in that second
+    makes it again, as before."""
+
+    def __init__(self, conn: sqlite3.Connection, write) -> None:
+        self.conn = conn
+        self.write = write
+        self.pending: list[tuple] = []
+        self.since = time.monotonic()
+
+    def __enter__(self) -> Batch:
+        return self
+
+    def __exit__(self, *_exc) -> None:
+        self.flush()
+
+    def add(self, item: tuple) -> bool:
+        """Keep *item*; True when the batch was written down just now."""
+        self.pending.append(item)
+        if len(self.pending) >= RECORD_EVERY_ROWS \
+                or time.monotonic() - self.since >= RECORD_EVERY_SECONDS:
+            self.flush()
+            return True
+        return False
+
+    def flush(self) -> None:
+        if self.pending:
+            self.write(self.conn, self.pending)
+            self.pending = []
+        self.since = time.monotonic()
 
 
 def day_of(taken_at: float) -> str:
     """'YYYY-MM-DD' in local time: the day a photo is filed under."""
     return from_timestamp(taken_at).strftime("%Y-%m-%d")
+
+
+def inside(folder: str, root: str) -> str | None:
+    """*folder* as a path relative to the library folder *root* ("/"
+    between parts, "" for the root itself), or None when it is not in it.
+    A folder holding the root counts as the whole of it."""
+    def norm(path: str) -> str:
+        return os.path.normcase(os.path.abspath(path))
+    f, r = norm(folder), norm(root)
+    if f == r or r.startswith(f.rstrip(os.sep) + os.sep):
+        return ""
+    if not f.startswith(r.rstrip(os.sep) + os.sep):
+        return None
+    rel = os.path.relpath(os.path.abspath(folder), os.path.abspath(root))
+    return "/".join(p for p in rel.split(os.sep) if p and p != ".")
+
+
+def spelled(root: str, rel: str | None) -> str | None:
+    """*rel* inside *root* spelled as the folders themselves are (the walk
+    and the index use the names as listed; on Windows and a Mac a path
+    typed as ``archive`` finds ``Archive``, and indexing it under the
+    other spelling would list every photograph in it twice). None when it
+    is not there (yet)."""
+    if not rel:
+        return rel
+    here, parts = root, []
+    for part in rel.split("/"):
+        if part.startswith(".") or part in IGNORE_DIRS:
+            return None                 # never walked into, so never walked from
+        try:
+            with os.scandir(long_path(here)) as entries:
+                names = [e.name for e in entries if e.is_dir()]
+        except OSError:
+            return None
+        name = part if part in names else next(
+            (n for n in names if n.casefold() == part.casefold()), None)
+        if name is None:
+            return None
+        parts.append(name)
+        here = os.path.join(here, name)
+    return "/".join(parts)
 
 
 def under_any(rel_dir: str, name: str, failed: list[str]) -> bool:

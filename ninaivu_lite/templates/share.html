@@ -111,12 +111,25 @@
     border: 1px solid var(--line); box-shadow: var(--shadow);
     animation: rise .4s var(--ease);
   }
+  /* A lock above the question, in the same lit tile as the name's mark. */
+  form::before {
+    content: ""; justify-self: center; width: 44px; height: 44px; margin-bottom: 2px;
+    border-radius: 14px; background-color: var(--accent);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='9.5' rx='2.2'/%3E%3Cpath d='M8.5 11V8a3.5 3.5 0 0 1 7 0v3'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: center; background-size: 24px 24px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 4px 12px var(--accent-weak);
+  }
+  form .muted { font-size: 1rem; color: var(--ink); font-weight: 600; margin: 0 0 4px; }
+  form .error:empty { display: none; }
   input[type=password] {
     width: 100%; min-width: 0; padding: 11px 14px; border-radius: 12px;
     border: 1px solid var(--line); background: var(--ground); color: var(--ink);
     font-size: 1rem; transition: border-color .15s, box-shadow .15s;
   }
   input[type=password]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+  /* M21: a button does not take the page's font unless told to, so Open was
+     set in the browser's own (Arial on Windows) beside Inter everywhere else. */
+  button, input { font-family: inherit; }
   button {
     padding: 11px 16px; border-radius: 12px; border: 0; cursor: pointer;
     color: var(--accent-ink); font-weight: 600; font-size: 0.95rem;
