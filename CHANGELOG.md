@@ -2,9 +2,20 @@
 
 ## Unreleased
 
-The index goes to version 10 (one new column, for Flip). The first start of this version
-keeps the index as it was in `before-update-from-index-9-<time>.zip` in the backups folder;
-going back to 1.11.1 or earlier needs that zip restored (`--restore <zip>`).
+## 1.12.0 — 2026-10-10
+
+**The index goes to version 10** (one new column, for Flip), so 1.11.1 and earlier cannot
+open this version's data folder. The first start of 1.12.0 keeps the index as it was in
+`backups/before-update-from-index-9-<time>.zip`; to go back to 1.11.1 or earlier, install the
+older version and restore that zip with `--restore <zip>` (turns, albums and other changes
+made since are not in it). Before installing 1.12.0, stop Ninaivu Lite: in the Control Panel
+press **Stop**, then close it (on a Linux server, `sudo systemctl stop ninaivu-lite`); the
+photos, people, settings, index and backups are kept. Coming from an older portable zip:
+extract the new zip to a new folder and copy the old `data` folder beside the new
+`Ninaivu Lite.exe`.
+
+Rotate, Flip and Reset in the viewer, for photos and videos, and a fifth complete audit
+(A180-A202 and M26-M41). The photographs and videos are never touched.
 
 - **Rotate, flip, then Save.** In the viewer, *Rotate* (or **R**) now opens a bar under the
   picture with *Rotate left* and *Rotate right* (**Shift+R** / **R**), *Flip horizontal* (**H**),
