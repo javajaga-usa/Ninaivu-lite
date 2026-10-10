@@ -30,8 +30,8 @@
   :root {
     color-scheme: light dark;
     --ground: #f6f7f9; --panel: #ffffff; --ink: #10151c; --muted: #5b6675;
-    --line: #dfe3ea; --accent: #0b7fd4; --accent-ink: #ffffff; --accent-2: #6d5efc;
-    --accent-weak: rgba(11, 127, 212, .10); --danger: #d8353d;
+    --line: #dfe3ea; --accent: #0969b0; --accent-ink: #ffffff; --accent-2: #6d5efc;
+    --accent-weak: rgba(9, 105, 176, .10); --danger: #b8262e;
     --ease: cubic-bezier(.22, .61, .36, 1);
     --shadow: 0 8px 28px rgba(16, 21, 28, .10);
   }
@@ -107,6 +107,9 @@
   /* A turned or flipped video: the browser's controls would turn with it,
      so these stand in under it, the right way up. */
   .single { gap: 14px; }
+  .turned-box { display: grid; place-items: center; max-width: 100%; }
+  .turned-box.quarter { position: relative; display: block; }
+  .turned-box.quarter video { position: absolute; left: 50%; top: 50%; max-width: none; max-height: none; object-fit: contain; }
   .turned-controls { display: flex; align-items: center; gap: 10px; width: min(520px, 100%); }
   .turned-controls[hidden] { display: none; }
   .turned-controls button {

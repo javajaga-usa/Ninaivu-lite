@@ -76,9 +76,9 @@ function renderAlbum(data) {
 }
 
 function renderOne(item) {
-  document.getElementById('title').textContent = i18n.t('Shared photograph');
-  const stage = el('div', 'single');
   const isVideo = (item.kind === 'video');
+  document.getElementById('title').textContent = i18n.t(isVideo ? 'Shared video' : 'Shared photograph');
+  const stage = el('div', 'single');
   const node = document.createElement(isVideo ? 'video' : 'img');
   node.src = item.view || item.src;
   node.onerror = async () => {
@@ -98,22 +98,36 @@ function renderOne(item) {
     // to fit, as the gallery's viewer does.
     const rotation = Number(item.rotation || 0) % 360;
     if (rotation || item.mirror) {
+      // A quarter turn: the video sits in a box the shape of the turned
+      // picture, as large as the page allows, and is turned inside it. (Shrunk
+      // to fit its own landscape box it was a third of a phone's width.)
+      const box = el('div', 'turned-box');
       const fit = () => {
-        let scale = 1;
-        if (rotation % 180 && node.videoWidth && node.offsetWidth) {
-          const contain = Math.min(node.offsetWidth / node.videoWidth, node.offsetHeight / node.videoHeight);
-          scale = Math.min(node.offsetWidth / (node.videoHeight * contain),
-            node.offsetHeight / (node.videoWidth * contain));
+        const turn = `rotate(${rotation}deg)` + (item.mirror ? ' scaleX(-1)' : '');
+        if (!(rotation % 180) || !node.videoWidth) {
+          node.style.transform = turn;
+          return;
         }
-        node.style.transform = `scale(${scale}) rotate(${rotation}deg)` + (item.mirror ? ' scaleX(-1)' : '');
+        // The height left under the header, less the play bar under it.
+        const below = window.innerHeight - stage.getBoundingClientRect().top - 72;
+        const room = { w: stage.clientWidth || window.innerWidth,
+          h: Math.max(160, Math.min(window.innerHeight * 0.82, below)) };
+        const width = Math.min(room.w, room.h * node.videoHeight / node.videoWidth);
+        const height = width * node.videoWidth / node.videoHeight;
+        box.style.width = `${width}px`; box.style.height = `${height}px`;
+        node.style.width = `${height}px`; node.style.height = `${width}px`;
+        node.style.transform = `translate(-50%, -50%) ${turn}`;
+        box.classList.add('quarter');
       };
       node.addEventListener('loadedmetadata', fit);
       window.addEventListener('resize', fit);
       fit();
       // The browser's own controls turn (or mirror) with the picture.
       node.controls = false;
-      stage.append(node, turnedControls(node));
+      box.appendChild(node);
+      stage.append(box, turnedControls(node));
       main.replaceChildren(stage);
+      fit();
       return;
     }
   }

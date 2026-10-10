@@ -196,3 +196,68 @@ def test_dialog_buttons_stay_on_a_phone_width_card():
     assert any(sel == "#fm-manual" and "min-width: 0" in body for _, sel, body in phone)
     album = next(body for _, sel, body in blocks(STYLE) if sel == ".album-create-box .input")
     assert "min-width: 0" in album
+
+
+# -- The accent blue and the danger red as text, or under white text ----------
+
+SHARE_PAGE = read(PACKAGE / "templates" / "share.html")
+
+
+def test_the_light_accent_and_danger_read_at_four_and_a_half_to_one():
+    for palette in (LIGHT, tokens(SHARE_PAGE, ":root")):
+        accent, danger = palette["accent"], palette["danger"]
+        ground = palette.get("bg-elev", palette.get("panel"))
+        page = palette.get("bg", palette.get("ground"))
+        # Links and labels on the page, white on a primary button, and blue
+        # lettering on its own wash (the drive notice, the selection bar).
+        assert contrast(accent, ground) >= 4.5 and contrast(accent, page) >= 4.5
+        assert contrast("#ffffff", accent) >= 4.5
+        assert contrast(accent, mix(accent, page, 0.10)) >= 4.5
+        # Error lines on their pink wash, and Delete on a grey button.
+        assert contrast(danger, mix(danger, ground, 0.10)) >= 4.5
+        assert contrast(danger, palette.get("surface-2", ground)) >= 4.5
+    assert "rgba(9, 105, 176, 0.10)" in STYLE  # the wash follows the blue
+
+
+def test_the_dark_accent_and_danger_still_read():
+    for ground in ("bg", "bg-elev", "surface", "surface-2"):
+        assert contrast(DARK["accent"], DARK[ground]) >= 4.5, ground
+        assert contrast(DARK["danger"], DARK[ground]) >= 4.5, ground
+    assert contrast(DARK["accent-fg"], DARK["accent"]) >= 4.5
+
+
+# -- The share page: a single video ------------------------------------------
+
+def test_a_shared_video_is_called_a_video():
+    share = read(JS / "share.js")
+    assert "i18n.t(isVideo ? 'Shared video' : 'Shared photograph')" in share
+    en = json.loads(read(STATIC / "i18n" / "en.json"))
+    ta = json.loads(read(STATIC / "i18n" / "ta.json"))
+    assert en["Shared video"] == "Shared video" and "காணொளி" in ta["Shared video"]
+
+
+def test_a_quarter_turned_shared_video_fills_a_box_of_its_turned_shape():
+    share = read(JS / "share.js")
+    fit = share[share.index("const box = el('div', 'turned-box');"):share.index("function turnedControls")]
+    # The box takes the turned shape; the video, the unturned one, centred in it.
+    assert "box.style.width = `${width}px`; box.style.height = `${height}px`;" in fit
+    assert "node.style.width = `${height}px`; node.style.height = `${width}px`;" in fit
+    assert "translate(-50%, -50%)" in fit
+    # Room is left under it for the play bar.
+    assert "window.innerHeight - stage.getBoundingClientRect().top" in fit
+    assert ".turned-box.quarter video { position: absolute;" in SHARE_PAGE
+    assert "max-width: none; max-height: none;" in SHARE_PAGE
+
+
+# -- Toasts and Jump to on a phone ---------------------------------------------
+
+def test_a_toast_rises_above_jump_to_on_a_phone():
+    rules = [(media, body) for media, sel, body in blocks(STYLE)
+             if "#jump-btn:not([hidden])" in sel and sel.endswith(".toasts")]
+    assert rules, "no rule lifting the toasts over Jump to"
+    media, body = rules[0]
+    assert media == "@media (max-width: 620px)"
+    lift = int(re.search(r"bottom:\s*calc\((\d+)px", body).group(1))
+    jump = next(b for m, s, b in blocks(STYLE) if s == ".jump-btn" and not m)
+    pill_top = int(re.search(r"bottom:\s*calc\((\d+)px", jump).group(1)) + 44
+    assert lift > pill_top

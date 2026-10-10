@@ -37,11 +37,11 @@
   --text:         #10151c;
   --text-2:       #5b6675;
   --text-3:       #66707e;  /* 4.5:1 on --bg and --surface-2: helper text is read */
-  --accent:       #0b7fd4;
+  --accent:       #0969b0;  /* 4.5:1 or better as text on its own tints, and under white */
   --accent-2:     #6d5efc;
   --accent-fg:    #ffffff;
-  --accent-weak:  rgba(11, 127, 212, 0.10);
-  --danger:       #d8353d;
+  --accent-weak:  rgba(9, 105, 176, 0.10);
+  --danger:       #b8262e;
   --gold:         #f0a92e;
   --shadow-sm:    0 1px 2px rgba(16, 21, 28, .06), 0 1px 3px rgba(16, 21, 28, .08);
   --shadow-md:    0 4px 12px rgba(16, 21, 28, .08), 0 2px 4px rgba(16, 21, 28, .05);
@@ -3128,6 +3128,11 @@ input[type=checkbox]:disabled, input[type=radio]:disabled { cursor: not-allowed;
 /* A phone held upright: the list rises from the bottom edge as a sheet. */
 @media (max-width: 620px) {
   .jump-btn { right: max(12px, env(safe-area-inset-right, 0px)); }
+  /* A toast rises above the Jump to pill rather than covering it (the pill
+     is 44px from 18px up; a two-line Tamil toast reached across it). */
+  body:has(#jump-btn:not([hidden])):not(:has(.viewer:not([hidden]))) .toasts {
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
   .jump-panel {
     position: fixed; left: 0; right: 0; bottom: 0; width: auto;
     max-height: 72vh; max-height: 72dvh;

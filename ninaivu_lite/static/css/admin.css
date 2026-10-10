@@ -370,7 +370,7 @@ body.admin .ios-install-banner {
    own value so it stays legible rather than being inverted into mud. */
 :root {
   --vis-public: #1f8a4c;
-  --vis-family: #0b7fd4;
+  --vis-family: #0969b0;
   --vis-hidden: #c0392b;
 }
 @media (prefers-color-scheme: dark) {

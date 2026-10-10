@@ -3262,5 +3262,6 @@
   "Turned {count}. The files are not changed.": "{count} திருப்பப்பட்டன. கோப்புகள் மாற்றப்படவில்லை.",
   "Turned {count}; {skipped} could not be turned. The files are not changed.": "{count} திருப்பப்பட்டன; {skipped} திருப்ப முடியவில்லை. கோப்புகள் மாற்றப்படவில்லை.",
   "Play": "இயக்கு",
-  "Position in the video": "காணொளியில் இடம்"
+  "Position in the video": "காணொளியில் இடம்",
+  "Shared video": "பகிரப்பட்ட காணொளி"
 }

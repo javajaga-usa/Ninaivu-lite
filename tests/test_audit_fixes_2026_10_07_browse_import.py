@@ -236,7 +236,7 @@ def test_a86_a_shared_photo_page_does_not_show_its_file_name(app, family):
     assert items and all("name" not in it for it in items)
     share_js = read(JS / "share.js")
     one = share_js[share_js.index("function renderOne(item)"):]
-    assert "textContent = i18n.t('Shared photograph');" in one[:400]
+    assert "textContent = i18n.t(isVideo ? 'Shared video' : 'Shared photograph');" in one[:400]
     assert "item.filename" not in share_js and "item.name" not in share_js
 
 
