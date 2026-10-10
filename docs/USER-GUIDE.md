@@ -160,7 +160,12 @@ Public photograph; choose one you are happy to show.
   the sign-in screens and dialogs scroll, so every button can be reached.
 - **Sideways photos** are put right during the scan, from the camera's own tag, and, when the
   OpenCV extra is installed, from the faces in a photo that has none. The administrator can
-  turn any photo by hand with ⋯ → *Rotate* (or **R**); the file itself is never changed.
+  turn or flip any photo or video by hand with ⋯ → *Rotate* (or **R**): on the bar that opens,
+  *Rotate left* / *Rotate right* (**Shift+R** / **R**), *Flip horizontal* (**H**), *Flip
+  vertical* (**V**) and *Reset to original*, then *Save* (**Enter**) or *Cancel* (**Esc**). The
+  picture and its thumbnail show the new way everywhere, share links included. A whole
+  selection turns at once with *Rotate left* / *Rotate right* on the selection bar. The file
+  itself is never changed.
 
 ### Import: old drives into one archive
 

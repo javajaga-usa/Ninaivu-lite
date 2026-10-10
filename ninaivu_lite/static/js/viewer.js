@@ -89,7 +89,7 @@ export class Viewer extends EventTarget {
       if (typeof settings.loop === 'boolean') this.slideshowLoop = settings.loop;
     } catch { /* Browser storage is optional. */ }
 
-    this.transform = { scale: 1, x: 0, y: 0, rotate: 0 };
+    this.transform = { scale: 1, x: 0, y: 0, rotate: 0, mirror: false };
     this.pointers = new Map();
     this.pinchStart = null;
 
@@ -99,6 +99,8 @@ export class Viewer extends EventTarget {
     this.canSave = false;
     /** Set by the app: whether a photograph may be turned by hand (admins). */
     this.canRotate = false;
+    /** While the Rotate bar is up: the way up shown on screen, not yet saved. */
+    this.rotating = false;
     //: signed in: a photograph can become the person's own profile picture
     this.canAvatar = false;
     this.toast = null;
@@ -125,7 +127,18 @@ export class Viewer extends EventTarget {
     q('#v-zoom-out').onclick = () => this.zoomBy(1 / 1.5);
     q('#v-info').onclick = () => this.toggleInfo();
     if (q('#v-info-close')) q('#v-info-close').onclick = () => this.toggleInfo(false);
-    q('#v-rotate').onclick = () => this.rotate();
+    // Rotate opens the bar; its arrows turn the picture on screen and Save
+    // keeps the turn (in the index, never in the file).
+    // Focus moves to Save, so Enter keeps the turn rather than pressing
+    // Rotate again (the menu it was in has closed).
+    q('#v-rotate').onclick = () => { this.rotate(1); if (this.rotating) q('#v-rotate-save').focus(); };
+    q('#v-rotate-left').onclick = () => this.rotate(-1);
+    q('#v-rotate-right').onclick = () => this.rotate(1);
+    q('#v-flip-h').onclick = () => this.flip(false);
+    q('#v-flip-v').onclick = () => this.flip(true);
+    q('#v-rotate-reset').onclick = () => this.resetOrientation();
+    q('#v-rotate-save').onclick = () => this.saveRotation();
+    q('#v-rotate-cancel').onclick = () => this.cancelRotation();
     q('#v-avatar').onclick = () => {
       this.dispatchEvent(new CustomEvent('avatar', { detail: { item: this.item } }));
     };
@@ -133,7 +146,7 @@ export class Viewer extends EventTarget {
     // most visits never press it and its engine is the largest script here.
     q('#v-sudar').onclick = async () => {
       if (!this.canDownload || this.item?.kind !== 'picture') return;
-      const item = { ...this.item, rotation: this.transform.rotate };
+      const item = { ...this.item, rotation: this.shownTurn(), mirror: !!this.transform.mirror };
       this.stopSlideshow();
       if (this.isKiosk) this.toggleKiosk();
       try {
@@ -285,6 +298,8 @@ export class Viewer extends EventTarget {
     date.textContent = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
   }
 
+  /** *thumbed*: the ids that have a thumbnail, as a Map to its version, so
+   *  the filmstrip asks for the current one (they are cached for a year). */
   async open(ids, index, thumbed = null) {
     this.ids = ids;
     this.thumbed = thumbed;
@@ -295,6 +310,7 @@ export class Viewer extends EventTarget {
   }
 
   close() {
+    this.endRotation();
     this.previousIndex = null;
     if (this.isKiosk) this.toggleKiosk();
     this.stopSlideshow();
@@ -350,6 +366,7 @@ export class Viewer extends EventTarget {
       return;
     }
     if (!this.isOpen || this.ids[this.index] !== id) return; // user moved on while loading
+    if (this.item !== item) this.endRotation();
     this.item = item;
 
     // Stage first: resetTransform needs the media element to exist, and
@@ -425,6 +442,7 @@ export class Viewer extends EventTarget {
       }
       this.media = video;
       this.stage.appendChild(video);
+      this.stage.appendChild(this.turnedVideoControls(video));
       return;
     }
 
@@ -503,7 +521,8 @@ export class Viewer extends EventTarget {
     // swipe would start on the player.
     this.root.dataset.kind = item.kind;
     this.root.querySelector('#v-sudar').hidden = !this.canDownload || item.kind !== 'picture';
-    this.root.querySelector('#v-rotate').hidden = !this.canRotate || item.kind !== 'picture';
+    this.root.querySelector('#v-rotate').hidden = !this.canRotate
+      || (item.kind !== 'picture' && item.kind !== 'video');
     this.root.querySelector('#v-avatar').hidden = !this.canAvatar || item.kind !== 'picture';
     this.root.querySelector('#v-name').textContent = item.name;
     // On a phone the line has the width of the bar's left half: the size
@@ -541,7 +560,8 @@ export class Viewer extends EventTarget {
           img.removeAttribute('src');
           img.classList.add('no-thumb');
         }, { once: true });
-        img.src = thumbUrl(this.ids[i], 256, this.cache.get(this.ids[i])?.thumb_v);
+        img.src = thumbUrl(this.ids[i], 256, this.cache.get(this.ids[i])?.thumb_v
+          || this.thumbed?.get?.(this.ids[i]));
       }
       this.filmstrip.appendChild(img);
     }
@@ -631,24 +651,161 @@ export class Viewer extends EventTarget {
     }
   }
 
-  /** A quarter turn more, kept in the index (an administrator's answer for
-   *  a photograph the scan could not judge). The file is never changed. */
-  async rotate() {
+  /** Play, pause and a position bar for a video shown turned or flipped: the
+   *  browser's own controls would turn with the picture (sideways, or as
+   *  mirror writing), so they are switched off then and these stand in,
+   *  always the right way up. Shown by applyTransform. */
+  turnedVideoControls(video) {
+    const bar = document.createElement('div');
+    bar.className = 'video-turned-controls';
+    bar.hidden = true;
+    const play = document.createElement('button');
+    play.type = 'button';
+    play.className = 'icon-btn';
+    const seek = document.createElement('input');
+    seek.type = 'range'; seek.min = '0'; seek.max = '1000'; seek.value = '0';
+    seek.setAttribute('aria-label', i18n.t('Position in the video'));
+    const time = document.createElement('span');
+    time.className = 'video-turned-time';
+    const paint = () => {
+      const paused = video.paused || video.ended;
+      play.innerHTML = paused
+        ? '<svg viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></svg>'
+        : '<svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>';
+      play.setAttribute('aria-label', i18n.t(paused ? 'Play' : 'Pause'));
+      play.title = i18n.t(paused ? 'Play' : 'Pause');
+      const length = video.duration || 0;
+      if (length && document.activeElement !== seek) seek.value = String(Math.round(video.currentTime / length * 1000));
+      time.textContent = `${formatClock(video.currentTime || 0)} / ${formatClock(length)}`;
+    };
+    play.onclick = () => (video.paused || video.ended ? video.play().catch(() => {}) : video.pause());
+    seek.oninput = () => { if (video.duration) video.currentTime = Number(seek.value) / 1000 * video.duration; };
+    for (const name of ['play', 'pause', 'timeupdate', 'loadedmetadata', 'ended']) video.addEventListener(name, paint);
+    paint();
+    bar.append(play, seek, time);
+    return bar;
+  }
+
+  /** Whether the Rotate bar's tools may act on what is shown now. */
+  canTurn() {
     const item = this.item;
-    if (!item || item.kind !== 'picture' || this.rotatePending) return;
+    return !!item && (item.kind === 'picture' || item.kind === 'video')
+      && this.canRotate && !this.rotatePending;
+  }
+
+  /** Whether what is shown differs from what is saved. */
+  turnChanged() {
+    const item = this.item;
+    return !!item && (this.shownTurn() !== Number(item.rotation || 0) % 360
+      || !!this.transform.mirror !== !!item.mirror);
+  }
+
+  /** Mirror what is shown, left to right, or (*vertical*) top to bottom: a
+   *  vertical flip is a mirror and a half turn. Kept only on Save. */
+  flip(vertical = false) {
+    if (!this.canTurn()) return;
+    this.rotating = true;
+    // Mirroring the picture as it is shown turns its turn the other way.
+    this.transform.rotate = (vertical ? 180 : 0) - this.transform.rotate;
+    this.transform.mirror = !this.transform.mirror;
+    this.renderRotateBar();
+    this.applyTransform();
+  }
+
+  /** Back to the file as it is: no turn, no mirror. Kept only on Save. */
+  resetOrientation() {
+    if (!this.canTurn()) return;
+    this.rotating = true;
+    // The short way back to upright on screen.
+    this.transform.rotate -= ((this.transform.rotate % 360) + 540) % 360 - 180;
+    this.transform.mirror = false;
+    this.renderRotateBar();
+    this.applyTransform();
+  }
+
+  /** The way up the picture is shown now (0, 90, 180 or 270). */
+  shownTurn() {
+    return ((Math.round(this.transform.rotate / 90) * 90) % 360 + 360) % 360;
+  }
+
+  /** A quarter turn on screen (*direction* 1 clockwise, -1 the other way),
+   *  with the Rotate bar up to Save or Cancel it. Nothing is kept until Save. */
+  rotate(direction = 1) {
+    const item = this.item;
+    if (!this.canTurn()) return;
+    this.rotating = true;
+    // The angle keeps counting past 360 so the picture always turns the short
+    // way on screen; shownTurn() is what would be saved.
+    this.transform.rotate += direction * 90;
+    // The bar first: the stage makes room for it, and the fit is measured after.
+    this.renderRotateBar();
+    this.applyTransform();
+  }
+
+  renderRotateBar() {
+    const bar = this.root.querySelector('#rotate-bar');
+    bar.hidden = !this.rotating;
+    this.root.classList.toggle('rotating', this.rotating);
+    if (!this.rotating) return;
+    const changed = this.turnChanged();
+    this.root.querySelector('#v-rotate-save').disabled = !changed || !!this.rotatePending;
+    this.root.querySelector('#v-rotate-reset').disabled =
+      this.shownTurn() === 0 && !this.transform.mirror;
+    this.root.querySelector('#rotate-note').textContent = changed ? i18n.t('Not saved yet') : '';
+  }
+
+  /** Keep the turn shown: in the index, never in the file. The thumbnails
+   *  are made again the new way up. */
+  async saveRotation() {
+    const item = this.item;
+    if (!item || !this.rotating || this.rotatePending) return;
+    const rotation = this.shownTurn();
+    const mirror = !!this.transform.mirror;
+    if (!this.turnChanged()) { this.endRotation(); return; }
     this.rotatePending = true;
-    const rotation = (Number(item.rotation || 0) + 90) % 360;
+    this.renderRotateBar();
     try {
-      const updated = await api.rotate(item.id, rotation);
+      const updated = await api.rotate(item.id, rotation, mirror);
       Object.assign(item, updated);
       this.cache.set(item.id, item);
-      if (this.item === item) { this.resetTransform(); this.renderInfo(item); }
+      if (this.thumbed?.set && item.thumb_v) this.thumbed.set(item.id, item.thumb_v);
+      if (this.item === item) {
+        // The picture already shows this way up: no spin back to zero.
+        this.rotating = false;
+        this.renderRotateBar();
+        this.applyTransform();
+        this.renderChrome(item);
+        this.renderInfo(item);
+        this.renderFilmstrip();
+      }
+      this.toast?.(i18n.t('Rotation saved. The original file is not changed.'));
       this.dispatchEvent(new CustomEvent('mutated', { detail: { id: item.id, rotation } }));
     } catch (error) {
       this.toast?.(error.message, true);
     } finally {
       this.rotatePending = false;
+      if (this.rotating) this.renderRotateBar();
     }
+  }
+
+  /** Put the picture back the way it was saved and close the bar. */
+  cancelRotation() {
+    if (!this.rotating) return;
+    this.rotating = false;
+    this.transform.rotate = Number(this.item?.rotation || 0) % 360;
+    this.transform.mirror = !!this.item?.mirror;
+    this.renderRotateBar();
+    this.applyTransform();
+  }
+
+  /** Leaving a photograph (or the viewer) with a turn not saved: dropped, and
+   *  said so, rather than kept without being asked. */
+  endRotation() {
+    if (!this.rotating) return;
+    const changed = this.turnChanged();
+    this.rotating = false;
+    this.renderRotateBar();
+    if (changed) this.toast?.(i18n.t('Rotation not saved'));
   }
 
   /* -- transform ------------------------------------------------------- */
@@ -658,9 +815,10 @@ export class Viewer extends EventTarget {
     // Thumbnails are baked upright by the scanner, but /api/file serves the
     // untouched original — so a photograph Ninaivu worked out the orientation
     // of would open sideways here while looking fine in the grid.
-    this.transform = {
-      scale: 1, x: 0, y: 0, rotate: Number(this.item?.rotation || 0) % 360,
-    };
+    // An unsaved turn on the Rotate bar stays as it is (0 resets the zoom).
+    const rotate = this.rotating ? this.transform.rotate : Number(this.item?.rotation || 0) % 360;
+    const mirror = this.rotating ? this.transform.mirror : !!this.item?.mirror;
+    this.transform = { scale: 1, x: 0, y: 0, rotate, mirror };
     this.applyTransform();
   }
 
@@ -700,9 +858,17 @@ export class Viewer extends EventTarget {
   applyTransform() {
     const el = this.media;
     if (!el) return;
-    const { scale, x, y, rotate } = this.transform;
+    const { scale, x, y, rotate, mirror } = this.transform;
     const fitted = scale * this.fitScale();
-    el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${fitted}) rotate(${rotate}deg)`;
+    // Mirrored first, then turned: the order the index keeps them in.
+    el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${fitted}) rotate(${rotate}deg)`
+      + (mirror ? ' scaleX(-1)' : '');
+    if (el.tagName === 'VIDEO') {
+      const turned = ((rotate % 360) + 360) % 360 !== 0 || !!mirror;
+      el.controls = !turned;
+      const own = this.stage.querySelector('.video-turned-controls');
+      if (own) own.hidden = !turned;
+    }
     el.style.transition = this.pointers.size ? 'none' : 'transform .18s cubic-bezier(.22,.61,.36,1)';
     el.classList.toggle('zoomed', scale > 1.02);
     // Zooming out only makes sense once something has zoomed in — at 1:1
@@ -749,7 +915,7 @@ export class Viewer extends EventTarget {
   }
 
   onPointerDown(event) {
-    if (event.target.closest('video, audio, .filmstrip, .viewer-info')) return;
+    if (event.target.closest('video, audio, .filmstrip, .viewer-info, .video-turned-controls')) return;
     this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     this.stage.setPointerCapture?.(event.pointerId);
     this.dragStart = {
@@ -879,6 +1045,8 @@ export class Viewer extends EventTarget {
     if (this.isKiosk && key === 'escape') { this.toggleKiosk(); return true; }
     switch (key) {
       case 'escape':
+        // An unsaved turn is put back first.
+        if (this.rotating) { this.cancelRotation(); return true; }
         // A177: Escape closes the Details panel first (on a phone it covers
         // the photograph), and only then the viewer.
         if (!this.info.hidden) { this.toggleInfo(false); return true; }
@@ -892,7 +1060,18 @@ export class Viewer extends EventTarget {
         return true;
       case 'i': this.toggleInfo(); return true;
       case 'r':
-        if (!this.root.querySelector('#v-rotate').hidden) this.rotate();
+        // R turns clockwise, Shift+R the other way; Enter saves.
+        if (!this.root.querySelector('#v-rotate').hidden) this.rotate(event.shiftKey ? -1 : 1);
+        return true;
+      case 'h':
+        if (!this.root.querySelector('#v-rotate').hidden) this.flip(false);
+        return true;
+      case 'v':
+        if (!this.root.querySelector('#v-rotate').hidden) this.flip(true);
+        return true;
+      case 'enter':
+        if (!this.rotating) return false;
+        this.saveRotation();
         return true;
       case 'd':
         if (this.canDownload) this.root.querySelector('#v-download').click();

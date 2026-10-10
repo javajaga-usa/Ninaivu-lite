@@ -285,6 +285,13 @@ MIGRATIONS: list[str] = [
     """
     ALTER TABLE folders ADD COLUMN detached_at REAL;
     """,
+    # 10 — a photograph or video shown mirrored, set by hand next to its turn
+    # (Flip in the viewer). Kept here, never in the file: the picture is
+    # mirrored left to right first, then turned by `rotation`. A vertical
+    # flip is a mirror and a half turn, so this one column says both.
+    """
+    ALTER TABLE assets ADD COLUMN mirror INTEGER NOT NULL DEFAULT 0;
+    """,
 ]
 
 

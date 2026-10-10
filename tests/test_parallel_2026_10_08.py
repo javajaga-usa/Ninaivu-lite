@@ -389,7 +389,7 @@ def test_a127_each_video_gets_its_share_of_the_cores(tmp_path, monkeypatch):
     monkeypatch.setattr(parallel, "cores", lambda: 8)
     asked: list[int] = []
 
-    def made(path, kind, thumbs_dir, asset_id, sizes=("s", "l"), rotation=0, threads=0):
+    def made(path, kind, thumbs_dir, asset_id, sizes=("s", "l"), rotation=0, threads=0, mirror=False):
         asked.append(threads)
         return True, "#000000"
 

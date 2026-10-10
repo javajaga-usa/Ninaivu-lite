@@ -350,6 +350,12 @@
       <button class="btn ghost small" id="sel-download" data-i18n="Download">Download</button>
       <button class="btn ghost small" id="sel-album" data-i18n="Add to album">Add to album</button>
       <button class="btn ghost small" id="sel-album-remove" hidden data-i18n="Remove from album">Remove from album</button>
+      <!-- A whole card shot with the camera on its side: turned in one go, in
+           the index only (administrators). -->
+      <div class="sel-rotate admin-only" hidden role="group" aria-label="Rotate selected" data-i18n-label="Rotate selected">
+        <button class="btn ghost small" data-sel-turn="270" title="Rotate selected left" data-i18n-title="Rotate selected left"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v5h5"/></svg><span data-i18n="Rotate left">Rotate left</span></button>
+        <button class="btn ghost small" data-sel-turn="90" title="Rotate selected right" data-i18n-title="Rotate selected right"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg><span data-i18n="Rotate right">Rotate right</span></button>
+      </div>
       <div class="sel-visibility admin-only" hidden>
         <span class="hint" data-i18n="Show to">Show to</span>
         <button class="btn ghost small" data-sel-vis="public" data-i18n="Everyone">Everyone</button>
@@ -473,6 +479,23 @@
     <div class="slide-pop-actions">
       <button type="button" class="btn ghost small" id="v-slide-cancel" data-i18n="Cancel">Cancel</button>
       <button type="button" class="btn primary small" id="v-slide-start" data-i18n="Start slideshow">Start slideshow</button>
+    </div>
+  </div>
+
+  <!-- Rotate and flip: the photograph or video turns on screen first and is
+       kept only when Save is pressed. Kept in the index, never in the file. -->
+  <div class="rotate-bar" id="rotate-bar" hidden role="group" aria-label="Rotate this photo" data-i18n-label="Rotate this photo">
+    <div class="rotate-tools">
+      <button type="button" class="icon-btn" id="v-rotate-left" title="Rotate left (Shift+R)" data-i18n-title="Rotate left (Shift+R)" aria-label="Rotate left" data-i18n-label="Rotate left"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v5h5"/></svg></button>
+      <button type="button" class="icon-btn" id="v-rotate-right" title="Rotate right (R)" data-i18n-title="Rotate right (R)" aria-label="Rotate right" data-i18n-label="Rotate right"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button>
+      <button type="button" class="icon-btn" id="v-flip-h" title="Flip horizontal (H)" data-i18n-title="Flip horizontal (H)" aria-label="Flip horizontal" data-i18n-label="Flip horizontal"><svg viewBox="0 0 24 24"><path d="M12 3v18M9 7 4 17h5ZM15 7l5 10h-5Z"/></svg></button>
+      <button type="button" class="icon-btn" id="v-flip-v" title="Flip vertical (V)" data-i18n-title="Flip vertical (V)" aria-label="Flip vertical" data-i18n-label="Flip vertical"><svg viewBox="0 0 24 24"><path d="M3 12h18M7 9l10-5v5ZM7 15l10 5v-5Z"/></svg></button>
+      <button type="button" class="icon-btn" id="v-rotate-reset" title="Reset to original" data-i18n-title="Reset to original" aria-label="Reset to original" data-i18n-label="Reset to original"><svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 3.5V8H8M12 7.5V12l3 2"/></svg></button>
+    </div>
+    <span class="rotate-note" id="rotate-note" aria-live="polite"></span>
+    <div class="rotate-actions">
+      <button type="button" class="btn ghost small" id="v-rotate-cancel" data-i18n="Cancel">Cancel</button>
+      <button type="button" class="btn primary small" id="v-rotate-save" title="Save (Enter)" data-i18n-title="Save (Enter)" data-i18n="Save">Save</button>
     </div>
   </div>
 

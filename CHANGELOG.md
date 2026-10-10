@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+The index goes to version 10 (one new column, for Flip). The first start of this version
+keeps the index as it was in `before-update-from-index-9-<time>.zip` in the backups folder;
+going back to 1.11.1 or earlier needs that zip restored (`--restore <zip>`).
+
+- **Rotate, flip, then Save.** In the viewer, *Rotate* (or **R**) now opens a bar under the
+  picture with *Rotate left* and *Rotate right* (**Shift+R** / **R**), *Flip horizontal* (**H**),
+  *Flip vertical* (**V**), *Reset to original*, *Save* (**Enter**) and *Cancel* (**Esc**). The
+  picture turns on screen first and is kept only when *Save* is pressed; moving to another
+  photo without saving puts it back and says so. Before, each press saved a quarter turn
+  clockwise at once, with no way back but three more presses. Administrators only, as before.
+- **Videos turn and flip too.** A video shot sideways plays the right way up in the viewer
+  and on a share link, and its thumbnail follows. While a video is shown turned, a play bar
+  of its own (play, pause, position) stands in for the browser's, which would turn with it.
+- **Rotate a whole selection.** *Rotate left* and *Rotate right* on the selection bar turn
+  every selected photo and video a quarter turn from the way it is shown (up to 5,000 at a
+  time); their thumbnails are made again in the background.
+- **A saved turn shows everywhere at once.** The thumbnail strip at the bottom of the viewer
+  kept showing a turned photo the old way up (its thumbnails were cached for a year without
+  a version), and a guest's or a share link's copy could stay the old way up for up to a
+  day. Now the gallery tile, the strip, the family app and share links all show the new way
+  straight after *Save*. Sudar opens a flipped photo flipped, and a profile picture made from
+  one is too.
+- As always, the turn and the flip are kept in Ninaivu Lite's own index, never in the photo,
+  the video or a sidecar file.
+
 ## 1.11.1 — 2026-10-10
 
 The index is unchanged (version 9), so 1.11.1, 1.11.0, 1.10.0, 1.9.0, 1.8.0 and 1.7.0 can open
