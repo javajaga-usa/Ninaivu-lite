@@ -38,7 +38,7 @@
   --text-2:       #5b6675;
   --text-3:       #66707e;  /* 4.5:1 on --bg and --surface-2: helper text is read */
   --accent:       #0969b0;  /* 4.5:1 or better as text on its own tints, and under white */
-  --accent-2:     #6d5efc;
+  --accent-2:     #5a4ae6;  /* the console tag is text on its own tint */
   --accent-fg:    #ffffff;
   --accent-weak:  rgba(9, 105, 176, 0.10);
   --danger:       #b8262e;

@@ -226,6 +226,13 @@ def test_the_dark_accent_and_danger_still_read():
     assert contrast(DARK["accent-fg"], DARK["accent"]) >= 4.5
 
 
+def test_the_console_tag_reads_on_its_own_tint():
+    # "Admin" beside the console's title: purple lettering on a purple wash.
+    for palette in (LIGHT, DARK):
+        tag = palette["accent-2"]
+        assert contrast(tag, mix(tag, palette["bg-elev"], 0.14)) >= 4.5
+
+
 # -- The share page: a single video ------------------------------------------
 
 def test_a_shared_video_is_called_a_video():
