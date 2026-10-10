@@ -3231,5 +3231,9 @@
   "This drive will not be mentioned again. You can still add it as a source on the Import page.": "இந்த டிரைவ் பற்றி இனி சொல்லப்படாது. இறக்குமதி பக்கத்தில் அதை இன்னும் ஒரு மூலமாகச் சேர்க்கலாம்.",
   "Plugged-in drives": "இணைக்கப்படும் டிரைவ்கள்",
   "Drives and phones set to Don’t ask again: {count}. Ask again shows their notice the next time they are plugged in.": "மீண்டும் கேட்காதே என அமைக்கப்பட்ட டிரைவ்களும் தொலைபேசிகளும்: {count}. மீண்டும் கேள் அழுத்தினால், அடுத்த முறை இணைக்கும்போது அவற்றின் அறிவிப்பு காட்டப்படும்.",
-  "Every drive and phone will be mentioned again when it is plugged in.": "ஒவ்வொரு டிரைவும் தொலைபேசியும் இணைக்கப்படும்போது மீண்டும் சொல்லப்படும்."
+  "Every drive and phone will be mentioned again when it is plugged in.": "ஒவ்வொரு டிரைவும் தொலைபேசியும் இணைக்கப்படும்போது மீண்டும் சொல்லப்படும்.",
+  "Jump to": "நேரடியாகச் செல்",
+  "Jump to a year or month": "ஓர் ஆண்டு அல்லது மாதத்துக்குச் செல்",
+  "Jump to a year or month. Showing {month}.": "ஓர் ஆண்டு அல்லது மாதத்துக்குச் செல். இப்போது {month}.",
+  "Could not load the months. Try again.": "மாதங்களை ஏற்ற முடியவில்லை. மீண்டும் முயலுங்கள்."
 }

@@ -105,6 +105,8 @@ SORTS = {
 }
 
 YEAR_RE = re.compile(r"^\d{4}(-\d{2})?$")
+#: A date_key's month, as /api/months lists them.
+MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
 
 
 # --- small parsers ------------------------------------------------------------------
@@ -498,6 +500,21 @@ def facets():
         "tags": [],
         "cameras": _camera_counts(where, params, 200),
     })
+
+
+@bp.get("/api/months")
+def months():
+    """The months the grid as filtered right now has photographs in, newest
+    first, with the undated counted apart: what the "Jump to" button offers.
+    The same query string as /api/segments, and remembered until the index
+    changes, so opening the list again costs nothing."""
+    where, args = grid_filters(user())
+    rows = counted(
+        f"""SELECT substr(a.date_key, 1, 7) AS m, COUNT(*) FROM assets a
+            WHERE {where} GROUP BY m ORDER BY m DESC""", args)
+    found = [{"month": m, "count": n} for m, n in rows if m and MONTH_RE.match(m)]
+    undated = sum(n for m, n in rows if not (m and MONTH_RE.match(m)))
+    return jsonify({"months": found, "undated": undated})
 
 
 @bp.get("/api/suggest")

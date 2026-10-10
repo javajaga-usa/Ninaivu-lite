@@ -3132,5 +3132,9 @@
   "This drive will not be mentioned again. You can still add it as a source on the Import page.": "This drive will not be mentioned again. You can still add it as a source on the Import page.",
   "Plugged-in drives": "Plugged-in drives",
   "Drives and phones set to Don’t ask again: {count}. Ask again shows their notice the next time they are plugged in.": "Drives and phones set to Don’t ask again: {count}. Ask again shows their notice the next time they are plugged in.",
-  "Every drive and phone will be mentioned again when it is plugged in.": "Every drive and phone will be mentioned again when it is plugged in."
+  "Every drive and phone will be mentioned again when it is plugged in.": "Every drive and phone will be mentioned again when it is plugged in.",
+  "Jump to": "Jump to",
+  "Jump to a year or month": "Jump to a year or month",
+  "Jump to a year or month. Showing {month}.": "Jump to a year or month. Showing {month}.",
+  "Could not load the months. Try again.": "Could not load the months. Try again."
 }

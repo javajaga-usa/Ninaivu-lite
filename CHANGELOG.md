@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Jump to a year or month in the gallery.** A date button in the bottom corner of the
+  photos names the month on screen. Click it (or press **D**) and a list opens with only the
+  years and months that have photos, with how many each year holds, and *Undated* at the end
+  when some photos have no date. Pick a month to go straight to it, or a year for its first
+  month; a month further down than has loaded yet is fetched first. The list follows what is
+  shown (a kind, a folder, a search, a year chosen in the menu) and the sort order, and the
+  button appears for *Newest first* and *Oldest first*. On a phone held upright the list
+  rises from the bottom of the screen; arrow keys, Enter and Esc work in it. English and
+  Tamil. The months come from a new `/api/months` call (same filters as the grid,
+  remembered until the index changes). The user guides describe it.
 - **A new look for the Control Panel.** The window opens on a dark band with the app's icon,
   its name and a status pill (a green dot for *Running*, grey for *Stopped*, a blue dot that
   pulses while it starts, stops or restarts). Buttons are rounded and carry icons: **Start**

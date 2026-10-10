@@ -209,7 +209,7 @@ console.log(results.join(' '));
 
 def test_a54_load_more_keeps_its_place_and_offers_a_retry(app):
     app_js = read(JS / "app.js")
-    more = app_js[app_js.index("async function loadMoreIfNear()"):]
+    more = app_js[app_js.index("async function loadMoreIfNear("):]
     more = more[:more.index("\n}\n")]
     assert "page.next = null" not in more
     assert "retryAt" in more and "showLoadMoreFailed(page)" in more
