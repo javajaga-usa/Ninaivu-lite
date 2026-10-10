@@ -186,16 +186,17 @@
 
 <!-- 5 ======================================================================= -->
 <h1 class="chapter">5. Plugging in a pendrive, a drive or a phone</h1>
-<p>Plug a USB pendrive, a memory card, an external hard drive or a phone (by its cable) into the computer Ninaivu Lite runs on. The console, and the Control Panel if it is open, ask what to do with it.</p>
-<figure class="w50"><img src="img/en/d18-drive.jpg"><figcaption>A drive was connected.</figcaption></figure>
+<p>Plug a USB pendrive, a memory card, an external hard drive or a phone (by its cable) into the computer Ninaivu Lite runs on. No box pops up: the drive appears as a notice at the top of the console, on whichever page is open. The Control Panel, if it is open, says so in its own window and points you to the console.</p>
+<figure><img src="img/en/d18-drive.jpg"><figcaption>A drive was connected: the notice at the top of the console.</figcaption></figure>
 <ul>
-  <li><span class="ui">Import media from this drive</span> opens the Import page with the drive as the source. Check the destination and press <span class="ui btn">Start consolidation</span>. Nothing on the drive is changed.</li>
-  <li><span class="ui">Export media to this drive</span> copies the library's photos and videos onto the drive, into a <code>Ninaivu Lite</code> folder, keeping the library's own folders. Next time only what is new is copied; nothing already on the drive is overwritten or deleted. When it finishes, eject the drive before unplugging it.</li>
-  <li><span class="ui btn">Not now</span> asks again only when the drive is next plugged in.</li>
+  <li>Click the notice itself to import: the <span class="ui">Import</span> page opens with the drive as the source. Check the destination and press <span class="ui btn">Start consolidation</span>. Nothing on the drive is changed.</li>
+  <li><span class="ui btn">Export</span> copies the library's photos and videos onto the drive, into a <code>Ninaivu Lite</code> folder, keeping the library's own folders. The notice shows the progress and a <span class="ui btn">Stop</span> button. Next time only what is new is copied; nothing already on the drive is overwritten or deleted. When it finishes, eject the drive before unplugging it.</li>
+  <li><span class="ui btn">Don’t ask again</span> means that drive is never mentioned again, even when it is plugged in another day. To undo it, press <span class="ui btn">Ask again</span> under <span class="ui">Plugged-in drives</span> in <span class="ui">Settings</span>.</li>
+  <li><b>×</b> closes the notice; it comes back when the drive is next plugged in.</li>
 </ul>
-<figure><div class="row"><img src="img/en/d19a-export.jpg" style="width:47%"><img src="img/en/d19b-phone.jpg" style="width:47%"></div><figcaption>Copying the library to the drive, and a phone on its cable.</figcaption></figure>
-<p>A phone is offered <span class="ui">Import media from this phone</span> only. Unlock it and choose <em>File transfer</em> (Android) or <em>Trust this computer</em> (iPhone), or Windows cannot see its photos. On Windows the camera folders (DCIM, Pictures, Movies) are copied across the cable, imported into the archive, and the temporary copies removed; next time only new photos come across. Nothing on the phone is changed. On Linux, open the phone in the file manager first; on a Mac, phones are not detected.</p>
-<div class="tip"><b class="lead">Tip:</b> The computer's own disks, and a drive the library itself is on, are never asked about. When Ninaivu Lite was installed on Linux with <code>sudo</code>, it runs as its own account and may not see drives or phones your desktop opens: add their folders under <em>Import</em> yourself.</div>
+<figure><img src="img/en/d19a-export.jpg"><img src="img/en/d19b-phone.jpg"><figcaption>Copying the library to the drive, and a phone on its cable.</figcaption></figure>
+<p>A phone has no <span class="ui btn">Export</span>: clicking its notice imports from it. Unlock it and choose <em>File transfer</em> (Android) or <em>Trust this computer</em> (iPhone), or Windows cannot see its photos. On Windows the camera folders (DCIM, Pictures, Movies) are copied across the cable, imported into the archive, and the temporary copies removed; next time only new photos come across. Nothing on the phone is changed. On Linux, open the phone in the file manager first; on a Mac, phones are not detected.</p>
+<div class="tip"><b class="lead">Tip:</b> The computer's own disks, and a drive the library itself is on, never get a notice. When Ninaivu Lite was installed on Linux with <code>sudo</code>, it runs as its own account and may not see drives or phones your desktop opens: add their folders under <em>Import</em> yourself.</div>
 
 <!-- 6 ======================================================================= -->
 <h1 class="chapter">6. The family gallery on a computer</h1>

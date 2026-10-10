@@ -137,7 +137,7 @@ sudo systemctl restart ninaivu-lite
 ```
 
 The installer names any folder the account cannot read. Under the service, the "a drive
-was plugged in" prompt may not see drives or phones the desktop opens for you (they are
+was connected" notice may not see drives or phones the desktop opens for you (they are
 opened for your account, not the service's): add their folders under *Import* by hand.
 Without `sudo`, everything stays in your own account (`~/.local/share/ninaivu-lite`).
 

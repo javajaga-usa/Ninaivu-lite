@@ -270,7 +270,8 @@ stages.visibility = async () => {
   await page.close();
 };
 
-/* ---- 5: a drive or a phone plugged in (the drive list is played back) ---- */
+/* ---- 5: a drive or a phone plugged in: the notice at the top of the console
+   (the drive list is played back) ---- */
 async function mockDrives(page, drive, exportState) {
   await page.route('**/api/admin/drives', (route) => route.fulfill({ json: {
     drives: [{ ...drive, holds_library: false, pending: true }], export: exportState || {} } }));
@@ -287,18 +288,18 @@ stages.drives = async () => {
   let page = await newPage({ viewport: { width: 1280, height: 800 } });
   await mockDrives(page, stick);
   await page.goto(BASE + '/admin');
-  await page.waitForSelector('.drive-modal:not([hidden])', { timeout: 15000 });
-  await shot(page, 'd18-drive', { el: '.drive-modal .modal-card', pad: 16 });
-  await page.click('.drive-modal .drive-choice:not(.primary)');
+  await page.waitForSelector('.drive-notice:not([hidden])', { timeout: 15000 });
+  await shot(page, 'd18-drive', { el: '.drive-notice', pad: 16 });
+  await page.click('.drive-notice-actions .btn:not(.ghost)');
   await sleep(2500);
-  await shot(page, 'd19a-export', { el: '.drive-modal .modal-card', pad: 16 });
+  await shot(page, 'd19a-export', { el: '.drive-notice', pad: 16 });
   await page.close();
   const phone = { id: 'demo-phone', path: '', label: 'Pixel 7', total: 0, free: 0, kind: 'phone', shell: true };
   page = await newPage({ viewport: { width: 1280, height: 800 } });
   await mockDrives(page, phone);
   await page.goto(BASE + '/admin');
-  await page.waitForSelector('.drive-modal:not([hidden])', { timeout: 15000 });
-  await shot(page, 'd19b-phone', { el: '.drive-modal .modal-card', pad: 16 });
+  await page.waitForSelector('.drive-notice:not([hidden])', { timeout: 15000 });
+  await shot(page, 'd19b-phone', { el: '.drive-notice', pad: 16 });
   await page.close();
 };
 

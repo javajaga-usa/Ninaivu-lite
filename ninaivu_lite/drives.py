@@ -293,9 +293,9 @@ def connected() -> list[Drive]:
 class Watcher:
     """The drives plugged in, and which of them still need the question.
 
-    A drive is asked about once each time it is plugged in: answered (or set
-    aside with Not now), it is not asked about again until it is taken out
-    and put back."""
+    A drive is asked about once each time it is plugged in: answered (or its
+    notice closed with ×), it is not asked about again until it is taken out
+    and put back. Don't ask again is kept in the settings, not here."""
 
     def __init__(self, lister=connected) -> None:
         self.lister = lister

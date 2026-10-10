@@ -185,6 +185,7 @@ def overview():
             "open_browsing": c.open_browsing,
             "watch": c.watch,
             "video_originals": c.video_originals,
+            "quiet_drives": len(c.drives_never_ask),
             "house_name": c.house_name,
             "house_name_effective": c.house_name_effective,
             "default_language": c.language,
