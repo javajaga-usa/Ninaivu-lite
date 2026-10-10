@@ -25,6 +25,13 @@ function formatBytes(n) {
 }
 
 /** Plain English for where a rotation came from. */
+//: A176: the kind in the Details panel, in words — not the raw "picture".
+const KIND_WORDS = {
+  picture: i18n.key('Photo'),
+  video: i18n.key('Video'),
+  audio: i18n.key('Audio'),
+};
+
 const ROTATION_WHY = {
   exif: i18n.key('from the camera'),
   faces: i18n.key('worked out from the people in it'),
@@ -575,7 +582,7 @@ export class Viewer extends EventTarget {
       [i18n.t('Name'), item.name],
       [i18n.t('Folder'), item.folder || '—'],
       [i18n.t('Taken'), item.date + dateCaveat(item.date_source)],
-      [i18n.t('Type'), `${item.kind} · ${item.ext.toUpperCase()}`],
+      [i18n.t('Type'), `${KIND_WORDS[item.kind] ? i18n.t(KIND_WORDS[item.kind]) : item.kind} · ${item.ext.toUpperCase()}`],
       [i18n.t('Size'), item.size_h],
       item.width ? [i18n.t('Dimensions'), `${item.width} × ${item.height}`] : null,
       item.duration ? [i18n.t('Duration'), formatClock(item.duration)] : null,
@@ -871,7 +878,11 @@ export class Viewer extends EventTarget {
     const key = event.key.toLowerCase();
     if (this.isKiosk && key === 'escape') { this.toggleKiosk(); return true; }
     switch (key) {
-      case 'escape': this.close(); return true;
+      case 'escape':
+        // A177: Escape closes the Details panel first (on a phone it covers
+        // the photograph), and only then the viewer.
+        if (!this.info.hidden) { this.toggleInfo(false); return true; }
+        this.close(); return true;
       case 'arrowright': this.step(1); return true;
       case 'arrowleft': this.step(-1); return true;
       case 'home': this.goTo(0); return true;

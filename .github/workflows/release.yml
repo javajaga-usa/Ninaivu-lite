@@ -36,6 +36,14 @@ on:
 permissions:
   contents: read
 
+# One release run at a time (A172): a "Run workflow" on main and the tag push
+# for the same version would both pass the version check and both publish,
+# the later one replacing the files with ones built from another commit.
+# Queued, never cancelled: a release half signed must not be cut short.
+concurrency:
+  group: release-installers-${{ (github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')) && 'release' || github.ref }}
+  cancel-in-progress: false
+
 jobs:
   # The whole test suite, on every OS, for the very commit being released:
   # nothing is published unless it passes.
@@ -510,6 +518,15 @@ jobs:
       - uses: actions/checkout@v7
         with:
           path: src
+      # Checked again just before publishing (A172): the signing approvals can
+      # take hours, and another run may have published this version meanwhile.
+      - name: The version is still new
+        working-directory: src
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: sh tools/check-release-version.sh
       - uses: actions/download-artifact@v8
         with:
           path: out

@@ -185,10 +185,22 @@ def refuse(message: str) -> None:
     logging.getLogger(REFUSED).error("not starting: %s", " ".join(message.split()))
 
 
+def port_number(value: str) -> int:
+    """A port a server can listen on and be found at (A171): 0 would let the
+    system choose one nobody is told, and above 65535 there are none."""
+    try:
+        port = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a number") from None
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError(f"{port} is not a port (1 to 65535)")
+    return port
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(prog="ninaivu_lite", description=f"{APP_NAME} {__version__}")
     p.add_argument("folders", nargs="*", help="photo folders to show (remembered)")
-    p.add_argument("--port", type=int, default=DEFAULT_PORT,
+    p.add_argument("--port", type=port_number, default=DEFAULT_PORT,
                    help=f"port to listen on (default {DEFAULT_PORT}; the next free one if taken)")
     p.add_argument("--host", default="0.0.0.0",
                    help="address to listen on (default: every network on this computer)")

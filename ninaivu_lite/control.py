@@ -27,6 +27,10 @@ from .config import DEFAULT_PORT, Config
 from .lock import held_elsewhere, known_instance
 
 STATE_FILE = "server.json"
+#: The port the last server on this data folder listened on, kept when it
+#: stops (server.json goes), so a Start or Restart comes back at the same
+#: address and the family's bookmarks keep working (A169).
+LAST_PORT_FILE = "last-port"
 ROOT = Path(__file__).resolve().parent.parent
 #: The Windows sign-in shortcut of the installed copy (the uninstaller removes
 #: it by this name). Before 1.6.0 every kind of copy used it.
@@ -104,10 +108,18 @@ def clear_state(data_dir: str | Path) -> None:
     """Called as the server stops; only removes the file if it is this process's."""
     path = Path(data_dir) / STATE_FILE
     try:
-        if json.loads(path.read_text(encoding="utf-8")).get("pid") == os.getpid():
+        state = json.loads(path.read_text(encoding="utf-8"))
+        if state.get("pid") == os.getpid():
             path.unlink()
-    except (OSError, ValueError):
+            port = state.get("port")
+            if valid_port(port):
+                (Path(data_dir) / LAST_PORT_FILE).write_text(str(port), encoding="ascii")
+    except (OSError, ValueError, AttributeError):
         pass
+
+
+def valid_port(port) -> bool:
+    return isinstance(port, int) and not isinstance(port, bool) and 1 <= port <= 65535
 
 
 # --- the panel's side ---------------------------------------------------------------------
@@ -282,6 +294,9 @@ class Controller:
             return "Ninaivu Lite is already running."
         cmd = [python_for_background(), "-m", "ninaivu_lite", "--no-browser",
                "--data", str(self.data_dir)]
+        last = self.last_port()
+        if last is not None:
+            cmd += ["--port", str(last)]
         # What the server says when it refuses to start goes here, for the
         # panel to show: it has no console of its own.
         said = self.data_dir / "logs" / "last-start.txt"
@@ -289,7 +304,10 @@ class Controller:
             said.parent.mkdir(parents=True, exist_ok=True)
             errors = open(said, "wb")       # noqa: SIM115 — handed to the child
         except OSError:
-            errors = subprocess.DEVNULL
+            # Nothing can be written there (a write-protected pendrive, a CD):
+            # the server could not keep its index either, and there would be
+            # no log to point to (A170).
+            return cannot_write(self.data_dir)
         kwargs: dict = {"cwd": str(ROOT), "stdin": subprocess.DEVNULL,
                         "stdout": subprocess.DEVNULL, "stderr": errors}
         if os.name == "nt":
@@ -315,6 +333,19 @@ class Controller:
                 return "Ninaivu Lite is running."
             time.sleep(0.5)
         return "Ninaivu Lite is taking a long time to start. The log may say why."
+
+    def last_port(self) -> int | None:
+        """The port the server on this data folder last listened on: from
+        server.json while it is there (a server that ended without tidying
+        up), else from what the last one left as it stopped."""
+        port = self.state().get("port")
+        if valid_port(port):
+            return port
+        try:
+            port = int((self.data_dir / LAST_PORT_FILE).read_text(encoding="ascii").strip())
+        except (OSError, ValueError):
+            return None
+        return port if valid_port(port) else None
 
     def stop(self, wait: float = 20.0) -> str:
         if not self.running():
@@ -479,6 +510,21 @@ def read_shortcut(path: Path) -> str | None:
     if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
         return raw.decode("utf-16", errors="replace")
     return raw.decode("utf-8", errors="replace")
+
+
+def cannot_write(data_dir: Path) -> str:
+    """Why nothing was started on a data folder that cannot be written to. In
+    Tamil too, as the panel's drive notice is: the panel has no language of
+    its own."""
+    return (f"Ninaivu Lite cannot write to its data folder, {data_dir}, so it was not "
+            "started. Is it on a write-protected pendrive, a CD or a folder you may only "
+            "read? Copy the whole Ninaivu Lite folder to a place you can write to, and "
+            "start it there.\n"
+            f"நினைவு லைட்டால் அதன் தரவுக் கோப்புறையில் ({data_dir}) எழுத முடியவில்லை, "
+            "அதனால் தொடங்கவில்லை. அது எழுதத் தடுக்கப்பட்ட பென்டிரைவிலோ, CD-யிலோ, "
+            "படிக்க மட்டும் அனுமதி உள்ள கோப்புறையிலோ உள்ளதா? முழு Ninaivu Lite "
+            "கோப்புறையையும் நீங்கள் எழுதக்கூடிய இடத்துக்கு நகலெடுத்து, அங்கிருந்து "
+            "தொடங்குங்கள்.")
 
 
 def start_refusal(path: Path) -> str:

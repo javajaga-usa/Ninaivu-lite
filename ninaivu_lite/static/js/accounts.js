@@ -261,7 +261,11 @@ export class Gate {
       const tile = el('button', 'picker-tile');
       tile.type = 'button';
       tile.appendChild(avatarNode(person, 88));
-      const name = el('span', 'picker-name', person.name);
+      // M23: the words in a span of their own, so a long name wraps to a
+      // second line (then ends in "…") and the PIN lock beside it stays seen.
+      const name = el('span', 'picker-name');
+      name.appendChild(el('span', 'picker-name-text', person.name));
+      tile.title = person.name;
       if (person.locked) {
         const lock = el('span', 'picker-lock');
         lock.innerHTML = '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
@@ -280,7 +284,9 @@ export class Gate {
       face.style.cssText = 'width:88px;height:88px;background:var(--surface-2);color:var(--text-3)';
       face.innerHTML = '<svg viewBox="0 0 24 24" style="width:34px;height:34px"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>';
       tile.appendChild(face);
-      tile.appendChild(el('span', 'picker-name', i18n.t('Just looking')));
+      const looking = el('span', 'picker-name');
+      looking.appendChild(el('span', 'picker-name-text', i18n.t('Just looking')));
+      tile.appendChild(looking);
       tile.appendChild(el('span', 'picker-role', i18n.t('Public media only')));
       tile.onclick = () => {
         this.hide();

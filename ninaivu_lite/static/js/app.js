@@ -2188,6 +2188,10 @@ function wireKeyboard() {
     // While the sign-in screen is up, the gallery behind it is nobody's: no
     // theme key, no layout keys, no arrows through a photograph.
     if (!$('#gate').hidden) return;
+    // A175: a modal <dialog> (Sudar, the recolour dialog) owns the keyboard.
+    // Without this the viewer behind Sudar took the arrows, F, D and Escape
+    // (and T cycled the theme twice).
+    if (document.querySelector('dialog[open]')) return;
     const target = event.target;
     const typing = target.matches('input, textarea, select') || target.isContentEditable;
     const key = event.key.toLowerCase();

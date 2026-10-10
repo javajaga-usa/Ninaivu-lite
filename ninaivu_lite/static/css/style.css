@@ -174,10 +174,12 @@ button { background: none; border: 0; cursor: pointer; }
 
 .skip-link {
   position: absolute; left: -9999px; top: 8px; z-index: 999;
-  background: var(--accent); color: var(--accent-fg);
+  /* A179: white on the light theme's blue was 4.2:1, under the 4.5 small
+     text needs; ink on the page colour is well over it in both themes. */
+  background: var(--text); color: var(--bg-elev);
   padding: 8px 14px; border-radius: var(--r-md);
 }
-.skip-link:focus { left: 8px; }
+.skip-link:focus { left: 8px; outline: 2px solid var(--accent); outline-offset: 2px; }
 
 ::-webkit-scrollbar { width: 11px; height: 11px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -1702,11 +1704,19 @@ body[data-role="guest"] .segmented button[data-layout="film"] { display: none; }
   transform: translateY(-2px);
 }
 .picker-name {
-  display: flex; align-items: center; gap: 5px;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
   font-size: 14px; font-weight: 560; color: var(--text);
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.picker-lock { display: inline-grid; place-items: center; color: var(--text-3); }
+/* M23: text-overflow does nothing on a flex box, so a long name was cut off
+   mid-letter and pushed the PIN lock out of sight. The name's own span takes
+   two lines, then "…"; the lock keeps its size beside it. */
+.picker-name-text {
+  min-width: 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; text-align: center;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden;
+}
+.picker-lock { display: inline-grid; place-items: center; color: var(--text-3); flex: none; }
 .picker-lock svg { width: 13px; height: 13px; stroke-width: 2; }
 .picker-role { font-size: 11.5px; color: var(--text-3); }
 .guest-tile .avatar { border: 1px dashed var(--border); }
@@ -2533,7 +2543,8 @@ html { scrollbar-color: color-mix(in srgb, var(--text) 22%, transparent) transpa
 /* Search: the palette's key, shown while the box is idle. */
 .search-kbd {
   position: absolute; right: 12px; pointer-events: none; display: none;
-  font: 500 11px/1 var(--font); color: var(--text-3);
+  /* A179: --text-3 was 3.1:1 (light) and 3.9:1 (dark) at 11px. */
+  font: 500 11px/1 var(--font); color: var(--text-2);
   padding: 4px 7px; border-radius: 6px; border: 1px solid var(--border-soft); background: var(--bg-elev);
 }
 @media (min-width: 900px) {
@@ -2566,7 +2577,7 @@ html { scrollbar-color: color-mix(in srgb, var(--text) 22%, transparent) transpa
 .palette-input svg { width: 19px; height: 19px; flex: none; color: var(--text-3); }
 .palette-input input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 16px; color: var(--text); }
 .palette kbd, .search-kbd {
-  font: 500 11px/1 var(--font); color: var(--text-3);
+  font: 500 11px/1 var(--font); color: var(--text-2);   /* A179 */
 }
 .palette kbd { padding: 4px 7px; border-radius: 6px; border: 1px solid var(--border-soft); background: var(--surface-2); }
 .palette-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; overscroll-behavior: contain; }
@@ -2938,6 +2949,7 @@ input[type=checkbox]:disabled, input[type=radio]:disabled { cursor: not-allowed;
 .modal-card h2, .sheet-head h2 { line-height: 1.3; }
 .sheet-head, .export-head { gap: 12px; }
 
+/* ==========================================================================
    Jump to a year or month (jump.js)
    ========================================================================== */
 

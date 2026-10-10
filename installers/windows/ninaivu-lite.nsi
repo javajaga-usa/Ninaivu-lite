@@ -1,4 +1,5 @@
-; pynsist's own template with five additions: a "start at sign-in" box (left
+; pynsist's own template, its pages written out (the components page after
+; the folder page), with five additions: a "start at sign-in" box (left
 ; as it was on an upgrade), the Control Panel on the Desktop, the Control
 ; Panel opened when the installer finishes, advice to stop a running Ninaivu
 ; Lite before an upgrade (it offers to do it), and a tidy stop before an upgrade
@@ -65,10 +66,24 @@
   ; started again at the end, so phones do not lose the library until
   ; somebody presses Start (with /S nobody would).
   Var nl_was_running
+  ; The folder RememberStartAtSignIn looked in, so the section can tell
+  ; whether the folder changed after the box was set (A166).
+  Var nl_checked_dir
+  ; pynsist's pages, written out here rather than through super(), so the
+  ; components page ("Start Ninaivu Lite at sign-in") comes after the
+  ; install-mode and folder pages: an upgrade's box can only start as the
+  ; person left it once the folder being upgraded is known (A166).
+  !insertmacro MUI_PAGE_WELCOME
+[% if license_file %]
+  !insertmacro MUI_PAGE_LICENSE [[license_file]]
+[% endif %]
+  !insertmacro MULTIUSER_PAGE_INSTALLMODE
+  !insertmacro MUI_PAGE_DIRECTORY
   ; A components page, so "Start Ninaivu Lite at sign-in" can be unticked; on
   ; an upgrade it starts as the person left it (RememberStartAtSignIn).
   !define MUI_PAGE_CUSTOMFUNCTION_PRE RememberStartAtSignIn
   !insertmacro MUI_PAGE_COMPONENTS
+  !insertmacro MUI_PAGE_INSTFILES
   ; The last page offers to open the Control Panel (ticked): from there
   ; Ninaivu Lite is started, and the console walks through the first day.
   ; Through a function: the shortcut's parameters carry their own quotes,
@@ -76,7 +91,7 @@
   !define MUI_FINISHPAGE_RUN
   !define MUI_FINISHPAGE_RUN_TEXT "Open the Ninaivu Lite Control Panel"
   !define MUI_FINISHPAGE_RUN_FUNCTION OpenControlPanel
-  [[ super() ]]
+  !insertmacro MUI_PAGE_FINISH
 [% endblock %]
 
 [% block install_pkgs %]
@@ -171,8 +186,17 @@
       SetOverwrite ifnewer
     SectionEnd
   !endif
+  ; The installer runs as administrator for most people (pynsist asks for the
+  ; highest level), and whatever it Execs is too: an elevated Control Panel,
+  ; and a server started from it, cannot see mapped network drives and open
+  ; an elevated browser. Explorer, asked to open the Start-menu shortcut,
+  ; opens it as the signed-in person, not elevated (A165).
   Function OpenControlPanel
     [% for scname, sc in ib.shortcuts.items() %][% if loop.first %]
+    IfFileExists "$SMPROGRAMS\[[scname]].lnk" 0 nl_open_direct
+      Exec '"$WINDIR\explorer.exe" "$SMPROGRAMS\[[scname]].lnk"'
+      Return
+    nl_open_direct:
     Exec '"[[ sc['target'] ]]" [[ sc['parameters'] ]]'
     [% endif %][% endfor %]
   FunctionEnd
@@ -182,7 +206,13 @@
     ; choice made since: the box starts unticked when it was turned off
     ; (RememberStartAtSignIn), and with /S, where no page is shown, it is
     ; left off here.
+    ; With /S no page set the box; and should the folder have changed since
+    ; the page looked (A166), the page's answer was for another folder:
+    ; either way an upgrade keeps the shortcut as it was.
+    ; (With /S the page never ran, so the folder it looked in is empty.)
+    StrCmp $nl_checked_dir $INSTDIR 0 nl_autostart_keep
     IfSilent 0 nl_autostart_on
+    nl_autostart_keep:
     StrCmp $nl_ours "1" 0 nl_autostart_on
     ReadEnvStr $R9 APPDATA
     IfFileExists "$R9\Microsoft\Windows\Start Menu\Programs\Startup\Ninaivu Lite.vbs" nl_autostart_on
@@ -195,12 +225,31 @@
   Section "-Start again after an upgrade"
     StrCmp $nl_was_running "1" 0 nl_restart_done
     DetailPrint "Starting Ninaivu Lite again, as it was running before the upgrade..."
+    ; Not elevated (A165): a small script opened through Explorer runs as the
+    ; signed-in person. In UTF-16, which Windows Script Host reads whatever
+    ; letters the folder names hold. With /S (deployment tools, no desktop
+    ; to ask) it is started directly, as before.
+    IfSilent nl_restart_direct
+    ClearErrors
+    FileOpen $0 "$TEMP\ninaivu-lite-start-again.vbs" w
+    IfErrors nl_restart_direct
+    FileWriteUTF16LE /BOM $0 'Set shell = CreateObject("WScript.Shell")$\r$\n'
+    FileWriteUTF16LE $0 'shell.CurrentDirectory = "$INSTDIR\pkgs"$\r$\n'
+    FileWriteUTF16LE $0 'shell.Run """$INSTDIR\Python\pythonw.exe"" -m ninaivu_lite.control --start", 0, False$\r$\n'
+    FileClose $0
+    Exec '"$WINDIR\explorer.exe" "$TEMP\ninaivu-lite-start-again.vbs"'
+    Goto nl_restart_done
+    nl_restart_direct:
     Exec '"$INSTDIR\Python\pythonw.exe" -m ninaivu_lite.control --start'
     nl_restart_done:
   SectionEnd
 
   ; Last of the uninstaller: what was kept, and where.
   Section "un.Say what was kept"
+    ; pynsist's Uninstall leaves the all-users context after an "All users"
+    ; install, where $LOCALAPPDATA is C:\ProgramData: the data folder is the
+    ; person's own (A168).
+    SetShellVarContext current
     DetailPrint "Your library's settings, people and index are kept in $LOCALAPPDATA\Ninaivu-lite. Delete that folder to remove them. Your photographs were not touched."
     IfSilent +2
     MessageBox MB_OK|MB_ICONINFORMATION "Ninaivu Lite was removed. Your photographs were not touched.$\r$\n$\r$\nIts settings, people and index are kept in $LOCALAPPDATA\Ninaivu-lite, for a later install. Delete that folder to remove them too."
@@ -210,6 +259,10 @@
   ; shortcut was turned off, the box starts unticked. (The shortcut is the
   ; signed-in person's, so it is found through APPDATA, as control.py does.)
   Function RememberStartAtSignIn
+    StrCpy $nl_checked_dir $INSTDIR
+    ; Ticked again first: Back to another folder must not keep an earlier
+    ; folder's answer.
+    SectionSetFlags ${sec_autostart} 1
     IfFileExists "$INSTDIR\pkgs\ninaivu_lite\__init__.py" 0 nl_remember_done
     ReadEnvStr $R9 APPDATA
     IfFileExists "$R9\Microsoft\Windows\Start Menu\Programs\Startup\Ninaivu Lite.vbs" nl_remember_done
