@@ -315,10 +315,10 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
     def imported(destination: str) -> None:
         # Files the importer (or a phone) put inside a library folder show in
         # the gallery now, not at the next half-hourly look (or never, with
-        # watching off).
+        # watching off). Only the folder they went into is walked.
         from .importer import is_within
         if any(is_within(destination, root) for root in cfg.folders):
-            app.config["SCANNER"].rescan()
+            app.config["SCANNER"].rescan(destination)
 
     app.config["IMPORTER"].on_files = imported
     app.config["DRIVES"] = drives.Watcher()

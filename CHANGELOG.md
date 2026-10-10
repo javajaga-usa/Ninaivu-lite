@@ -2,6 +2,48 @@
 
 ## Unreleased
 
+Ninaivu Lite keeps answering while it works: a second multitasking review (A130-A136; the
+index is unchanged, and the photographs are never touched):
+
+- **Phones opening a new folder no longer hold up everything else (A130).** Thumbnails made
+  for tiles on screen, and viewing copies, ran on the web server's eight threads without
+  limit, and two phones opening a folder of new videos took all of them: signing in, the
+  gallery's own pages and the Control Panel waited up to 4.4 seconds, and the panel showed
+  *Stopped*. The server now has sixteen threads, at most one such picture per core but one
+  (two to six) is made at a time, at least four threads are always free, and a tile past
+  that is asked for again by the grid a moment later. A video's frame made for a tile shares
+  the cores with the others being made, and the same tile asked for by two devices at once is
+  made once. Measured: the longest wait for the status went from 2.5-4.4 s to under 0.05 s,
+  with the tiles done as quickly as before.
+- **A library folder on a sleeping or switched-off NAS no longer stalls page loads (A131).**
+  Every page load asked whether each library folder was there, and an unreachable network
+  share can take half a minute to say no (on Linux a hard NFS mount never does). The folder
+  is now asked on a thread of its own, the answer is kept for a few seconds, and a page
+  waits at most half a second for it.
+- **An import into the library walks only the folder it fills (A132).** While an import
+  copied into a library folder, the library was walked from the top once a minute to show
+  the new photographs, which on a large library on a network drive kept the scan walking
+  and making no thumbnails. Now only the import's folder is walked; the Rescan button and
+  the half-hourly look still cover everything.
+- **Thumbnails are written to the index in batches (A133).** Each one was its own commit: about
+  22 KB written to the index's journal per thumbnail (2 GB for a first scan of 100,000
+  photographs, on a Raspberry Pi's SD card) and the library's remembered counts thrown away
+  dozens of times a second. Now up to 50 at once, or every second: 18 times less written
+  (5,000 thumbnails: 108 MB → 6 MB) and the counts kept between batches.
+- **One slow file no longer keeps the other workers waiting (A134).** Thumbnails and the face
+  check were written down in date order, so a damaged video ffmpeg took 90 seconds over, or
+  a very large scan, left the other workers idle until it was done, and each page of 50
+  waited for its slowest. They are now written down as each is ready, and the next page is
+  read while the last is being worked on. Measured with three slow files in a first scan:
+  39.5 s lost before, 21.6 s now.
+- **The Control Panel tells a busy server from a stopped one (A135).** A server too busy to
+  answer within 1.5 seconds showed as *Stopped*, with **Start** offered (which could only be
+  refused). When this data folder's server is running but slow, the panel asks once more,
+  patiently, and shows it as *Running* either way.
+- **An export to a drive says how far its counting has got (A136)**, "Counting the photos and
+  videos… 12,500 so far", and on Windows each folder on the drive is listed once rather than
+  asked about photo by photo before the copy starts.
+
 - **A new look for the Control Panel.** The window opens on a dark band with the app's icon,
   its name and a status pill (a green dot for *Running*, grey for *Stopped*, a blue dot that
   pulses while it starts, stops or restarts). Buttons are rounded and carry icons: **Start**

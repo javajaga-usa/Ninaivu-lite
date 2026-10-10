@@ -212,11 +212,13 @@ def serve(app, host: str, port: int) -> None:
             "waitress is not installed; using Flask's built-in server")
         app.run(host=host, port=port, threaded=True, use_reloader=False)
         return
+    from . import parallel
     from .app import MAX_REQUEST_BYTES
-    # Eight threads for a household; a body larger than any route takes is
-    # refused by waitress before Flask sees it; a connection that sends
-    # nothing for a minute is dropped rather than holding a thread.
-    waitress_serve(app, host=host, port=port, threads=8, ident=APP_NAME,
+    # Sixteen threads for a household, the heavy work on them limited
+    # (parallel.Slots) so a few are always free; a body larger than any route
+    # takes is refused by waitress before Flask sees it; a connection that
+    # sends nothing for a minute is dropped rather than holding a thread.
+    waitress_serve(app, host=host, port=port, threads=parallel.SERVER_THREADS, ident=APP_NAME,
                    max_request_body_size=MAX_REQUEST_BYTES, channel_timeout=60)
 
 

@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import threading
+import time
 from collections.abc import Callable
 from typing import Any, NoReturn
 
@@ -373,5 +375,54 @@ def scan_snapshot() -> dict[str, Any]:
     }
 
 
+#: How long an answer about a library folder being there is used for.
+REACH_KEEP = 5.0
+#: The longest a request waits for a library folder to answer.
+REACH_WAIT = 0.5
+_reach_lock = threading.Lock()
+_reach: dict[str, tuple[bool, float]] = {}
+_reaching: dict[str, threading.Event] = {}
+
+
 def library_exists(path: str) -> bool:
-    return os.path.isdir(long_path(path))
+    """Whether a library folder can be reached, as the gallery's status,
+    the console and the folder picker show it.
+
+    Asked on every page load, on every device. A folder on a NAS that is off
+    or asleep can take half a minute to say it is not there (Windows gives up
+    on a share after 20 to 40 seconds; a hard NFS mount on Linux never
+    does), and every request asking waited that long. So the folder is asked
+    on a thread of its own, the answer is kept for a few seconds, and a
+    request waits at most :data:`REACH_WAIT`: past that it goes with the last
+    answer, or "there" when there has been none (a waking disk is far more
+    often there than not; the scan says so when it is not)."""
+    now = time.monotonic()
+    with _reach_lock:
+        known = _reach.get(path)
+        if known is not None and now - known[1] < REACH_KEEP:
+            return known[0]
+        asking = _reaching.get(path)
+        if asking is None:
+            asking = _reaching[path] = threading.Event()
+            threading.Thread(target=_look_at, args=(path, asking), name="library-reach",
+                             daemon=True).start()
+    asking.wait(REACH_WAIT)
+    with _reach_lock:
+        found = _reach.get(path)
+    if found is not None and found is not known:
+        return found[0]
+    return known[0] if known is not None else True
+
+
+def _look_at(path: str, done: threading.Event) -> None:
+    try:
+        there = os.path.isdir(long_path(path))
+    except (OSError, ValueError):
+        there = False
+    with _reach_lock:
+        _reach[path] = (there, time.monotonic())
+        if len(_reach) > 256:
+            for stale in sorted(_reach, key=lambda p: _reach[p][1])[:128]:
+                del _reach[stale]
+        _reaching.pop(path, None)
+    done.set()
