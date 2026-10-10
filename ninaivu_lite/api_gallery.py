@@ -640,8 +640,11 @@ def asset_poster(asset_id: int):
     version = int(time.time() * 1000) % 2_000_000_000
     c = conn()
     with c:
-        c.execute("UPDATE assets SET thumb = ?, large = 1, color = ?, thumb_v = ? WHERE id = ?",
-                  (db.THUMB_OK, colour, version, asset_id))
+        # Not when it was turned meanwhile: that picture is the old way up.
+        c.execute("UPDATE assets SET thumb = ?, large = 1, color = ?, thumb_v = ? WHERE id = ? "
+                  "AND rotation = ? AND mirror = ?",
+                  (db.THUMB_OK, colour, version, asset_id, row["rotation"] or 0,
+                   int(bool(row["mirror"]))))
     scanner().generation += 1
     return jsonify(asset_public(visible_asset(asset_id))), 201
 
@@ -695,9 +698,9 @@ def assets_rotate():
         rows += conn().execute(
             "SELECT id, rotation FROM assets WHERE kind IN ('picture', 'video') AND id IN ("
             + ",".join("?" * len(chunk)) + ")", chunk).fetchall()
-    c, s = conn(), scanner()
-    turned = [r["id"] for r in rows
-              if s.set_rotation(c, r["id"], (r["rotation"] or 0) + turn, "manual", remake=False)]
+    s = scanner()
+    turned = s.set_rotations(conn(), [(r["id"], (r["rotation"] or 0) + turn) for r in rows],
+                             "manual")
     if turned:
         s.remake_later(turned)
     return jsonify({"updated": len(rows), "skipped": sent_count(data) - len(rows)})

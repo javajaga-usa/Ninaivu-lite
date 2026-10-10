@@ -692,24 +692,56 @@ class Scanner:
             # stored now, and a turn somebody set by hand while the faces
             # were being looked at is never replaced by the guess.
             conn.execute("BEGIN IMMEDIATE")
-            row = conn.execute("SELECT kind, thumb, rotation, mirror, width, height, rot_source "
-                               "FROM assets "
-                               "WHERE id = ?", (asset_id,)).fetchone()
-            if row is None or (source != "manual" and row["rot_source"] == "manual"):
-                return False
-            mirror = bool(row["mirror"]) if mirror is None else bool(mirror)
-            changed = rotation != (row["rotation"] or 0) or mirror != bool(row["mirror"])
-            swap = (rotation % 180) != ((row["rotation"] or 0) % 180)
-            width, height = (row["height"], row["width"]) if swap else (row["width"], row["height"])
-            # A new thumbnail version at once: a tile asked for before the new
-            # thumbnail is made must not be answered by the browser's year-long
-            # cached copy of the old one.
-            conn.execute(
-                "UPDATE assets SET rotation = ?, mirror = ?, rot_source = ?, upright = 1, "
-                "width = ?, height = ?"
-                + (", thumb = 0, large = 0, thumb_v = thumb_v + 1" if changed else "")
-                + " WHERE id = ?",
-                (rotation, int(mirror), source, width, height, asset_id))
+            row, mirror = self._store_rotation(conn, asset_id, rotation, source, mirror)
+        if row is None:
+            return False
+        return self._turned(conn, asset_id, row, rotation, mirror, remake)
+
+    def set_rotations(self, conn: sqlite3.Connection, turns: list[tuple[int, int]],
+                      source: str) -> list[int]:
+        """Store many (id, rotation) at once, as :meth:`set_rotation` without
+        remaking, in one transaction: one commit each wrote about 33 KB to the
+        index's journal a photograph (167 MB for a selection of 5,000, on a
+        Raspberry Pi's SD card). Returns the ids that turned."""
+        stored = []
+        with conn:
+            conn.execute("BEGIN IMMEDIATE")
+            for asset_id, rotation in turns:
+                row, mirror = self._store_rotation(conn, asset_id, rotation % 360, source, None)
+                if row is not None:
+                    stored.append((asset_id, row, rotation % 360, mirror))
+        return [asset_id for asset_id, row, rotation, mirror in stored
+                if self._turned(conn, asset_id, row, rotation, mirror, remake=False)]
+
+    @staticmethod
+    def _store_rotation(conn: sqlite3.Connection, asset_id: int, rotation: int, source: str,
+                        mirror: bool | None) -> tuple[sqlite3.Row | None, bool]:
+        """The index's part of :meth:`set_rotation`, in the caller's write
+        transaction: (the row as it was, or None when it is not turned; mirror)."""
+        row = conn.execute("SELECT kind, thumb, rotation, mirror, width, height, rot_source "
+                           "FROM assets "
+                           "WHERE id = ?", (asset_id,)).fetchone()
+        if row is None or (source != "manual" and row["rot_source"] == "manual"):
+            return None, False
+        mirror = bool(row["mirror"]) if mirror is None else bool(mirror)
+        changed = rotation != (row["rotation"] or 0) or mirror != bool(row["mirror"])
+        swap = (rotation % 180) != ((row["rotation"] or 0) % 180)
+        width, height = (row["height"], row["width"]) if swap else (row["width"], row["height"])
+        # A new thumbnail version at once: a tile asked for before the new
+        # thumbnail is made must not be answered by the browser's year-long
+        # cached copy of the old one.
+        conn.execute(
+            "UPDATE assets SET rotation = ?, mirror = ?, rot_source = ?, upright = 1, "
+            "width = ?, height = ?"
+            + (", thumb = 0, large = 0, thumb_v = thumb_v + 1" if changed else "")
+            + " WHERE id = ?",
+            (rotation, int(mirror), source, width, height, asset_id))
+        return row, mirror
+
+    def _turned(self, conn: sqlite3.Connection, asset_id: int, row: sqlite3.Row,
+                rotation: int, mirror: bool, remake: bool) -> bool:
+        """After a turn is stored: the thumbnails. Whether it shows differently."""
+        changed = rotation != (row["rotation"] or 0) or mirror != bool(row["mirror"])
         # A video's picture is its own thumbnail turned the new way: often the
         # only one there is (a browser's poster, without ffmpeg), which making
         # it again from the file would lose.
@@ -784,25 +816,30 @@ class Scanner:
         conn, finished = None, False
         try:
             conn = db.connect(self.data_dir)
-            while not self._stop.is_set():
-                with self._remaking_lock:
-                    if not self._remaking:
-                        # Under the lock: one added now starts a new worker.
-                        self._remaker, finished = False, True
-                        return
-                    asset_id = next(iter(self._remaking))
-                    del self._remaking[asset_id]
-                row = self._now_row(conn, asset_id)
-                # Made already (a tile asked for it), or its folder taken out of
-                # the library meanwhile: nothing to do.
-                if row is None or row["thumb"] != 0 or row["missing"]:
-                    continue
-                try:
-                    if self._thumbnail(conn, row, ("s", "l")):
+            # Written down in batches, as in the thumbnail pass (see Batch).
+            with Batch(conn, self._record_many) as batch:
+                while not self._stop.is_set():
+                    with self._remaking_lock:
+                        if not self._remaking:
+                            # Under the lock: one added now starts a new worker.
+                            self._remaker, finished = False, True
+                            return
+                        asset_id = next(iter(self._remaking))
+                        del self._remaking[asset_id]
+                    row = self._now_row(conn, asset_id)
+                    # Made already (a tile asked for it), or its folder taken out of
+                    # the library meanwhile: nothing to do.
+                    if row is None or row["thumb"] != 0 or row["missing"]:
+                        continue
+                    try:
+                        made = self._render(row, ("s", "l"))
+                    except Exception:  # noqa: BLE001 — the thumbnail pass tries again
+                        log.debug("could not remake thumbnails for %s", asset_id, exc_info=True)
+                        continue
+                    if made is not None and batch.add((row, *made)):
                         self.generation += 1
-                except Exception:  # noqa: BLE001 — the thumbnail pass tries again
-                    log.debug("could not remake thumbnails for %s", asset_id, exc_info=True)
         finally:
+            self.generation += 1
             if not finished:
                 with self._remaking_lock:
                     self._remaker = False
