@@ -802,7 +802,8 @@ export class Viewer extends EventTarget {
    *  said so, rather than kept without being asked. */
   endRotation() {
     if (!this.rotating) return;
-    const changed = this.turnChanged();
+    // A Save still on its way is kept: its own message follows.
+    const changed = this.turnChanged() && !this.rotatePending;
     this.rotating = false;
     this.renderRotateBar();
     if (changed) this.toast?.(i18n.t('Rotation not saved'));

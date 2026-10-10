@@ -832,9 +832,16 @@ def viewing_response(row: sqlite3.Row, path: str, max_age: int, turned: bool = F
         fail(404, "This file is not available right now.")
     rotation = (row["rotation"] or 0) if turned else 0
     mirror = bool(row["mirror"]) and turned
+    stem = f"{row['id']}-{st.st_size}-{int(st.st_mtime)}"
     cache = views_dir() / f"{row['id'] % 256:02x}" / \
-        f"{row['id']}-{st.st_size}-{int(st.st_mtime)}{f'-t{rotation}' if rotation else ''}" \
-        f"{'-m' if mirror else ''}-{VIEWS_FORMAT}.jpg"
+        f"{stem}{f'-t{rotation}' if rotation else ''}{'-m' if mirror else ''}-{VIEWS_FORMAT}.jpg"
+    # The copy as the file is (the family's viewer turns it itself) and the
+    # turned one (guests, share links) are both kept: each used to remove
+    # the other, so a turned HEIC was converted again on every other look.
+    now = row["rotation"] or 0
+    keep = {cache.with_name(f"{stem}-{VIEWS_FORMAT}.jpg"),
+            cache.with_name(f"{stem}{f'-t{now}' if now else ''}"
+                            f"{'-m' if row['mirror'] else ''}-{VIEWS_FORMAT}.jpg")}
     if not cache.is_file():
         try:
             # A full photograph decoded and shrunk: a core's worth, so taken
@@ -849,7 +856,8 @@ def viewing_response(row: sqlite3.Row, path: str, max_age: int, turned: bool = F
         try:
             cache.parent.mkdir(parents=True, exist_ok=True)
             for old in cache.parent.glob(f"{row['id']}-*.jpg"):
-                old.unlink(missing_ok=True)
+                if old not in keep:
+                    old.unlink(missing_ok=True)
             tmp = cache.with_name(f"{cache.name}.{os.getpid()}-{threading.get_ident()}.tmp")
             tmp.write_bytes(data)
             os.replace(tmp, cache)
@@ -1169,8 +1177,21 @@ def album_shape(row: sqlite3.Row, who: auth.User) -> dict[str, Any]:
                 JOIN assets a ON a.id = ai.asset_id WHERE ai.album_id = ? AND {where}""",
             [row["id"], *params]).fetchone()[0]
     return {"id": row["id"], "name": row["name"], "created_at": row["created_at"],
-            "cover_id": cover, "created_by": row["created_by"], "date_key": date_key,
+            "cover_id": cover, "cover_v": cover_versions([cover]).get(cover, 0),
+            "created_by": row["created_by"], "date_key": date_key,
             "item_ids": items, "n": len(items)}
+
+
+def cover_versions(cover_ids: Sequence[int | None]) -> dict[int, int]:
+    """Each cover's thumbnail version: thumbnails are cached for a year, so a
+    cover turned since is asked for at a new address (``thumbUrl``)."""
+    wanted = sorted({i for i in cover_ids if i})
+    out: dict[int, int] = {}
+    for start in range(0, len(wanted), IN_CHUNK):
+        piece = wanted[start:start + IN_CHUNK]
+        out.update((r[0], r[1] or 0) for r in conn().execute(
+            f"SELECT id, thumb_v FROM assets WHERE id IN ({','.join('?' * len(piece))})", piece))
+    return out
 
 
 @bp.get("/api/albums")
@@ -1192,11 +1213,13 @@ def albums():
             FROM albums al ORDER BY al.name COLLATE NOCASE, al.id""",
         params * 4).fetchall()
     out = []
+    versions = cover_versions([r["cover_id"] for r in rows])
     for r in rows:
         # An album showing this person nothing is left out, unless it is theirs.
         if r["n"] == 0 and r["created_by"] != who.id and not who.is_admin:
             continue
         out.append({"id": r["id"], "name": r["name"], "n": r["n"], "cover_id": r["cover_id"],
+                    "cover_v": versions.get(r["cover_id"], 0),
                     "created_at": r["created_at"], "created_by": r["created_by"],
                     "date_key": r["date_key"]})
     return jsonify({"albums": out})
