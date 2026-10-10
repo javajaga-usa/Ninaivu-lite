@@ -95,3 +95,67 @@ def test_turns_and_flips_set_by_hand_move_up_to_ninaivu(app, admin):
     admin.post(f"/api/asset/{beach}/rotate", json={"rotation": 0, "mirror": False})
     out = json.loads(admin.get("/admin/export").data)
     assert [t["path"].rsplit("/", 1)[-1] for t in out["turns"]] == ["clip.mp4"]
+
+
+def test_two_copies_before_a_change_in_the_same_second_both_stay(tmp_path, monkeypatch):
+    from datetime import datetime as real
+
+    from ninaivu_lite import backups
+
+    class Frozen(real):
+        @classmethod
+        def now(cls, tz=None):
+            return real(2026, 10, 10, 14, 30, 42)
+
+    data = tmp_path / "data"
+    db.connect(data).close()
+    monkeypatch.setattr(backups, "datetime", Frozen)
+    first = backups.before_change(data, "deleting-person")
+    second = backups.before_change(data, "deleting-person")
+    assert first != second and first.is_file() and second.is_file()
+    assert second.name == "before-deleting-person-2026-10-10-143042-2.zip"
+    assert backups._taken_at(second) > backups._taken_at(first)
+    # Pruning still keeps the newest five, the -2 one among them.
+    for _ in range(5):
+        backups.before_change(data, "removing-folder")
+    left = sorted(p.name for p in (data / "backups").glob("before-*.zip"))
+    assert len(left) == backups.KEEP_BEFORE and first.name not in left
+
+
+def test_fat_and_exfat_are_known_from_the_mount_table(tmp_path):
+    from ninaivu_lite import drives
+    mounts = tmp_path / "mounts"
+    mounts.write_text("/dev/sda1 / ext4 rw 0 0\n"
+                      "/dev/sdb1 /media/me/MY\\040STICK vfat rw 0 0\n"
+                      "/dev/sdc1 /media/me/CARD exfat rw 0 0\n"
+                      "/dev/sdd1 /media/me/DISK ntfs3 rw 0 0\n")
+    assert drives.fat_like("/media/me/MY STICK/Ninaivu Lite", str(mounts))
+    assert drives.fat_like("/media/me/CARD", str(mounts))
+    assert not drives.fat_like("/media/me/DISK", str(mounts))
+    assert not drives.fat_like("/home/me", str(mounts))
+    assert not drives.fat_like("/x", str(tmp_path / "none"))
+
+
+def test_names_a_fat_drive_refuses_are_exported_under_safe_ones(tmp_path, monkeypatch):
+    from ninaivu_lite import drives
+    lib = tmp_path / "Photos"
+    try:
+        noisy_jpeg(lib / "Trip: Goa" / "sunset?.jpg", seed=1)
+    except OSError:
+        import pytest
+        pytest.skip("this filesystem cannot hold such names")
+    noisy_jpeg(lib / "plain.jpg", seed=2)
+    root = tmp_path / "USB"
+    root.mkdir()
+    monkeypatch.setattr(drives, "fat_like", lambda path: True)
+    for _ in range(2):          # the second export finds them there
+        ex = drives.Exporter()
+        ex.start(drives.Drive("x", str(root), "USB", 64 << 30, 60 << 30), [str(lib)],
+                 str(tmp_path / "data"))
+        ex.wait(30)
+    p = ex.progress()
+    assert p["phase"] == "done" and p["errors"] == 0 and p["skipped"] == 2
+    out = root / "Ninaivu Lite" / "Photos"
+    assert (out / "Trip_ Goa" / "sunset_.jpg").read_bytes() == \
+        (lib / "Trip: Goa" / "sunset?.jpg").read_bytes()
+    assert (out / "plain.jpg").is_file()

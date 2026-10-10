@@ -459,9 +459,14 @@ class Exporter:
             # Listing), not asked about file by file.
             todo, claimed, skipped = [], set(), 0
             there = Listing() if os.name == "nt" else None
+            # A name with : or ? (fine in a Linux library) would fail on the
+            # pendrive at every export: it goes under a name the drive takes.
+            fat = fat_like(os.path.dirname(root) or root)
             for src, dest, size in plan:
                 if self.cancel.is_set():
                     raise InterruptedError
+                if fat:
+                    dest = fat_name(dest, root)
                 try:
                     place = _place(dest, size, claimed, there)
                 except OSError as exc:
@@ -590,6 +595,49 @@ class Listing:
             except FileNotFoundError:
                 return None
         return None
+
+
+#: Filesystems whose names cannot hold < > : " \\ | ? * (Windows' rules),
+#: as Linux names them in /proc/mounts: most pendrives and memory cards.
+FAT_TYPES = {"vfat", "msdos", "exfat", "fat", "fat32", "umsdos"}
+_NOT_ON_FAT = str.maketrans({c: "_" for c in '<>:"\\|?*' + "".join(map(chr, range(32)))})
+
+
+def fat_like(path: str, mounts: str = "/proc/mounts") -> bool:
+    """Whether *path* is on a FAT or exFAT drive, by what Linux says it
+    mounted there. Elsewhere (Windows' own names never break these rules;
+    macOS translates them itself) or when it cannot be told: False."""
+    if not sys.platform.startswith("linux") and mounts == "/proc/mounts":
+        return False
+    real = os.path.realpath(path)
+    best, kind = "", ""
+    try:
+        with open(mounts, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) < 3:
+                    continue
+                # Spaces in a mount point are written as \040.
+                point = parts[1].replace("\\040", " ")
+                if (real == point or real.startswith(point.rstrip("/") + "/")) \
+                        and len(point) >= len(best):
+                    best, kind = point, parts[2].lower()
+    except OSError:
+        return False
+    return kind in FAT_TYPES
+
+
+def fat_name(dest: str, root: str) -> str:
+    """*dest* (inside *root*) with every name a FAT or exFAT drive refuses
+    made safe: the characters Windows forbids become _, and a name cannot
+    end in a dot or a space. The same file always gets the same name, so an
+    export next month finds it there."""
+    rel = os.path.relpath(dest, root)
+    parts = []
+    for part in rel.split(os.sep):
+        safe = part.translate(_NOT_ON_FAT).rstrip(". ") or "_"
+        parts.append(safe)
+    return os.path.join(root, *parts)
 
 
 def _place(dest: str, size: int, claimed: set[str] | None = None,
