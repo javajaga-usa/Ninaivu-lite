@@ -266,7 +266,7 @@ def adopt():
             fail(400, problem)
         _folders_changed(folders=[*c.folders, path], active=c.active or path)
     else:
-        scanner().rescan()        # what was imported since the last scan shows now
+        scanner().rescan(path)    # what was imported since the last scan shows now
     return jsonify({"ok": True, "already": already, "path": path, "folders": list(c.folders),
                     "message": "That folder is already in the library." if already
                     else "Added to the library. Indexing it now."})

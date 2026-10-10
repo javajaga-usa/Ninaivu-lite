@@ -276,7 +276,7 @@ def test_a88_an_import_into_a_library_folder_shows_in_the_gallery(app, admin, li
                                                                   tmp_path, monkeypatch):
     root, _data = library
     looks = []
-    monkeypatch.setattr(app.config["SCANNER"], "rescan", lambda: looks.append(time.time()))
+    monkeypatch.setattr(app.config["SCANNER"], "rescan", lambda within=None: looks.append(time.time()))
     src = tmp_path / "OldDrive"
     photos(src, 2)
     job = {"source_dirs": [{"path": str(src)}], "destination_dir": str(root / "Archive"),
@@ -293,7 +293,7 @@ def test_a88_an_import_into_a_library_folder_shows_in_the_gallery(app, admin, li
 
 def test_a88_an_import_outside_the_library_does_not_rescan(app, admin, tmp_path, monkeypatch):
     looks = []
-    monkeypatch.setattr(app.config["SCANNER"], "rescan", lambda: looks.append(1))
+    monkeypatch.setattr(app.config["SCANNER"], "rescan", lambda within=None: looks.append(1))
     src = tmp_path / "OldDrive"
     photos(src, 1)
     job = {"source_dirs": [{"path": str(src)}], "destination_dir": str(tmp_path / "Elsewhere"),
