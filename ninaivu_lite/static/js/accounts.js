@@ -6,7 +6,7 @@
  * interface honest about what each role can actually do.
  */
 
-import { reportUnauthorized } from './api.js';
+import { inPieces, reportUnauthorized } from './api.js';
 import * as i18n from './i18n.js';
 
 const el = (tag, className, text) => {
@@ -62,8 +62,8 @@ export const accountsApi = {
   updatePerson: (id, body) => json(`/api/people/${id}`, { method: 'POST', body }),
   signOutPerson: (id) => json(`/api/people/${id}/signout`, { method: 'POST' }),
   deletePerson: (id) => json(`/api/people/${id}`, { method: 'DELETE' }),
-  setVisibility: (ids, visibility) =>
-    json('/api/visibility', { method: 'POST', body: { ids, visibility } }),
+  setVisibility: (ids, visibility) => inPieces(ids, (part) =>
+    json('/api/visibility', { method: 'POST', body: { ids: part, visibility } })),
   shares: () => json('/api/shares'),
   endShare: (token) => json(`/api/shares/${encodeURIComponent(token)}`, { method: 'DELETE' }),
 };

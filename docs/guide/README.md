@@ -39,7 +39,7 @@ pdftoppm -r 40 -png out/ta.pdf out/png/ta && python montage.py sheet.png 8 330 o
 ```
 
 Then copy `out/en.pdf` and `out/ta.pdf` over the two PDFs in `docs/` and remove `/home/family`.
-`shots/`, `img/`, `work/`, `run/` and `out/` are made by the build and are not kept in git. Drive and phone prompts are played back by `shots.js` (Playwright
+`shots/`, `img/`, `work/`, `run/` and `out/` are made by the build and are not kept in git. Drive and phone notices are played back by `shots.js` (Playwright
 routes); everything else is the real app. For *Library settings* `shots.js` adds a second
 folder, `Old laptop photos`, and takes it off the disk so the page shows **Moved?**, then
 removes it and waits for the first daily backup (two minutes after the start) so *Settings*

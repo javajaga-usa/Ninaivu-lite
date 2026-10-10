@@ -68,6 +68,9 @@ class Scanner:
         self.thumbs_dir = self.data_dir / "thumbs"
         self._data_real = os.path.realpath(str(self.data_dir))
         self.folders = list(folders)
+        #: Folders inside each library folder that the last walk of them could
+        #: not read: what the console counts as "could not be read" (A143).
+        self._unreadable: dict[str, set[str]] = {}
         #: Look again every RESCAN_EVERY seconds by itself (the "watch" setting).
         self.auto = True
         self._wake = threading.Event()
@@ -164,6 +167,8 @@ class Scanner:
         """Walk the library (or only the folders *within*, see rescan), then
         make what thumbnails are missing."""
         ids = db.sync_folders(conn, self.folders)
+        if not within:
+            self._unreadable = {}
         self.generation += 1
         self._set(state="walking", found=0, new=0, added=0, removed=0, started=time.time(),
                   **({} if within else {"unreachable": [], "unreadable": 0}))
@@ -173,6 +178,8 @@ class Scanner:
         for path, folder_id in ids.items():
             if self._stop.is_set():
                 return
+            if path not in self.folders:
+                continue                # taken out of the library since this scan began (A148)
             under = None
             if within:
                 under = [rel for rel in (spelled(path, inside(folder, path)) for folder in within)
@@ -225,6 +232,16 @@ class Scanner:
 
         def write(rows: list[tuple]) -> None:
             with conn:
+                # The write lock first, then what the folder is now: a folder
+                # taken out of the library (A148), or a rule set on a folder
+                # (A149), since these files were looked at counts, not what
+                # was true when the walk began.
+                conn.execute("BEGIN IMMEDIATE")
+                if conn.execute("SELECT detached_at FROM folders WHERE id = ?",
+                                (folder_id,)).fetchone()[0] is not None:
+                    return
+                now = db.rules_of(conn, folder_id)
+                rows = [(*r[:21], *_ruled(db.rule_in(now, r[1])), *r[23:]) for r in rows]
                 conn.executemany(
                     """INSERT INTO assets (folder_id, dir, name, ext, kind, size, mtime, captured_at,
                            date_key, date_source, width, height, camera, lens, iso, f_number,
@@ -313,7 +330,7 @@ class Scanner:
         slow = {"disk": False}
         try:
             for rel_dir, name, full, st in self._files(root, failed, under):
-                if self._stop.is_set():
+                if self._stop.is_set() or root not in self.folders:
                     break
                 kind = media.kind_of(name)
                 if kind is None:
@@ -325,10 +342,13 @@ class Scanner:
                     if row[3]:
                         with conn:
                             # Back after being away: a thumbnail that failed while it
-                            # was away is asked for again.
+                            # was away is asked for again. Never in a folder taken
+                            # out of the library meanwhile (A148).
                             conn.execute("UPDATE assets SET missing = 0, "
                                          "thumb = CASE WHEN thumb = ? THEN 0 ELSE thumb END "
-                                         "WHERE id = ?", (db.THUMB_NONE, row[0]))
+                                         "WHERE id = ? AND folder_id IN "
+                                         "(SELECT id FROM folders WHERE detached_at IS NULL)",
+                                         (db.THUMB_NONE, row[0]))
                     continue
                 todo.append((rel_dir, name, full, st, kind, row))
                 if len(todo) >= BATCH:
@@ -339,13 +359,24 @@ class Scanner:
         finally:
             if pool is not None:
                 pool.shutdown(wait=False, cancel_futures=True)
+        if root not in self.folders:
+            return                      # taken out of the library meanwhile (A148)
         flush()
         if self._stop.is_set():
             return
         # A folder that could not be read this time (permissions, a flaky
         # disk) says nothing about the photographs in it: they keep their
         # place until a walk that can read it finds them really gone.
-        self.status["unreadable"] += len(failed)
+        # Counted per folder, so a walk of one folder (an import's) replaces
+        # what was known about that folder rather than adding to it (A143).
+        mine = self._unreadable.setdefault(root, set())
+        if under is None:
+            mine.clear()
+        else:
+            mine -= {rel for rel in mine
+                     if any(rel == u or rel.startswith(u + "/") for u in under)}
+        mine.update(failed)
+        self.status["unreadable"] = sum(len(v) for v in self._unreadable.values())
         gone = [r[0] for (rel_dir, name), r in known.items()
                 if r[0] not in seen and not r[3] and not under_any(rel_dir, name, failed)]
         self.status["removed"] += len(gone)
@@ -807,6 +838,11 @@ class Batch:
             self.write(self.conn, self.pending)
             self.pending = []
         self.since = time.monotonic()
+
+
+def _ruled(rule: int | None) -> tuple[int, str]:
+    """(visibility, vis_source) for a new file under *rule* (None: no rule)."""
+    return (db.VIS_FAMILY, "default") if rule is None else (rule, "rule")
 
 
 def day_of(taken_at: float) -> str:

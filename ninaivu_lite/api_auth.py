@@ -11,12 +11,16 @@ from flask import Blueprint, jsonify, request, send_file
 
 from . import auth, db, media
 from .common import (asset_path, avatar_file, avatar_path, body, cfg, conn, drop_avatar,
-                     fail, require_signed_in, sweep_avatars, user, visible_asset)
+                     fail, install_converters, require_signed_in, row_id, sweep_avatars, user,
+                     visible_asset)
 from .dates import long_path
 
 log = logging.getLogger(__name__)
 
 bp = Blueprint("auth_api", __name__)
+# Registered before any other blueprint with an id in its routes: ids too
+# large for the index are a 404, never a 500 (A152).
+bp.record_once(install_converters)
 
 #: Ninaivu's limits: per address and account, and per account from anywhere.
 #: The username login and the profile picker count against the same account.
@@ -42,7 +46,7 @@ def _signed_in(who: auth.User, payload: dict | None = None):
     # here, rather than living on unseen for its thirty days.
     auth.end_session(conn(), request.cookies.get(auth.SESSION_COOKIE))
     token = auth.start_session(conn(), who.id, request.headers.get("User-Agent", ""))
-    response = jsonify({"ok": True, "user": auth.get_user(conn(), who.id).public(),
+    response = jsonify({"ok": True, "user": public_of(auth.get_user(conn(), who.id)),
                         **(payload or {})})
     response.set_cookie(auth.SESSION_COOKIE, token, max_age=auth.SESSION_TTL, httponly=True,
                         samesite="Lax", secure=request.is_secure, path="/")
@@ -57,7 +61,7 @@ def state_payload(face: str = "home") -> dict:
         "setup_required": needs_setup,
         "setup_code_required": needs_setup and not _is_local(),
         "open_browsing": c.open_browsing,
-        "user": who.public(),
+        "user": public_of(who),
         "signed_in": not who.anonymous,
         "app_name": "Ninaivu",
         "house_name": c.house_name_effective,
@@ -67,7 +71,7 @@ def state_payload(face: str = "home") -> dict:
         "lock": {"signed_in": not who.anonymous, "locked": False, "lock_after": 0},
     }
     if face == "home":
-        out["profiles"] = [p.picker_entry() for p in auth.pickable_profiles(conn())]
+        out["profiles"] = [picker_of(p) for p in auth.pickable_profiles(conn())]
     return out
 
 
@@ -79,7 +83,7 @@ def auth_state():
 
 @bp.get("/api/auth/profiles")
 def auth_profiles():
-    return jsonify(profiles=[p.picker_entry() for p in auth.pickable_profiles(conn())],
+    return jsonify(profiles=[picker_of(p) for p in auth.pickable_profiles(conn())],
                    open_browsing=cfg().open_browsing)
 
 
@@ -117,8 +121,7 @@ def auth_setup():
     except auth.AccountError as exc:
         fail(400, str(exc))
     if language and language != cfg().language:
-        cfg().language = language
-        cfg().save()
+        cfg().update(language=language)
     return _signed_in(who)
 
 
@@ -159,9 +162,8 @@ def auth_login():
 @bp.post("/api/auth/enter")
 def auth_enter():
     data = body()
-    try:
-        user_id = int(data.get("id"))
-    except (TypeError, ValueError):
+    user_id = row_id(data.get("id"))
+    if user_id is None:
         fail(400, "Pick a profile.")
     target = auth.get_user(conn(), user_id)
     if target is None or not target.active:
@@ -189,7 +191,7 @@ def auth_logout():
 
 @bp.get("/api/me")
 def me():
-    return jsonify(user().public())
+    return jsonify(public_of(user()))
 
 
 @bp.post("/api/me")
@@ -219,7 +221,7 @@ def me_update():
             fail(400, "That isn't a language.")
         changes["language"] = lang or None
     auth.update_profile(conn(), who.id, **changes)
-    return jsonify(auth.get_user(conn(), who.id).public())
+    return jsonify(public_of(auth.get_user(conn(), who.id)))
 
 
 @bp.post("/api/me/password")
@@ -251,9 +253,8 @@ def me_password():
 def me_avatar():
     who = require_signed_in()
     data = body()
-    try:
-        asset_id = int(data.get("asset_id"))
-    except (TypeError, ValueError):
+    asset_id = row_id(data.get("asset_id"))
+    if asset_id is None:
         fail(400, "Choose a photograph from the library.")
     row = visible_asset(asset_id, who)
     if row["kind"] != "picture":
@@ -275,27 +276,99 @@ def me_avatar():
     with open(temporary, "wb") as stream:
         stream.write(square)
     os.replace(temporary, target)
+    # Which photograph it came from, beside it (A146): the picture is a copy,
+    # and a photograph made Hidden afterwards must leave the sign-in screen
+    # too. A file, not a column: the index stays at its version, which the
+    # releases before this one must still open.
+    with open(avatar_source_file(target), "w", encoding="ascii") as stream:
+        stream.write(str(asset_id))
     auth.update_profile(conn(), who.id, avatar_at=moment)
     sweep_avatars(who.id, keep=target)
-    return jsonify(auth.get_user(conn(), who.id).public())
+    sweep_avatar_sources(who.id, keep=target)
+    return jsonify(public_of(auth.get_user(conn(), who.id)))
 
 
 @bp.delete("/api/me/avatar")
 def me_avatar_remove():
     who = require_signed_in()
     drop_avatar(who.id)
-    return jsonify(auth.get_user(conn(), who.id).public())
+    sweep_avatar_sources(who.id)
+    return jsonify(public_of(auth.get_user(conn(), who.id)))
+
+
+def avatar_source_file(picture: str) -> str:
+    """Where the id of the photograph a picture was made from is kept: beside
+    it, <id>-<stamp>.jpg.source (not a .jpg, so the sweeps in common leave it)."""
+    return f"{picture}.source"
+
+
+def sweep_avatar_sources(user_id: int, keep: str | None = None) -> None:
+    """Remove a person's source records but *keep*'s."""
+    folder = os.path.dirname(avatar_path(user_id, 0))
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return
+    for name in names:
+        path = os.path.join(folder, name)
+        if name.startswith(f"{user_id}-") and name.endswith(".jpg.source") \
+                and (keep is None or path != avatar_source_file(keep)):
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+
+def avatar_shown(person: auth.User | None) -> bool:
+    """Whether *person*'s picture may be shown to anyone who opens the sign-in
+    screen (A146): a profile that is switched off shows none, and nor does
+    one whose photograph has since been made Hidden, or has gone from the
+    library. A picture from before its source was recorded (or brought back
+    by a restore, which keeps only the pictures) is shown as it always was."""
+    if person is None or not person.active or not person.avatar_at:
+        return False
+    path = avatar_file(person)
+    if not path or not os.path.isfile(path):
+        return False
+    try:
+        with open(avatar_source_file(path), encoding="ascii") as stream:
+            asset_id = int(stream.read().strip())
+    except FileNotFoundError:
+        return True
+    except (OSError, ValueError):
+        return False          # unreadable: on a screen everyone sees, not shown
+    row = conn().execute("SELECT visibility, missing FROM assets WHERE id = ?",
+                         (asset_id,)).fetchone()
+    return row is not None and not row["missing"] and row["visibility"] <= db.VIS_FAMILY
+
+
+def public_of(person: auth.User) -> dict:
+    """``person.public()``, without the picture when it is not to be shown."""
+    out = person.public()
+    if out["avatar"] and not avatar_shown(person):
+        out["avatar"] = None
+    return out
+
+
+def picker_of(person: auth.User) -> dict:
+    """``person.picker_entry()``, likewise."""
+    out = person.picker_entry()
+    if out["avatar"] and not avatar_shown(person):
+        out["avatar"] = None
+    return out
 
 
 @bp.get("/api/avatar/<int:user_id>")
 def avatar(user_id: int):
     """Anyone may look: the sign-in screen shows these before anyone has signed in."""
     person = auth.get_user(conn(), user_id)
-    path = avatar_file(person) if person else None
-    if not path or not os.path.isfile(path):
+    if not avatar_shown(person):
         fail(404, "No picture.")
+    path = avatar_file(person)
     response = send_file(path, mimetype="image/jpeg", conditional=True,
                          etag=f"avatar-{user_id}-{auth.avatar_stamp(person.avatar_at)}",
-                         max_age=86400)
-    response.headers["Cache-Control"] = "public, max-age=86400"
+                         max_age=0)
+    # Asked again each time (a 304 while unchanged): a picture whose
+    # photograph was just made Hidden must not stay on screens for a day.
+    response.headers["Cache-Control"] = "no-cache"
     return response

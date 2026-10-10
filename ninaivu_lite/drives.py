@@ -73,6 +73,11 @@ def is_within(child: str, parent: str) -> bool:
     return c == p or c.startswith(p.rstrip(os.sep) + os.sep)
 
 
+def _too_big(dest: str, size: int) -> bool:
+    from .importer import too_big
+    return too_big(dest, size)
+
+
 def _say(key: str, **vars: str) -> dict[str, Any]:
     from .importer import _say as say
     return say(key, **vars)
@@ -491,13 +496,28 @@ class Exporter:
                     raise
                 except OSError as exc:
                     log.warning("export: could not copy %s: %s", src, exc)
-                    if exc.errno == errno.ENOSPC:
+                    if not os.path.isdir(long_path(os.path.dirname(root) or root)):
+                        # Pulled out mid-copy (A140): every file after this
+                        # one would fail too, and "done" would be a lie.
+                        self._set(phase="failed", message=_say(
+                            "Not finished: the drive was unplugged. Plug it back in and copy "
+                            "again; what was copied is kept."))
+                        return
+                    if exc.errno in (errno.ENOSPC, errno.EFBIG) and _too_big(dest, size):
+                        # One file over what the drive's format holds (4 GB
+                        # on FAT32, most pendrives) is that file's problem,
+                        # not a full drive (A139): the rest still go.
+                        with self.lock:
+                            self.state["too_big"] = self.state.get("too_big", 0) + 1
+                            self.state["errors"] += 1
+                    elif exc.errno == errno.ENOSPC:
                         self._set(phase="failed", message=_say(
                             "The drive is full. What was copied stays on it; make room and "
                             "copy again to finish."))
                         return
-                    with self.lock:
-                        self.state["errors"] += 1
+                    else:
+                        with self.lock:
+                            self.state["errors"] += 1
                 with self.lock:
                     self.state["done"] += 1
                     self.state["bytes_done"] += size
@@ -511,6 +531,10 @@ class Exporter:
                 key = "Copied {copied} photos and videos to the drive. {skipped} were there already."
             else:
                 key = "Copied {copied} photos and videos to the drive."
+            if s.get("too_big"):
+                key += (" {too_big} were too big for this drive's format (over 4 GB on FAT32);"
+                        " a drive formatted as exFAT or NTFS holds them.")
+                counts["too_big"] = f"{s['too_big']:,}"
             # Taken out without ejecting, a drive can lose what was written last.
             key += " Eject the drive before you unplug it."
             self._set(phase="done", message=_say(key, **counts))

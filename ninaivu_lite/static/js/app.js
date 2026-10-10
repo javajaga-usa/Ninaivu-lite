@@ -1988,9 +1988,11 @@ async function bulk(fields) {
   const ids = [...grid.selection];
   if (!ids.length) return;
   try {
-    await api.bulk(ids, fields);
+    const result = await api.bulk(ids, fields);
     ids.forEach((id) => viewer.cache.delete(id));   // the viewer's copy is stale now
-    toast(ids.length === 1 ? i18n.t('Updated 1 item.') : i18n.t('Updated {count} items.', { count: ids.length }));
+    // What the server changed, not what was asked: one it cannot see is not counted (A151).
+    const updated = result && typeof result.updated === 'number' ? result.updated : ids.length;
+    toast(updated === 1 ? i18n.t('Updated 1 item.') : i18n.t('Updated {count} items.', { count: updated }));
     grid.clearSelection();
     await refreshStatus();
     reload();

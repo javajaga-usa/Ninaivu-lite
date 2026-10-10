@@ -111,7 +111,7 @@ def _addresses_by_name(timeout: float) -> list[str]:
         try:
             for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
                 result.append(str(info[4][0]))
-        except OSError:
+        except (OSError, UnicodeError):     # UnicodeError: a name the idna codec refuses
             pass
 
     thread = threading.Thread(target=look, name="own-name", daemon=True)

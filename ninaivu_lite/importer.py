@@ -195,6 +195,22 @@ def still_done(row: sqlite3.Row, st: os.stat_result) -> bool:
         return False
 
 
+def too_big(dest: str, size: int) -> bool:
+    """Whether a "no room" failure for this file was its size, not the drive:
+    there is clearly more room left than the file needed (FAT32 stops any
+    one file at 4 GB and Windows calls that a full disk)."""
+    folder = os.path.dirname(dest)
+    while folder and not os.path.isdir(long_path(folder)):
+        parent = os.path.dirname(folder)
+        if parent == folder:
+            break
+        folder = parent
+    try:
+        return shutil.disk_usage(folder).free > size + (1 << 20)
+    except OSError:
+        return False
+
+
 def target_folder(destination: str, taken: datetime | None) -> str:
     if taken is None:
         return os.path.join(destination, UNDATED)
@@ -572,14 +588,15 @@ class Importer:
 
     def _walk(self, sources: list[str], kinds: list[str], destination: str,
               gate: Gate | None = None, counters: dict[str, int] | None = None,
-              cancelled: threading.Event | None = None):
+              cancelled: threading.Event | None = None, library: list[str] | None = None):
         """(path, stat, kind) for every wanted file under the sources, in a
         fixed order, so a dry run predicts the real run."""
         counters = counters if counters is not None else {}
         avoid = {norm(destination), norm(self.data_dir)} if destination else {norm(self.data_dir)}
         # A source holding the library (a whole drive, Pictures) must not copy
         # the library into the archive: every photograph would show twice.
-        avoid |= {norm(root) for root in self.job.get("library", ())}
+        avoid |= {norm(root) for root in (self.job.get("library", ()) if library is None
+                                          else library)}
         for source in sources:
             stack = [os.path.abspath(source)]
             visited: set[str] = set()
@@ -648,7 +665,7 @@ class Importer:
     # -- the estimate (the console asks before Start) ------------------------------
 
     def estimate(self, sources: list[str], destination: str, kinds: list[str],
-                 token: str) -> dict[str, Any]:
+                 token: str, library: list[str] | None = None) -> dict[str, Any]:
         stop = threading.Event()
         # Cancelling stops the walk at the next folder, not after the next
         # 200 photographs: a drive of many folders and few photos never got there.
@@ -664,8 +681,10 @@ class Importer:
         bytes_by_kind: dict[str, int] = {}
         truncated = False
         try:
+            # The library folders are stepped over as the real run will
+            # (A142), not taken from whatever the last run had.
             for _path, st, kind in self._walk(sources, kinds, destination, counters=counters,
-                                             cancelled=stop):
+                                             cancelled=stop, library=list(library or ())):
                 files += 1
                 size += st.st_size
                 by_kind[kind] = by_kind.get(kind, 0) + 1
@@ -921,8 +940,11 @@ class Importer:
         name = os.path.basename(src)
         row = conn.execute("SELECT status, destination, hash, dest_hash, duplicate_of, size, "
                            "mtime FROM import_files WHERE source = ?", (src,)).fetchone()
+        # A duplicate counts only against a copy in this destination (A138):
+        # one found in another archive is no reason to leave this one short.
+        kept = row and (row["destination"] or row["duplicate_of"])
         if row is not None and row["status"] in TERMINAL and (
-                not row["destination"] or is_within(row["destination"], j["destination"])) \
+                not kept or is_within(kept, j["destination"])) \
                 and still_done(row, st):
             with self._lock:
                 self.job["stepped_over"] += 1
@@ -1018,10 +1040,18 @@ class Importer:
                                   "original, so it was removed.")
             mark("verified", hash=digest, dest_hash=digest, taken=when, date_source=source,
                  destination=final)
-            self._copy_sidecars(src, final)
+            self._copy_sidecars(src, final, identical)
         except Cancelled:
             raise
         except OSError as exc:
+            if exc.errno in (errno.ENOSPC, errno.EFBIG) and too_big(j["destination"], st.st_size):
+                # One file over what the destination's format holds (4 GB on
+                # FAT32, which Windows reports as a full disk) fails alone
+                # (A139): stopping here would stop every rerun at this file.
+                log.info("import: %s: too large for the destination: %s", src, exc)
+                mark("error", error="Too large for the destination drive's format "
+                                    "(FAT32 holds files up to 4 GB).")
+                return
             if exc.errno == errno.ENOSPC:
                 # A full disk fails every file after this one, and the index
                 # is usually on the same disk: stop now, Start carries on.
@@ -1138,10 +1168,12 @@ class Importer:
             os.fsync(fo.fileno())
         return h.hexdigest(), total
 
-    def _copy_sidecars(self, src: str, final: str) -> None:
+    def _copy_sidecars(self, src: str, final: str, identical: bool = False) -> None:
         """The .xmp/.aae/.thm/.json companions travel with the file, renamed
         to match if it was suffixed. Never fatal: losing a sidecar is bad,
-        failing the photo over one is worse."""
+        failing the photo over one is worse. An existing sidecar is never
+        written over (A137): it may hold the family's later edits, or belong
+        to another photograph with the same name stem."""
         src_dir, base = os.path.split(src)
         stem = os.path.splitext(base)[0]
         final_dir, final_base = os.path.split(final)
@@ -1156,14 +1188,23 @@ class Importer:
             if stem != final_stem:
                 out_name = out_name.replace(stem, final_stem, 1)
             target = os.path.join(final_dir, out_name)
-            try:
-                if os.path.exists(long_path(target)) and \
-                        os.path.getsize(long_path(target)) == os.path.getsize(long_path(companion)):
+            if os.path.lexists(long_path(target)):
+                if identical or out_name.startswith(final_base):
+                    # Already beside this very photograph: keep what is there.
                     continue
+                # A stem-named sidecar of another photograph (IMG_0001.JPG
+                # beside this IMG_0001.jpeg): use the full-name form instead.
+                target = os.path.join(final_dir, final_base + os.path.splitext(companion)[1])
+                if os.path.lexists(long_path(target)):
+                    log.info("import: sidecar kept out, %s already exists", target)
+                    continue
+            try:
                 # Through a temporary name: one cut short (a full disk) is
                 # never left under the real name to be skipped for good.
                 partial = target + ".partial"
                 shutil.copy2(long_path(companion), long_path(partial))
+                if os.path.lexists(long_path(target)):
+                    raise FileExistsError(target)
                 os.replace(long_path(partial), long_path(target))
             except OSError as exc:
                 log.info("import: sidecar not copied %s: %s", companion, exc)

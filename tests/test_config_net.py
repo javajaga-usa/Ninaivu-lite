@@ -122,13 +122,33 @@ def test_reset_password_from_the_command_line(app, monkeypatch, capsys):
 
 
 def test_a_slow_name_lookup_does_not_hold_up_the_start(monkeypatch):
+    import threading
     import time
 
+    gate = threading.Event()
+
+    def slow(*args, **kwargs):
+        # Stalls like a lookup going out to the network, then fails as a real
+        # one would, so the abandoned thread ends cleanly once the test is done.
+        gate.wait(30)
+        raise OSError("gave up")
+
     monkeypatch.setattr(net, "_probe", lambda target: None)          # no network found
-    monkeypatch.setattr(net.socket, "getaddrinfo", lambda *a, **k: time.sleep(30))
-    started = time.time()
-    assert net._addresses_by_name(timeout=0.2) == []
-    assert time.time() - started < 2
+    monkeypatch.setattr(net.socket, "getaddrinfo", slow)
+    try:
+        started = time.time()
+        assert net._addresses_by_name(timeout=0.2) == []
+        assert time.time() - started < 2
+    finally:
+        gate.set()
+
+
+def test_a_name_the_idna_codec_refuses_gives_no_addresses(monkeypatch):
+    def refused(*args, **kwargs):
+        raise UnicodeError("encoding with 'idna' codec failed")
+
+    monkeypatch.setattr(net.socket, "getaddrinfo", refused)
+    assert net._addresses_by_name(timeout=2.0) == []
 
 
 def test_no_name_lookup_when_the_address_is_already_known(monkeypatch):

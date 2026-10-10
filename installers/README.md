@@ -165,7 +165,7 @@ and the log in `<data folder>/logs/ninaivu-lite.log`. A forgotten password:
 `sudo systemctl stop ninaivu-lite`, then
 `sudo -u ninaivu-lite /usr/local/bin/ninaivu-lite --reset-password NAME` (the
 command already passes `--data /var/lib/ninaivu-lite`; run it as that account so
-the index stays its own). Under the service account, the drive and phone prompt
+the index stays its own). Under the service account, the plugged-in drive notice
 may not see drives and phones the desktop opens for the person signed in.
 
 A firewall may keep phones out: `sudo ufw allow 8080/tcp` (Ubuntu, Raspberry Pi

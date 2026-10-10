@@ -518,6 +518,7 @@ def test_a96_a_full_drive_stops_the_export_and_says_so(library, usb, monkeypatch
         raise OSError(errno.ENOSPC, "No space left on device")
 
     monkeypatch.setattr(drives, "_copy", full)
+    monkeypatch.setattr(importer, "too_big", lambda dest, size: False)   # really full
     state = export(library, usb)
     assert state["phase"] == "failed"
     assert state["message"]["key"].startswith("The drive is full.")
@@ -607,10 +608,11 @@ def test_a100_a_sidecar_is_written_whole_or_not_at_all(tmp_path, monkeypatch):
     final = out / "IMG_1.jpg"
     shutil.copy2(photo, final)
     engine = Importer(tmp_path / "data")
-    # One cut short by an earlier run is not skipped for good.
-    (out / "IMG_1.xmp").write_text("<x:xmp")
+    # A sidecar already there is never written over (A137): since this fix
+    # one under the real name is always whole, and it may hold later edits.
+    (out / "IMG_1.xmp").write_text("<x:xmp edited/>")
     engine._copy_sidecars(str(photo), str(final))
-    assert (out / "IMG_1.xmp").read_text() == sidecar.read_text()
+    assert (out / "IMG_1.xmp").read_text() == "<x:xmp edited/>"
 
     # A copy that fails part-way leaves nothing under the real name.
     (out / "IMG_1.xmp").unlink()
@@ -662,6 +664,7 @@ def test_a90_a_full_destination_stops_the_run_at_once(tmp_path, monkeypatch):
         raise OSError(errno.ENOSPC, "No space left on device")
 
     monkeypatch.setattr(Importer, "_copy_and_hash", full)
+    monkeypatch.setattr(importer, "too_big", lambda dest, size: False)   # really full
     src = tmp_path / "Drive"
     photos(src, 4)
     engine = run(tmp_path / "data", [src], tmp_path / "Archive")

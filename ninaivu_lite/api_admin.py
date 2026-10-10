@@ -19,8 +19,10 @@ from flask import Blueprint, Response, jsonify, request
 
 from . import auth, backups, db, export, folders, media
 from . import importer as importer_rules
+from .api_auth import public_of, sweep_avatar_sources
 from .common import (body, cfg, conn, counted, drop_avatar, fail, folder_ids, importer,
-                     library_exists, require_admin, scanner, split_library, subtree, visible)
+                     library_exists, require_admin, row_id, scanner, split_library, subtree,
+                     visible)
 from .config import clean_house_name
 from .version import COPYRIGHT, LICENCE, __version__
 
@@ -225,10 +227,8 @@ def preview():
         return jsonify({"total": 0, "items": []})
     person_id = request.args.get("person")
     if person_id:
-        try:
-            viewer = auth.get_user(conn(), int(person_id))
-        except ValueError:
-            viewer = None
+        number = row_id(person_id)
+        viewer = auth.get_user(conn(), number) if number is not None else None
         if viewer is None:
             fail(404, "No such profile.")
         label = viewer.display_name
@@ -551,9 +551,7 @@ def first_day():
 @bp.post("/api/admin/first-day")
 def first_day_done():
     require_admin()
-    c = cfg()
-    c.first_day_done = True
-    c.save()
+    cfg().update(first_day_done=True)
     return jsonify({"done": True})
 
 
@@ -561,7 +559,7 @@ def first_day_done():
 
 
 def _person(person: auth.User, sessions: dict[int, int] | None = None) -> dict[str, Any]:
-    payload = person.public()
+    payload = public_of(person)
     if sessions is None:
         sessions = auth.session_counts(conn())
     where, params = visible(person)
@@ -715,6 +713,7 @@ def remove_person_avatar(user_id: int):
     require_admin()
     _target(user_id)
     drop_avatar(user_id)
+    sweep_avatar_sources(user_id)
     return jsonify(_person(auth.get_user(conn(), user_id)))
 
 
@@ -751,6 +750,8 @@ def delete_person(user_id: int):
             c.execute("DELETE FROM users WHERE id = ?", (user_id,))
     if target.avatar_at:
         drop_avatar(user_id)
+    # A profile made later can be given this id: no record of its own source.
+    sweep_avatar_sources(user_id)
     return jsonify({"ok": True, "removed": {
         "username": target.username, "name": target.display_name, "role": target.role,
         "sessions": sessions, "favorites": favourites, "personal_rows": personal,
@@ -917,6 +918,26 @@ def visibility_history():
                     "names": {str(k): v for k, v in db.VIS_NAMES.items()}})
 
 
+def _reapply_rules(c: sqlite3.Connection, folder_id: int, folder: str, batch_id: int) -> None:
+    """After a folder change is undone, the photographs that came into the
+    folder since (an import, a phone) follow the rules as they are now, not
+    the undone one (A150). Those the change itself touched were put back
+    exactly; a level set on a photograph by hand is left alone."""
+    rules = db.rules_of(c, folder_id)
+    inside, params = subtree("", folder)
+    dirs = [r[0] for r in c.execute(
+        f"SELECT DISTINCT dir FROM assets WHERE folder_id = ? AND {inside} "
+        f"AND vis_source IN ('rule', 'default')", [folder_id, *params])]
+    for rel in dirs:
+        rule = db.rule_in(rules, rel)
+        level, source = (db.VIS_FAMILY, "default") if rule is None else (rule, "rule")
+        c.execute(
+            "UPDATE assets SET visibility = ?, vis_source = ? WHERE folder_id = ? AND dir = ? "
+            "AND vis_source IN ('rule', 'default') AND (visibility <> ? OR vis_source <> ?) "
+            "AND id NOT IN (SELECT asset_id FROM visibility_undo WHERE batch_id = ?)",
+            (level, source, folder_id, rel, level, source, batch_id))
+
+
 @bp.post("/api/visibility/undo")
 def undo_visibility():
     """Put a visibility change back exactly as it was: each file's level and
@@ -975,6 +996,7 @@ def undo_visibility():
                 "INSERT OR REPLACE INTO folder_rules (folder_id, dir, visibility, created_at) "
                 "SELECT ?, dir, visibility, COALESCE(created_at, ?) FROM visibility_undo_rules "
                 "WHERE batch_id = ?", (folder_id, time.time(), batch_id))
+            _reapply_rules(c, folder_id, folder, batch_id)
         c.execute("UPDATE visibility_batches SET undone_at = ? WHERE id = ?",
                   (time.time(), batch_id))
     scanner().generation += 1

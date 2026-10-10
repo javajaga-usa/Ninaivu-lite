@@ -14,6 +14,7 @@ import os
 import sqlite3
 import sys
 import tempfile
+import threading
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -39,6 +40,13 @@ def default_data_dir() -> Path:
 
 def clean_house_name(value: str) -> str:
     return " ".join(str(value or "").split())[:40]
+
+
+# One settings change at a time (A141): two overlapping saves each wrote
+# their own copy, and whichever finished last dropped the other's change on
+# disk (a folder added while a drive was set to Don't ask again). Re-entrant:
+# update() saves inside it.
+SAVING = threading.RLock()
 
 
 @dataclass
@@ -166,12 +174,13 @@ class Config:
         """Change settings only once they are written: a save that fails (a
         full disk) leaves both the file and what the server does as they
         were, instead of a choice that holds until the next restart."""
-        trial = copy.deepcopy(self)
-        for key, value in changes.items():
-            setattr(trial, key, value)
-        trial.save()
-        for key, value in changes.items():
-            setattr(self, key, copy.deepcopy(value))
+        with SAVING:
+            trial = copy.deepcopy(self)
+            for key, value in changes.items():
+                setattr(trial, key, value)
+            trial.save()
+            for key, value in changes.items():
+                setattr(self, key, copy.deepcopy(value))
 
     def save(self) -> None:
         """Write atomically: a power cut mid-save leaves the old file, never half a file."""
@@ -179,6 +188,10 @@ class Config:
             # Writing now would record "no library folders" as a choice.
             log.warning("settings not saved: the library folders are not known")
             return
+        with SAVING:
+            self._write()
+
+    def _write(self) -> None:
         path = self.settings_path
         path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         data = {k: v for k, v in asdict(self).items() if k in self.SAVED}
