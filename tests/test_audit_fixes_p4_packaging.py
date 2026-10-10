@@ -335,7 +335,7 @@ def test_a38_the_setup_code_is_in_server_json_until_there_is_an_administrator(tm
 def test_a38_the_panel_shows_the_setup_code():
     rows = []
     fake = SimpleNamespace(busy=True, is_running=False, show_addresses=rows.extend,
-                           library=SimpleNamespace(set=lambda text: None),
+                           show_library=lambda folders, items: None,
                            _set_buttons=lambda: None)
     panel.Panel.show_reading(fake, True, 8080, [], {"folders": []}, True, "C0DE1234AB")
     assert ("Setup code", "C0DE1234AB") in rows
