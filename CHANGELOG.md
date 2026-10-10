@@ -27,6 +27,79 @@ going back to 1.11.1 or earlier needs that zip restored (`--restore <zip>`).
 - As always, the turn and the flip are kept in Ninaivu Lite's own index, never in the photo,
   the video or a sidecar file.
 
+A fifth complete audit, of 1.11.1 with the rotation above (A180-A202 and M26-M41): data
+safety, security, the new rotation code, performance, screens in English and Tamil, the
+installers and the guides. The photographs and videos are still never touched.
+
+Photographs, backups and drives:
+
+- **An edited archive copy is never written over (A180).** After *Audit archive* had called a
+  photo "no longer matches its hash" because someone had edited it in the archive (a crop in
+  Windows Photos, say), the next import put the original's bytes back over the edit. Now a
+  copy is repaired in place only when it looks damaged where it lies (same size and time,
+  different bytes); otherwise the original is copied in beside it as `IMG_0001_1.jpg`.
+- A turn set by hand is never replaced by the automatic straightening that looks at faces,
+  even when the two happen at the same moment (A181).
+- The export for Ninaivu carries hand-set turns and flips (`turns[]`), so moving up keeps
+  them (A182).
+- Two "before a change" backups in the same second no longer share a name; the second used to
+  replace the first (A183).
+- Exporting from Linux or a Raspberry Pi to a FAT or exFAT pendrive copies files whose names
+  hold `:` `?` `*` and the like, under a name with `_` in their place, instead of failing them
+  on every export (A184).
+
+Security:
+
+- **Links inside photo folders cannot reach other files (A185).** A link named like a photo
+  (`key.jpg`) pointing at any other file, or a linked folder pointing into Ninaivu Lite's own
+  data folder, was indexed and could be downloaded by a family member, including the index
+  itself or the thumbnails of Hidden photos. Such links are now never indexed or served;
+  linked folders and linked photos elsewhere still work.
+- The share-link password form (open to anyone with the link) and the album calls refuse
+  bodies over 1 MB; a 100 MB body took about 2.4 GB of memory (A186). Deeply nested JSON is a
+  400, not a server error (A187). A search reads at most 32 words of up to 200 characters, and
+  very long parameters are answered but not remembered (A188).
+
+Rotation (new in this version):
+
+- A thumbnail made while a photo was being turned again could stay the old way up for good;
+  now it is made again (A189). One background worker remakes the thumbnails of a turned
+  selection, once each, and skips photos that are gone (A190).
+- *Rotate* on a selection of more than 5,000 photos turns all of them, not only the first
+  5,000 (A191). Album covers show a turned photo the new way (A192).
+- Turning a video keeps its preview picture, even one the browser made without ffmpeg (A193).
+  A turned video in a shared album opens on the share page and plays turned there (A194).
+- A turned HEIC or TIFF is not converted again on every other look (A195). Escape works from
+  a turned video's play bar (A196). Moving on while *Save* is still on its way no longer says
+  "Rotation not saved" (A197).
+- Rotate on a large selection is one write to the index instead of one per photo: 5,000
+  photos 1.17 s and 168 MB written before, 0.36 s and 1.3 MB now, which matters on a
+  Raspberry Pi's SD card; remade thumbnails are recorded in batches (A198). A browser-made
+  video poster is kept only if the video was not turned meanwhile (A199).
+
+Screens:
+
+- The Rotate bar stays on screen on a phone with Details open (M26). The line saying why a
+  video cannot play is readable, and a turned video's play bar goes when nothing can play
+  (M27). Turned videos on a share link have their own play bar the right way up (M30) and
+  fill the phone screen (M38); a link to one video says "Shared video" (M39).
+- Escape closes the dialog on top (the folder picker opened from the first-day steps no longer
+  closes the steps beneath) (M31) and the phone sidebar drawer (M35). The folder picker's and
+  Add to album's buttons stay on the card on a 360 px phone (M32).
+- Easier to read: helper text and year counts (M34), the light theme's blue and red (M36,
+  M37; slightly darker), the console's empty notes (M29) and its Admin tag (M41). The Details
+  button no longer turns into a pink dot when lit (M33). Tamil shows the role names in the
+  Overview preview in Tamil (M28). Toasts sit above the Jump to button on phones (M40).
+
+Installers, release and guides:
+
+- The guides say how to go back to 1.11.1 from this version (restore the
+  `before-update-from-index-9` zip) (A200). A release stops if GitHub cannot say whether the
+  version is already published (A201). The Linux installer gives the right advice when its
+  temporary folder may not run programs (A202).
+- Still open: the Windows embedded Python's hash (A174); python.org is unreachable from where
+  the audit ran. The build still checks its signature.
+
 ## 1.11.1 — 2026-10-10
 
 The index is unchanged (version 9), so 1.11.1, 1.11.0, 1.10.0, 1.9.0, 1.8.0 and 1.7.0 can open
