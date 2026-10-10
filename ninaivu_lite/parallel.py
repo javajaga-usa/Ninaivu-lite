@@ -12,6 +12,10 @@ does work side by side.
   stick or a sleeping hard disk is asked for nothing it was not asked for
   before, only sooner.
 
+* :class:`Slots` keeps heavy work done for a request (a tile's thumbnail, a
+  viewing copy) to a few at a time, so the web server's :data:`SERVER_THREADS`
+  always have some free for everything else.
+
 Pillow, OpenCV, ``hashlib`` and file reads and writes all let go of Python's
 lock while they work, so these threads really do run on separate cores.
 Only reading happens side by side: the index is written by one thread, and
@@ -29,7 +33,8 @@ import sys
 import threading
 from collections import deque
 from collections.abc import Callable, Iterable, Iterator
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from contextlib import contextmanager
 from typing import IO, Any, TypeVar
 
 T = TypeVar("T")
@@ -92,6 +97,20 @@ def workers(core_count: int | None = None, memory_bytes: int | None = None) -> i
 
 #: Worked out once, at start. Tests set it by hand.
 WORKERS = workers(memory_bytes=memory())
+
+#: The web server's threads. Most requests are short or wait on the disk,
+#: and the heavy ones are limited below, so threads are cheap; with eight,
+#: two phones opening a folder of new videos took every one of them.
+SERVER_THREADS = 16
+#: Threads always left for everything else (signing in, the gallery's
+#: pages, the Control Panel asking whether the server is running).
+SERVER_SPARE = 4
+#: Heavy work done for a request at once (a thumbnail for a tile on screen,
+#: a viewing copy): one for every core but one, at least two, at most six.
+REQUEST_WORK = max(2, min(6, cores() - 1))
+#: Requests for such work that may wait for a turn; past that they are told
+#: to ask again, so at least SERVER_SPARE threads stay free.
+REQUEST_WAITING = max(0, SERVER_THREADS - SERVER_SPARE - REQUEST_WORK)
 
 #: How much lower than the program a background thread runs on Linux (a
 #: "nice" of 10 more, at most 19).
@@ -167,6 +186,117 @@ def in_order(items: Iterable[T], work: Callable[[T], R], pool: ThreadPoolExecuto
     finally:
         for _item, future in window:
             future.cancel()
+
+
+def as_done(items: Iterable[T], work: Callable[[T], R], pool: ThreadPoolExecutor | None,
+            width: int) -> Iterator[tuple[T, R]]:
+    """As :func:`in_order`, but each answer as soon as it is ready, whatever
+    its place: one slow item (a damaged video ffmpeg takes 90 s over, a 50 MP
+    scan) no longer keeps the other workers waiting for it to be written
+    down first. For work whose answers do not depend on each other's order."""
+    if pool is None:
+        for item in items:
+            yield item, work(item)
+        return
+    running: dict[Future, T] = {}
+    source = iter(items)
+    try:
+        for item in source:
+            running[pool.submit(work, item)] = item
+            if len(running) > width:
+                break
+        while running:
+            finished, _ = wait(running, return_when=FIRST_COMPLETED)
+            for future in finished:
+                item = running.pop(future)
+                # Topped up before the answer is handed over, so the workers
+                # carry on while the caller writes it down.
+                for more in source:
+                    running[pool.submit(work, more)] = more
+                    break
+                yield item, future.result()
+    finally:
+        for future in running:
+            future.cancel()
+
+
+class Busy(Exception):
+    """Too much of one kind of work is waiting already: asked again later."""
+
+
+class Slots:
+    """At most *width* of one kind of heavy work done for a request (a
+    thumbnail of a picture on screen, a viewing copy) at a time, and at most
+    *waiting* more requests waiting for one. Past that, :class:`Busy` at once.
+
+    The web server has a fixed number of threads. Work like this is a core's
+    worth each, and a phone opening a folder nobody has looked at asks for
+    six at once, two phones twelve: unlimited, they took every thread, and
+    signing in, the gallery's own pages and the Control Panel's "is it
+    running?" queued behind them for seconds. Limited, the rest of the
+    server always has threads, and the computer's cores are shared with the
+    scan rather than fought over."""
+
+    def __init__(self, width: int, waiting: int, wait_for: float = 20.0) -> None:
+        self.width = max(1, width)
+        self._free = threading.BoundedSemaphore(self.width)
+        self._lock = threading.Lock()
+        self._waiting = 0
+        self._busy = 0
+        self._room = max(0, waiting)
+        self.wait_for = wait_for
+
+    @property
+    def in_use(self) -> int:
+        """How many are being done right now."""
+        with self._lock:
+            return self._busy
+
+    @contextmanager
+    def slot(self) -> Iterator[None]:
+        if not self._free.acquire(blocking=False):
+            with self._lock:
+                if self._waiting >= self._room:
+                    raise Busy()
+                self._waiting += 1
+            try:
+                if not self._free.acquire(timeout=self.wait_for):
+                    raise Busy()
+            finally:
+                with self._lock:
+                    self._waiting -= 1
+        with self._lock:
+            self._busy += 1
+        try:
+            yield
+        finally:
+            with self._lock:
+                self._busy -= 1
+            self._free.release()
+
+
+class OneAtATime:
+    """A lock for each key in use (one picture's thumbnail, say), so two
+    requests for the same work at once do it once: the second waits for the
+    first and finds it done. Keys nobody holds are forgotten."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._held: dict[Any, list] = {}
+
+    @contextmanager
+    def hold(self, key: Any) -> Iterator[None]:
+        with self._lock:
+            entry = self._held.setdefault(key, [threading.Lock(), 0])
+            entry[1] += 1
+        try:
+            with entry[0]:
+                yield
+        finally:
+            with self._lock:
+                entry[1] -= 1
+                if not entry[1]:
+                    del self._held[key]
 
 
 def chunks(f: IO[bytes], size: int, check: Callable[[], Any] | None = None) -> Iterator[bytes]:

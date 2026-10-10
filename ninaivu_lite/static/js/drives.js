@@ -339,7 +339,11 @@ export class DrivePrompt {
     this.fill.style.width = `${percent}%`;
     const count = { done: (state.done || 0).toLocaleString(), total: (state.total || 0).toLocaleString() };
     if (!state.running) this.line.textContent = state.message ? said(state.message) : '';
-    else if (state.phase === 'counting') this.line.textContent = i18n.t('Counting the photos and videos…');
+    else if (state.phase === 'counting') {
+      this.line.textContent = state.found
+        ? i18n.t('Counting the photos and videos… {found} so far', { found: state.found.toLocaleString() })
+        : i18n.t('Counting the photos and videos…');
+    }
     else if (state.phase === 'fetching') {
       this.line.textContent = state.total
         ? i18n.t('Copying from the phone: {done} of {total} files', count)

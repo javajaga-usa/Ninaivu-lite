@@ -478,16 +478,31 @@ export class Grid extends EventTarget {
     img.alt = '';
     img.addEventListener('load', () => {
       clearTimeout(node.shimmerTimer);
+      delete img.dataset.retried;
       img.classList.add('ready');
       node.classList.remove('loading');
     });
     img.addEventListener('error', () => {
       clearTimeout(node.shimmerTimer);
       node.classList.remove('loading');
+      const src = img.getAttribute('src');
+      if (!src || node.querySelector('.glyph')) return;
+      // A server busy making other tiles says so rather than keep this one
+      // waiting (it has only so many threads, and other phones to answer):
+      // one more try a moment later, before the tile gives up.
+      if (img.dataset.retried !== src) {
+        img.dataset.retried = src;
+        clearTimeout(node.retryTimer);
+        node.retryTimer = setTimeout(() => {
+          if (img.getAttribute('src') !== src || img.naturalWidth) return;
+          img.removeAttribute('src');
+          img.src = src;
+        }, 1500 + Math.random() * 1500);
+        return;
+      }
       // A thumbnail that will not load shows the sign for its kind, as an item
       // with none does. An empty square reads as the page still loading, or
       // the file being broken, and neither is usually true.
-      if (!img.getAttribute('src') || node.querySelector('.glyph')) return;
       img.hidden = true;
       node.classList.add('audio-cell');
       node.appendChild(glyphFor(node.dataset.kind));
