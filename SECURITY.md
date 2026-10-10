@@ -28,7 +28,9 @@ internet** (no port forwarding, no public tunnels). HTTPS is planned for a later
   `allow_internet` in `settings.json` (or `NINAIVU_ALLOW_INTERNET=1`) turns this off, for
   someone who puts HTTPS of their own in front of it.
 - **Who sees what** is checked on the server for every photo, preview, download, search and
-  share link. Files are served by id, never by a path from the request.
+  share link. Files are served by id, never by a path from the request. A link in a
+  photo folder that leads into Ninaivu Lite's data folder, or to a file that is not a
+  photograph or video, is never indexed or served.
 - **Share links** show only their photo or album, as copies without location or camera data;
   their addresses carry 128 random bits; passwords on links are hashed and can be tried 60
   times a day at most; links can expire or be turned off.

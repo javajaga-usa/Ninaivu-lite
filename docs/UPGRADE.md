@@ -5,7 +5,8 @@ full [Ninaivu](https://github.com/javajaga-usa/Ninaivu) adds (faces, search by d
 cloud and phone backup, editing).
 
 Lite never changes your photos, so both can read the same folders. What moves is only what
-the household *made* in Lite: people, who sees what, favourites, albums and share links.
+the household *made* in Lite: people, who sees what, favourites, albums, photos and videos
+turned or flipped by hand, and share links.
 
 ## 1. Write the export file
 
@@ -45,6 +46,7 @@ a **reference**: `{"folder": "<library folder, absolute>", "path": "<path inside
 | `folder_rules[]` | `folder`, `path` (inside it; `""` is the whole folder), `level`, `created_at` — a rule covers that folder and everything below it, files added later included |
 | `visibility[]` | reference + `level` + `source` (`"rule"` or `"item"`), only where different from the default (Family) |
 | `favourites[]` | reference + `user` + `added_at` |
+| `turns[]` | reference + `rotation` (`0`/`90`/`180`/`270`, clockwise) + `mirror` (`true`: mirrored left to right, before the turn): only photos and videos turned or flipped by hand; Lite keeps this in its index, never in the file |
 | `albums[]` | `id`, `name`, `owner`, `created_at`, `cover` (reference or `null`), `items[]` (reference + `added_at`) |
 | `shares[]` | `token`, `kind` (`asset`/`album`), `owner`, `password` (hash or `null`), `expires_at`, `created_at`, `views`; plus a reference for a photo or `album_id` for an album |
 

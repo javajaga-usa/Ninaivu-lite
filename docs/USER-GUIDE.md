@@ -279,8 +279,12 @@ later. The visitor does not see the file's name.
   Your data folder stays as it is. The first start after an update brings the index forward
   by itself, after keeping a copy of it as it was (`backups/before-update-…zip`). If a Mac
   app was replaced while Ninaivu Lite ran, the Control Panel says the old version is still
-  running: press **Restart**. Going back from 1.11.1 to 1.11.0, 1.10.0, 1.9.0, 1.8.0 or 1.7.0 needs nothing special.
-  Going back to 1.6.0 or older means restoring a backup made before the update: 1.6.0
+  running: press **Restart**. The versions with *Flip* bring the index to version 10, which
+  1.11.1 and older cannot open (they say so and do not start): going back from one of them to
+  1.11.1 or older means installing the older version and restoring, with `--restore`, the copy
+  the update kept, `backups/before-update-from-index-9-…zip` (what was changed since, a turn
+  or a new album, is not in it). Going back from 1.11.1 to 1.11.0, 1.10.0, 1.9.0, 1.8.0 or
+  1.7.0 needs nothing special. Going back to 1.6.0 or older means restoring a backup made before the update: 1.6.0
   cannot open the index of 1.7.0 or later.
 - **Linux, installed with `sudo`** — Ninaivu Lite runs as a service under its own
   `ninaivu-lite` account, never as root, with its data in `/var/lib/ninaivu-lite`. That

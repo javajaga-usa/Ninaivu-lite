@@ -280,14 +280,33 @@ def before_change(data_dir: str | Path, what: str) -> Path | None:
     ones as ``before-<what>-<time>.zip``. None, after logging why, if it
     could not be made: the change itself is not held up."""
     folder = Path(data_dir) / "backups"
+    target = None
     try:
         folder.mkdir(parents=True, exist_ok=True)
-        target = folder / f"before-{what}-{datetime.now():%Y-%m-%d-%H%M%S}.zip"
+        # Never over an earlier copy: two taken in the same second (two
+        # people removed one after the other) get -2, -3. The name is
+        # claimed first, so two at once cannot both choose it.
+        stamp = f"before-{what}-{datetime.now():%Y-%m-%d-%H%M%S}"
+        for n in range(1, 1000):
+            target = folder / (f"{stamp}.zip" if n == 1 else f"{stamp}-{n}.zip")
+            try:
+                with open(target, "xb"):
+                    break
+            except FileExistsError:
+                continue
+        else:
+            raise FileExistsError(target)
         tmp = target.with_name(target.name + ".tmp")
         write_bundle(data_dir, tmp)
         tmp.replace(target)
     except Exception:  # noqa: BLE001 — a missing copy must not stop the admin
         log.exception("could not take a backup before %s", what)
+        if target is not None:
+            try:
+                if target.stat().st_size == 0:
+                    target.unlink()
+            except OSError:
+                pass
         return None
     # Newest first by when they were taken, whatever they were taken before
     # (by name, every "before-update" copy would outlive newer "before-person" ones).
@@ -299,9 +318,15 @@ def before_change(data_dir: str | Path, what: str) -> Path | None:
     return target
 
 
+_TAKEN = re.compile(r"(\d{4}-\d{2}-\d{2}-\d{6})(?:-(\d{1,3}))?$")
+
+
 def _taken_at(path: Path) -> str:
-    """``before-<what>-YYYY-mm-dd-HHMMSS.zip`` → its time, for sorting."""
-    return path.stem[-17:]
+    """``before-<what>-YYYY-mm-dd-HHMMSS[-n].zip`` → its time (and n), for sorting."""
+    found = _TAKEN.search(path.stem)
+    if not found:
+        return path.stem[-17:]
+    return f"{found.group(1)}-{int(found.group(2) or 1):03d}"
 
 
 def listing(data_dir: str | Path) -> list[dict]:

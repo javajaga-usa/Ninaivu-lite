@@ -3161,5 +3161,6 @@
   "Turned {count}. The files are not changed.": "Turned {count}. The files are not changed.",
   "Turned {count}; {skipped} could not be turned. The files are not changed.": "Turned {count}; {skipped} could not be turned. The files are not changed.",
   "Play": "Play",
-  "Position in the video": "Position in the video"
+  "Position in the video": "Position in the video",
+  "Shared video": "Shared video"
 }

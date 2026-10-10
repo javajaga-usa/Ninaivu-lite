@@ -235,7 +235,7 @@ export const api = {
   // The index's answer for which way up a photograph goes; the file is never touched.
   rotate: (id, rotation, mirror) => post(`/api/asset/${id}/rotate`,
     mirror === undefined ? { rotation } : { rotation, mirror }),
-  rotateMany: (ids, turn) => post('/api/assets/rotate', { ids, turn }),
+  rotateMany: (ids, turn) => inPieces(ids, (part) => post('/api/assets/rotate', { ids: part, turn })),
   album: (id) => get(`/api/albums/${id}`),
   createAlbum: (name, ids = []) => post('/api/albums', { name, ids }),
   updateAlbum: (id, fields) => request(`/api/albums/${id}`, {

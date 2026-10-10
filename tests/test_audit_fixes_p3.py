@@ -365,8 +365,11 @@ def _release_check(tmp_path: Path, *, version: str, ref_type: str, ref_name: str
     (repo / "CHANGELOG.md").write_text(changelog, encoding="utf-8")
     shims = tmp_path / "shims"
     shims.mkdir(exist_ok=True)
-    for name, found in (("git", tagged), ("gh", released)):
-        (shims / name).write_text(f"#!/bin/sh\nexit {0 if found else 2}\n", encoding="utf-8")
+    # As the real ones answer: git ls-remote --exit-code ends with 2 for no
+    # such tag, gh says "release not found".
+    for name, body in (("git", "exit 0" if tagged else "exit 2"),
+                       ("gh", "exit 0" if released else 'echo "release not found" >&2; exit 1')):
+        (shims / name).write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
         (shims / name).chmod(0o755)
     env = {**os.environ, "PATH": f"{shims}{os.pathsep}{os.environ.get('PATH', '')}",
            "REF_TYPE": ref_type, "REF_NAME": ref_name}

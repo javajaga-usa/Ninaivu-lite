@@ -30,9 +30,9 @@
   --sans: "GuideInter", "Noto Sans Tamil", "DejaVu Sans", sans-serif;
   --display: "GuideInter", "Noto Sans Tamil", sans-serif;
   --running-title: "Ninaivu Lite  ·  User guide";
-  --running-version: "Version 1.11.0";
+  --running-version: "Version 1.12.0";
 }
-:root:lang(ta) { --running-title: "நினைவு லைட்  ·  பயனர் வழிகாட்டி"; --running-version: "பதிப்பு 1.11.0"; }
+:root:lang(ta) { --running-title: "நினைவு லைட்  ·  பயனர் வழிகாட்டி"; --running-version: "பதிப்பு 1.12.0"; }
 
 @page {
   size: A4; margin: 21mm 18mm 18mm 18mm;

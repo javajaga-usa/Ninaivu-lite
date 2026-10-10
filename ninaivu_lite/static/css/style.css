@@ -36,12 +36,12 @@
   --border-soft:  #e9ecf1;
   --text:         #10151c;
   --text-2:       #5b6675;
-  --text-3:       #8b94a3;
-  --accent:       #0b7fd4;
-  --accent-2:     #6d5efc;
+  --text-3:       #66707e;  /* 4.5:1 on --bg and --surface-2: helper text is read */
+  --accent:       #0969b0;  /* 4.5:1 or better as text on its own tints, and under white */
+  --accent-2:     #5a4ae6;  /* the console tag is text on its own tint */
   --accent-fg:    #ffffff;
-  --accent-weak:  rgba(11, 127, 212, 0.10);
-  --danger:       #d8353d;
+  --accent-weak:  rgba(9, 105, 176, 0.10);
+  --danger:       #b8262e;
   --gold:         #f0a92e;
   --shadow-sm:    0 1px 2px rgba(16, 21, 28, .06), 0 1px 3px rgba(16, 21, 28, .08);
   --shadow-md:    0 4px 12px rgba(16, 21, 28, .08), 0 2px 4px rgba(16, 21, 28, .05);
@@ -82,7 +82,7 @@
     --border-soft:  #1e242d;
     --text:         #e9edf3;
     --text-2:       #9aa5b4;
-    --text-3:       #6b7686;
+    --text-3:       #8590a0;
     --accent:       #4aa8ff;
     --accent-2:     #9b8dff;
     --accent-fg:    #061019;
@@ -107,7 +107,7 @@
   --border-soft:  #1e242d;
   --text:         #e9edf3;
   --text-2:       #9aa5b4;
-  --text-3:       #6b7686;
+  --text-3:       #8590a0;
   --accent:       #4aa8ff;
   --accent-2:     #9b8dff;
   --accent-fg:    #061019;
@@ -567,7 +567,8 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
   background: var(--accent); border-color: var(--accent);
   color: var(--accent-fg); font-weight: 560;
 }
-.chip .n { opacity: .55; margin-left: 4px; font-size: 11px; }
+.chip .n { color: var(--text-3); margin-left: 4px; font-size: 11px; }
+.chip.active .n, .chip:hover .n { color: inherit; opacity: .8; }
 
 .folder-list { display: flex; flex-direction: column; gap: 1px; max-height: 220px; overflow-y: auto; }
 .folder-list button {
@@ -633,7 +634,9 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 .album-create-box {
   display: flex; gap: 8px; align-items: center; margin-top: 10px;
 }
-.album-create-box .input { flex: 1; height: 36px; }
+/* min-width 0: a text field will not shrink below its default size otherwise,
+   and Create was pushed off a phone-width card. */
+.album-create-box .input { flex: 1; min-width: 0; height: 36px; }
 .album-modal-list {
   display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto;
   border: 1px solid var(--border-soft); border-radius: var(--r-md); padding: 4px;
@@ -1129,8 +1132,11 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 #v-more, #v-download, #v-close { flex: none; }
 .viewer-tools .icon-btn { color: rgba(255, 255, 255, .82); }
 .viewer-tools .icon-btn:hover { background: rgba(255, 255, 255, .14); color: #fff; }
-.viewer-tools .icon-btn.on { color: #ff6b8a; background: rgba(255, 107, 138, .16); }
-.viewer-tools .icon-btn.on svg { fill: currentColor; stroke: none; }
+/* Lit while its panel is open (Details). The filled pink is the heart's own:
+   on any other icon it filled the shape solid and the "i" was lost. */
+.viewer-tools .icon-btn.on { color: #fff; background: rgba(255, 255, 255, .2); }
+.viewer-tools #v-fav.on { color: #ff6b8a; background: rgba(255, 107, 138, .16); }
+.viewer-tools #v-fav.on svg { fill: currentColor; stroke: none; }
 .viewer-tools .icon-btn.danger:hover { background: rgba(255, 82, 82, .18); color: #ff6b6b; }
 
 .viewer-nav {
@@ -1176,6 +1182,14 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 }
 .similar-row img:hover { transform: scale(1.05); }
 
+/* A line over the stage when the file cannot be shown (gone from disk, a
+   video the browser cannot play, or one refused to a guest, with why). It
+   had no style of its own: the page's dark text on the viewer's black. */
+.viewer-stage > .badge {
+  z-index: 5; width: max-content; max-width: calc(100% - 32px); padding: 8px 14px; border-radius: 12px;
+  font-size: 13.5px; line-height: 1.45; text-align: center;
+  color: #fff; background: rgba(8, 10, 14, .78);
+}
 .filmstrip {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 210;
   display: flex; gap: 5px;
@@ -2764,7 +2778,11 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 .rotate-note:empty { display: none; }
 .rotate-actions { display: flex; gap: 8px; flex: none; }
 .rotate-actions .btn { height: 36px; padding: 0 14px; font-size: 13.5px; }
-.viewer.info-open .rotate-bar { left: calc((100% - 320px) / 2); }
+/* Centred on what is left of the stage beside Details. Below 901px Details
+   covers the whole width, so the bar stays centred on the screen (else half of
+   it, Save included, is off the left edge), and Details scrolls clear of it. */
+@media (min-width: 901px) { .viewer.info-open .rotate-bar { left: calc((100% - 320px) / 2); } }
+@media (max-width: 900px) { .viewer.rotating .viewer-info { padding-bottom: calc(176px + env(safe-area-inset-bottom)); } }
 /* While the bar is up the picture is fitted above it, so none of it is hidden
    while choosing which way is up. */
 .viewer.rotating .viewer-stage { padding-bottom: calc(154px + env(safe-area-inset-bottom)); }
@@ -3110,6 +3128,11 @@ input[type=checkbox]:disabled, input[type=radio]:disabled { cursor: not-allowed;
 /* A phone held upright: the list rises from the bottom edge as a sheet. */
 @media (max-width: 620px) {
   .jump-btn { right: max(12px, env(safe-area-inset-right, 0px)); }
+  /* A toast rises above the Jump to pill rather than covering it (the pill
+     is 44px from 18px up; a two-line Tamil toast reached across it). */
+  body:has(#jump-btn:not([hidden])):not(:has(.viewer:not([hidden]))) .toasts {
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
   .jump-panel {
     position: fixed; left: 0; right: 0; bottom: 0; width: auto;
     max-height: 72vh; max-height: 72dvh;

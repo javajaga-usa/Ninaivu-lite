@@ -62,6 +62,9 @@ function renderAlbum(data) {
   for (const item of data.items) {
     const link = document.createElement('a');
     link.href = item.view || item.src; link.target = '_blank'; link.rel = 'noopener';
+    // A video turned or flipped in the gallery would play the file's own way
+    // up on its own: it opens on this page instead, which plays it turned.
+    if (item.kind === 'video' && (item.rotation || item.mirror)) link.href = `${location.pathname}#item=${item.id}`;
     const img = document.createElement('img');
     img.src = item.thumb; img.alt = ''; img.loading = 'lazy';
     // Fades in when it arrives; a photograph that fails stays a quiet tile.
@@ -73,9 +76,9 @@ function renderAlbum(data) {
 }
 
 function renderOne(item) {
-  document.getElementById('title').textContent = i18n.t('Shared photograph');
-  const stage = el('div', 'single');
   const isVideo = (item.kind === 'video');
+  document.getElementById('title').textContent = i18n.t(isVideo ? 'Shared video' : 'Shared photograph');
+  const stage = el('div', 'single');
   const node = document.createElement(isVideo ? 'video' : 'img');
   node.src = item.view || item.src;
   node.onerror = async () => {
@@ -95,23 +98,77 @@ function renderOne(item) {
     // to fit, as the gallery's viewer does.
     const rotation = Number(item.rotation || 0) % 360;
     if (rotation || item.mirror) {
+      // A quarter turn: the video sits in a box the shape of the turned
+      // picture, as large as the page allows, and is turned inside it. (Shrunk
+      // to fit its own landscape box it was a third of a phone's width.)
+      const box = el('div', 'turned-box');
       const fit = () => {
-        let scale = 1;
-        if (rotation % 180 && node.videoWidth && node.offsetWidth) {
-          const contain = Math.min(node.offsetWidth / node.videoWidth, node.offsetHeight / node.videoHeight);
-          scale = Math.min(node.offsetWidth / (node.videoHeight * contain),
-            node.offsetHeight / (node.videoWidth * contain));
+        const turn = `rotate(${rotation}deg)` + (item.mirror ? ' scaleX(-1)' : '');
+        if (!(rotation % 180) || !node.videoWidth) {
+          node.style.transform = turn;
+          return;
         }
-        node.style.transform = `scale(${scale}) rotate(${rotation}deg)` + (item.mirror ? ' scaleX(-1)' : '');
+        // The height left under the header, less the play bar under it.
+        const below = window.innerHeight - stage.getBoundingClientRect().top - 72;
+        const room = { w: stage.clientWidth || window.innerWidth,
+          h: Math.max(160, Math.min(window.innerHeight * 0.82, below)) };
+        const width = Math.min(room.w, room.h * node.videoHeight / node.videoWidth);
+        const height = width * node.videoWidth / node.videoHeight;
+        box.style.width = `${width}px`; box.style.height = `${height}px`;
+        node.style.width = `${height}px`; node.style.height = `${width}px`;
+        node.style.transform = `translate(-50%, -50%) ${turn}`;
+        box.classList.add('quarter');
       };
       node.addEventListener('loadedmetadata', fit);
       window.addEventListener('resize', fit);
       fit();
+      // The browser's own controls turn (or mirror) with the picture.
+      node.controls = false;
+      box.appendChild(node);
+      stage.append(box, turnedControls(node));
+      main.replaceChildren(stage);
+      fit();
+      return;
     }
   }
   else { node.alt = i18n.t('Shared photograph'); }
   stage.appendChild(node);
   main.replaceChildren(stage);
+}
+
+const clock = (seconds) => {
+  const s = Math.round(seconds || 0);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
+
+/** Play, pause and a position bar under a turned video, the right way up. */
+function turnedControls(video) {
+  const bar = el('div', 'turned-controls');
+  const play = el('button');
+  play.type = 'button';
+  const seek = document.createElement('input');
+  seek.type = 'range'; seek.min = '0'; seek.max = '1000'; seek.value = '0';
+  seek.setAttribute('aria-label', i18n.t('Position in the video'));
+  const time = el('span', 'turned-time');
+  const paint = () => {
+    const paused = video.paused || video.ended;
+    play.innerHTML = paused
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7Z"/></svg>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg>';
+    play.setAttribute('aria-label', i18n.t(paused ? 'Play' : 'Pause'));
+    play.title = play.getAttribute('aria-label');
+    const length = video.duration || 0;
+    if (length && document.activeElement !== seek) seek.value = String(Math.round(video.currentTime / length * 1000));
+    time.textContent = length ? `${clock(video.currentTime)} / ${clock(length)}` : '';
+  };
+  play.onclick = () => (video.paused || video.ended ? video.play().catch(() => {}) : video.pause());
+  seek.oninput = () => { if (video.duration) video.currentTime = Number(seek.value) / 1000 * video.duration; };
+  for (const name of ['play', 'pause', 'timeupdate', 'loadedmetadata', 'ended']) video.addEventListener(name, paint);
+  // Nothing to play: no controls under the reason why.
+  video.addEventListener('error', () => { bar.hidden = true; });
+  paint();
+  bar.append(play, seek, time);
+  return bar;
 }
 
 async function load() {
@@ -124,7 +181,10 @@ async function load() {
         data.error ? i18n.t(data.error) : i18n.t('This link is no longer available.')));
       return;
     }
-    if (data.scope === 'album') renderAlbum(data); else renderOne(data.item);
+    const one = Number(new URLSearchParams(location.hash.slice(1)).get('item'));
+    const chosen = data.scope === 'album' && one ? data.items.find((item) => item.id === one) : null;
+    if (chosen) renderOne(chosen);
+    else if (data.scope === 'album') renderAlbum(data); else renderOne(data.item);
   } catch (err) {
     main.replaceChildren(el('p', 'empty', i18n.t('This link could not be opened.')));
   }

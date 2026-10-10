@@ -500,7 +500,9 @@ function wireChrome() {
   });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
-    const open = [...document.querySelectorAll('.modal, .sheet')].find((m) => !m.hidden);
+    // The one on top: the folder picker opened from the first-day steps comes
+    // later in the page than the steps, and Escape closed the steps under it.
+    const open = [...document.querySelectorAll('.modal, .sheet')].reverse().find((m) => !m.hidden);
     if (open) open.hidden = true;
   });
 }
@@ -1011,7 +1013,10 @@ async function renderPreview(key) {
   box.innerHTML = '';
   const summary = el('div', 'preview-summary');
   summary.appendChild(el('strong', null, i18n.items(data.total)));
-  const detail = [i18n.t('as {who}', { who: data.as })];
+  // A role's name (Guest, Family member) is the server's English: said in
+  // the page's language. A person's name is theirs, as it is.
+  const who = key.startsWith('person:') ? data.as : i18n.t(data.role_label || data.as);
+  const detail = [i18n.t('as {who}', { who })];
   if (data.scope) detail.push(i18n.t('limited to {folder}', { folder: data.scope }));
   summary.appendChild(el('span', 'hint', detail.join(' · ')));
   box.appendChild(summary);

@@ -549,7 +549,7 @@ def test_albums_create_list_and_cover(app, admin, family):
     album_id = r.json["id"]
     albums = family.get("/api/albums").json["albums"]
     assert albums == [{"id": album_id, "name": "Summer", "n": 1, "cover_id": i["beach.jpg"],
-                       "created_at": albums[0]["created_at"], "created_by": 2,
+                       "cover_v": albums[0]["cover_v"], "created_at": albums[0]["created_at"], "created_by": 2,
                        "date_key": "2019-05-12"}]
     # The hidden photograph never went in, even for the admin.
     assert admin.get("/api/albums").json["albums"][0]["n"] == 1

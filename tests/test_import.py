@@ -178,7 +178,9 @@ def test_audit_finds_a_copy_that_changed(drive, tmp_path):
     dest = tmp_path / "Archive"
     run(tmp_path / "data", [drive], dest)
     target = dest / "2019" / "05" / "12" / "sunset.jpg"
+    kept = target.stat()            # damage where it lies: same size and time
     target.write_bytes(target.read_bytes()[:-10] + b"\0" * 10)
+    os.utime(target, ns=(kept.st_atime_ns, kept.st_mtime_ns))
     (dest / "2019" / "05" / "12" / "beach.jpg").unlink()
     engine = run(tmp_path / "data", [drive], dest, "verify")
     got = rows(tmp_path / "data")

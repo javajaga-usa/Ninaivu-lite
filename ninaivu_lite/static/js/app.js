@@ -1694,7 +1694,7 @@ function renderAlbums() {
 
     if (album.cover_id) {
       const img = document.createElement('img');
-      img.src = thumbUrl(album.cover_id, 80);
+      img.src = thumbUrl(album.cover_id, 80, album.cover_v);
       img.alt = '';
       img.loading = 'lazy';
       button.appendChild(img);
@@ -1770,7 +1770,7 @@ function openAlbumModal(ids = []) {
 
       if (album.cover_id) {
         const img = document.createElement('img');
-        img.src = thumbUrl(album.cover_id, 64);
+        img.src = thumbUrl(album.cover_id, 64, album.cover_v);
         img.alt = '';
         row.appendChild(img);
       } else {
@@ -2221,6 +2221,14 @@ function wireKeyboard() {
     }
     if (event.defaultPrevented) return;
     if (event.key === 'Escape' && closeMenus()) return;
+    // The sidebar drawer of a narrow window (a phone, a small Pi screen):
+    // Escape shuts it like any other menu, and the focus goes back to its button.
+    if (event.key === 'Escape' && document.querySelector('.shell.mobile-open')) {
+      document.querySelector('.shell').classList.remove('mobile-open');
+      $('#sidebar-toggle')?.setAttribute('aria-expanded', 'false');
+      $('#sidebar-toggle')?.focus();
+      return;
+    }
     if (event.key === 'Escape' && $('#topbar-more').classList.contains('open')) {
       $('#topbar-more').classList.remove('open');
       $('#more-btn').setAttribute('aria-expanded', 'false');
@@ -2239,7 +2247,9 @@ function wireKeyboard() {
     }
 
     if (viewer.isOpen) {
-      if (typing) return;
+      // The position bar of a turned video is a range input: Escape still
+      // leaves (or puts an unsaved turn back), as with the browser's own bar.
+      if (typing && !(event.key === 'Escape' && target.matches('input[type="range"]'))) return;
       if (viewer.handleKey(event)) event.preventDefault();
       return;
     }

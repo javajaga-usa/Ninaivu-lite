@@ -431,6 +431,9 @@ export class Viewer extends EventTarget {
       video.onerror = async () => {
         const reason = await mediaRefusal(item.src);
         if (this.media !== video) return;
+        // Nothing to play: the turned video's own play bar would only sit on
+        // top of the reason.
+        this.stage.querySelector('.video-turned-controls')?.remove();
         const note = document.createElement('div');
         note.className = 'badge';
         note.style.cssText = 'position:absolute;bottom:80px;left:50%;transform:translateX(-50%)';
@@ -676,7 +679,9 @@ export class Viewer extends EventTarget {
       play.title = i18n.t(paused ? 'Play' : 'Pause');
       const length = video.duration || 0;
       if (length && document.activeElement !== seek) seek.value = String(Math.round(video.currentTime / length * 1000));
-      time.textContent = `${formatClock(video.currentTime || 0)} / ${formatClock(length)}`;
+      // Until the length is known there is no time to show (it read " / ").
+      time.textContent = length
+        ? `${formatClock(video.currentTime) || '0:00'} / ${formatClock(length)}` : '';
     };
     play.onclick = () => (video.paused || video.ended ? video.play().catch(() => {}) : video.pause());
     seek.oninput = () => { if (video.duration) video.currentTime = Number(seek.value) / 1000 * video.duration; };
@@ -802,7 +807,8 @@ export class Viewer extends EventTarget {
    *  said so, rather than kept without being asked. */
   endRotation() {
     if (!this.rotating) return;
-    const changed = this.turnChanged();
+    // A Save still on its way is kept: its own message follows.
+    const changed = this.turnChanged() && !this.rotatePending;
     this.rotating = false;
     this.renderRotateBar();
     if (changed) this.toast?.(i18n.t('Rotation not saved'));
