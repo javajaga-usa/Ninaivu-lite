@@ -45,6 +45,7 @@ from .common import (
     counted,
     fail,
     importer as engine,
+    json_sent,
     library_exists,
     remembered_page,
     require_admin,
@@ -117,6 +118,12 @@ SORTS = {
     "size_desc": "a.size DESC, a.id DESC",
     "random": "random()",
 }
+
+#: A search reads at most this many words, each at most this long: a few
+#: hundred words, or one word of 50,000 characters, failed in SQLite (a 500
+#: and a traceback in the log for each such request, from anyone).
+SEARCH_WORDS = 32
+SEARCH_WORD_CHARS = 200
 
 YEAR_RE = re.compile(r"^\d{4}(-\d{2})?$")
 #: A date_key's month, as /api/months lists them.
@@ -364,7 +371,8 @@ def grid_filters(who: auth.User) -> tuple[str, list[Any]]:
     # Every word must match somewhere: the file name, its folder or (for the
     # family: how a photo was taken is not for guests) the camera; a bare
     # year ("2019") or month ("2019-05") also matches the date.
-    for word in (query.get("q") or "").split():
+    for word in (query.get("q") or "").split()[:SEARCH_WORDS]:
+        word = word[:SEARCH_WORD_CHARS]
         pattern = like(word)
         part = "(a.name LIKE ? ESCAPE '\\' OR a.dir LIKE ? ESCAPE '\\'"
         part_args: list[Any] = [pattern, pattern]
@@ -1089,8 +1097,12 @@ def download_zip():
     missing: list[str] = []
     for asset_id in seen:
         row = rows[asset_id]
-        path = asset_path(row)
         name = unique_name(taken, row["name"])
+        try:
+            path = asset_path(row)
+        except ApiError:
+            missing.append(name)
+            continue
         if os.path.isfile(long_path(path)):
             entries.append((name, path))
         else:
@@ -1130,7 +1142,7 @@ def album_ids_arg(data: dict[str, Any]) -> list[int]:
 
 
 def album_body() -> dict[str, Any]:
-    data = request.get_json(silent=True)
+    data = json_sent()
     if not isinstance(data, dict):
         fail(400, "Album settings must be a JSON object")
     return data

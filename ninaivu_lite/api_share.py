@@ -34,8 +34,8 @@ from .api_gallery import (
     thumb_response,
     viewing_response,
 )
-from .common import (body, conn, fail, playable, require_family, turn_query, visible,
-                     visible_asset)
+from .common import (body, conn, fail, json_sent, playable, require_family, turn_query,
+                     visible, visible_asset)
 
 bp = Blueprint("api_share", __name__)
 
@@ -302,7 +302,7 @@ def unlock_share(token: str):
     stored = share["password"]
     if not stored:
         return jsonify({"ok": True})
-    data = request.get_json(silent=True)
+    data = json_sent()
     if not isinstance(data, dict):
         fail(400, "Share credentials must be a JSON object")
     supplied = data.get("password", "")

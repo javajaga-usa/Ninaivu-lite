@@ -159,6 +159,11 @@ class Scanner:
         with self._lock:
             self.status.update(values)
 
+    @property
+    def data_real(self) -> str:
+        """The data folder, resolved: nothing in it is ever a photograph."""
+        return self._data_real
+
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             return dict(self.status)
@@ -533,11 +538,15 @@ class Scanner:
                     if entry.is_dir():
                         # Our own data folder, if someone put it among the photos,
                         # would otherwise show every thumbnail as a photo.
-                        if name not in IGNORE_DIRS and os.path.join(current, name) != self._data_real \
-                                and os.path.realpath(os.path.join(current, name)) != self._data_real:
+                        # Nor any folder inside it, through a link.
+                        if name not in IGNORE_DIRS and not within(
+                                os.path.realpath(os.path.join(current, name)), self._data_real):
                             subdirs.append(f"{rel}/{name}" if rel else name)
                     elif entry.is_file():
-                        yield rel, name, os.path.join(current, name), entry.stat()
+                        full = os.path.join(current, name)
+                        if entry.is_symlink() and leads_away(full, self._data_real):
+                            continue
+                        yield rel, name, full, entry.stat()
                     elif entry.is_symlink():
                         # A link whose target cannot be reached (a linked folder
                         # on a drive that is unplugged) is unread, not empty.
@@ -747,10 +756,10 @@ class Scanner:
         (sizes made, whether they were, colour), or None for a file that is
         not there right now. *threads* is for a video's ffmpeg."""
         full = full_path(row["root"], row["dir"], row["name"])
-        if not os.path.isfile(long_path(full)):
+        if not os.path.isfile(long_path(full)) or leads_away(full, self._data_real):
             # Away, not broken: a drive asleep or unplugged. The row keeps its
             # place in the queue for when the file is back; the next walk
-            # marks it missing if it is gone for good.
+            # marks it missing if it is gone for good (or made a link away).
             return None
         if row["kind"] == "video":
             sizes = ("s", "l")   # one ffmpeg call makes both
@@ -931,6 +940,27 @@ def under_any(rel_dir: str, name: str, failed: list[str]) -> bool:
     """Whether the file *rel_dir*/*name* lies in (or is) one of the *failed* paths."""
     path = f"{rel_dir}/{name}" if rel_dir else name
     return any(p == "" or path == p or path.startswith(p + "/") for p in failed)
+
+
+def within(real: str, folder_real: str) -> bool:
+    """Whether the resolved path *real* is *folder_real* or inside it."""
+    a, b = os.path.normcase(real), os.path.normcase(folder_real)
+    return a == b or a.startswith(b.rstrip(os.sep) + os.sep)
+
+
+def leads_away(path: str, data_real: str) -> bool:
+    """Whether *path*, through a link on the way, reaches into this program's
+    own data folder (the index, the thumbnails of Hidden photographs) or is a
+    file that is not the photograph or video its name says: "photo.jpg" made
+    a link to a private key, by someone who can write to the photo folder.
+    Neither is indexed or served. A linked folder of photographs is fine."""
+    try:
+        real = os.path.realpath(path)
+    except (OSError, ValueError):
+        return False
+    if within(real, data_real):
+        return True
+    return media.kind_of(os.path.basename(real)) != media.kind_of(os.path.basename(path))
 
 
 def full_path(root: str, rel_dir: str, name: str) -> str:
