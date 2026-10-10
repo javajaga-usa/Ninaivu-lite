@@ -3,7 +3,7 @@
 ; folder beside it. Everything else is out of the way: the program in app\, the
 ; family's settings, index and previews in data\, and the log in Ninaivu Lite.log.
 ;
-;   makensis /DVERSION=1.11.0 "/DOUTFILE=<folder>\Ninaivu Lite.exe" launcher.nsi
+;   makensis /DVERSION=1.11.1 "/DOUTFILE=<folder>\Ninaivu Lite.exe" launcher.nsi
 ;
 ; Built by build-portable.ps1. It installs nothing: it starts the private Python
 ; in app\ and is gone.
