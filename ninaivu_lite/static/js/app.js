@@ -11,6 +11,7 @@ import { enterPressesTheButton } from './enter-key.js';
 import { initPalette } from './palette.js';
 import { wireDialogs } from './dialogs.js';
 import { PosterMaker } from './posters.js';
+import { wireJump } from './jump.js';
 
 const $ = (sel) => document.querySelector(sel);
 const store = {
@@ -48,6 +49,8 @@ let searchController = null;
  * arrives for a query no longer on screen can tell it is stale.
  */
 let paging = { next: null, filters: null, signal: null, loading: false };
+//: The "Jump to" button over the grid (jump.js).
+let jump = null;
 /** Items per piece as the grid is scrolled; about a quarter of a second each. */
 const GALLERY_PAGE = 25000;
 /** The most one request may ask for (the server's own cap). */
@@ -948,24 +951,34 @@ async function reload({ resetScroll = false } = {}) {
   loadMoreIfNear();
 }
 
-/** Fetch the next piece once the scroll is within a few screens of the end. */
-async function loadMoreIfNear() {
+/**
+ * Fetch the next piece once the scroll is within a few screens of the end.
+ * `force` fetches it now wherever the scroll is (the "Jump to" button going
+ * to a month further down), waiting for a piece already on its way. True
+ * when a piece came.
+ */
+async function loadMoreIfNear({ force = false } = {}) {
   const page = paging;
   if (page !== loadMoreFailed.page) showLoadMoreFailed(null);
-  if (page.next == null || page.loading || !page.signal || page.signal.aborted) return;
+  if (page.next == null || !page.signal || page.signal.aborted) return false;
+  if (page.loading) {
+    if (!force) return false;
+    await page.loading.catch(() => {});
+    return page === paging;
+  }
   // After a failure, wait out the back-off rather than asking again on every
   // scroll frame; the Retry row (or the timer) clears it.
-  if (page.retryAt && Date.now() < page.retryAt) return;
+  if (!force && page.retryAt && Date.now() < page.retryAt) return false;
   const view = grid.scroller.clientHeight || 1;
   const remaining = grid.layout.height - (grid.scroller.scrollTop + view);
-  if (remaining > view * 3) return;
+  if (!force && remaining > view * 3) return false;
 
-  page.loading = true;
   try {
-    const data = await api.segments(page.filters, page.signal, {
+    page.loading = api.segments(page.filters, page.signal, {
       limit: GALLERY_PAGE, offset: page.next,
     });
-    if (page !== paging) return;           // a reload replaced this result set
+    const data = await page.loading;
+    if (page !== paging) return false;     // a reload replaced this result set
     page.next = data.next_offset;
     page.retryAt = 0;
     page.retryDelay = 0;
@@ -973,7 +986,7 @@ async function loadMoreIfNear() {
     grid.appendData(data.segments);
     showTruncation(data);
   } catch (error) {
-    if (error.name === 'AbortError' || page !== paging) return;
+    if (error.name === 'AbortError' || page !== paging) return false;
     if (isNetworkFailure(error)) setServerOffline();
     else toast(error.message || i18n.t('Could not load more media'), true);
     // One failed piece used to end the gallery for the session (`next` was
@@ -983,12 +996,13 @@ async function loadMoreIfNear() {
     page.retryAt = Date.now() + page.retryDelay;
     showLoadMoreFailed(page);
     setTimeout(() => { if (page === paging) loadMoreIfNear(); }, page.retryDelay);
-    return;
+    return false;
   } finally {
-    page.loading = false;
+    page.loading = null;
   }
   // A short piece may still leave the screen unfilled.
   if (page === paging) loadMoreIfNear();
+  return true;
 }
 
 /** The longest pause between automatic retries of a failed piece. */
@@ -1193,6 +1207,12 @@ function wireChrome() {
   wireSearch();
   wireSelection();
   wireScrubber();
+  jump = wireJump({
+    grid,
+    filters: currentFilters,
+    hasMore: () => paging.next != null,
+    loadMore: () => loadMoreIfNear({ force: true }),
+  });
   wireVisibility();
   wireSharing();
   wireAlbums();
@@ -2221,6 +2241,7 @@ function wireKeyboard() {
     if (key === 'm') { setLayout('masonry'); return; }
     if (key === 'g') { setLayout('grid'); return; }
     if (key === 'f' && !event.metaKey && !event.ctrlKey) { setLayout('film'); return; }
+    if (key === 'd') { jump?.open(); return; }
     if (key === 'a' && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
       grid.selectAll();

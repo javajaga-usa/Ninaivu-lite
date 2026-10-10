@@ -383,6 +383,25 @@
       <div class="scrubber-track" id="scrubber-track"></div>
       <div class="scrubber-thumb" id="scrubber-thumb"><span></span></div>
     </div>
+
+    <!-- Jump to: the month on screen, and a list of only the years and months
+         there are photographs in (jump.js). Shown for the two date orders. -->
+    <button class="jump-btn" id="jump-btn" type="button" hidden aria-haspopup="dialog"
+            aria-expanded="false" aria-controls="jump-panel">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+      <span class="jump-label" id="jump-label" data-i18n="Jump to">Jump to</span>
+      <svg class="jump-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+    </button>
+    <div class="jump-panel" id="jump-panel" role="dialog" tabindex="-1" hidden
+         aria-label="Jump to a year or month" data-i18n-label="Jump to a year or month">
+      <div class="jump-head">
+        <strong data-i18n="Jump to">Jump to</strong>
+        <button class="icon-btn" id="jump-close" type="button" aria-label="Close" data-i18n-label="Close">
+          <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="jump-body" id="jump-body"></div>
+    </div>
   </main>
 </div>
 
@@ -542,6 +561,7 @@
       <dt>M</dt><dd data-i18n="Masonry layout">Masonry layout</dd>
       <dt>G</dt><dd data-i18n="Grid layout">Grid layout</dd>
       <dt>F</dt><dd data-i18n="Filmstrip layout">Filmstrip layout</dd>
+      <dt>D</dt><dd data-i18n="Jump to a year or month">Jump to a year or month</dd>
       <dt>+ / &minus;</dt><dd data-i18n="Thumbnail size">Thumbnail size</dd>
       <dt>T</dt><dd data-i18n="Switch theme">Switch theme</dd>
       <dt>&#8984; / Ctrl + A</dt><dd data-i18n="Select everything shown">Select everything shown</dd>

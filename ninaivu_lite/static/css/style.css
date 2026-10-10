@@ -2937,3 +2937,121 @@ input[type=checkbox]:disabled, input[type=radio]:disabled { cursor: not-allowed;
 /* Dialog headings and their close buttons line up on one baseline. */
 .modal-card h2, .sheet-head h2 { line-height: 1.3; }
 .sheet-head, .export-head { gap: 12px; }
+
+   Jump to a year or month (jump.js)
+   ========================================================================== */
+
+/* A pill over the grid's bottom corner, clear of the date rail, naming the
+   month on screen. Solid, not blurred: a backdrop blur on the pill itself
+   draws its text soft on an iPhone (see M15). */
+.jump-btn {
+  position: absolute; right: 62px; bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  z-index: 25;
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 40px; padding: 0 12px 0 13px; max-width: calc(100% - 24px);
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); color: var(--text);
+  box-shadow: var(--shadow-md);
+  font-size: 13px; font-weight: 600; letter-spacing: -.005em; white-space: nowrap;
+  transition: transform .15s var(--ease), box-shadow .15s var(--ease), border-color .15s var(--ease);
+}
+.jump-btn[hidden] { display: none; }
+.jump-btn:hover { border-color: var(--accent); box-shadow: var(--shadow-lg); }
+.jump-btn:active { transform: scale(.97); }
+.jump-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+.jump-btn svg {
+  width: 17px; height: 17px; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.jump-btn .jump-chev { width: 15px; height: 15px; color: var(--text-3); transition: transform .15s var(--ease); }
+.jump-btn[aria-expanded="true"] .jump-chev { transform: rotate(180deg); }
+.jump-label { overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.jump-btn.busy svg:first-child { animation: jump-busy 1s var(--ease) infinite alternate; }
+@keyframes jump-busy { to { opacity: .25; } }
+
+.jump-panel {
+  position: absolute; right: 62px; bottom: calc(66px + env(safe-area-inset-bottom, 0px));
+  /* Over the iPhone's "Add to Home Screen" banner while it is open. */
+  z-index: 1001;
+  display: flex; flex-direction: column;
+  width: min(352px, calc(100% - 24px));
+  max-height: min(460px, calc(100vh - 140px)); max-height: min(460px, calc(100dvh - 140px));
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  transform-origin: bottom right; animation: jump-in .16s var(--ease);
+  outline: none;
+}
+.jump-panel[hidden] { display: none; }
+@keyframes jump-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+.jump-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 8px 6px 16px; font-size: 14px;
+}
+.jump-body { overflow-y: auto; overscroll-behavior: contain; padding: 0 12px 12px; }
+.jump-note { margin: 10px 4px; color: var(--text-2); font-size: 13px; }
+
+/* One row a year: the year (with how many) and only the months it has. */
+.jump-year {
+  display: grid; grid-template-columns: 62px 1fr; gap: 6px 8px; align-items: start;
+  padding: 8px 0; border-top: 1px solid var(--border-soft);
+}
+.jump-year:first-child { border-top: 0; }
+.jump-year-btn {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  padding: 5px 8px; border-radius: var(--r-md); text-align: left;
+  font-size: 14.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.jump-year-btn small { font-size: 11px; font-weight: 500; color: var(--text-3); }
+.jump-year-btn:hover, .jump-year-btn.current { background: var(--accent-weak); color: var(--accent); }
+.jump-months {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 6px;
+}
+.jump-month {
+  min-height: 34px; padding: 0 6px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text);
+  font-size: 12.5px; font-weight: 560; line-height: 1.15;
+  transition: background .12s var(--ease), color .12s var(--ease);
+}
+.jump-month:hover { background: var(--accent-weak); color: var(--accent); }
+.jump-month[aria-current="true"] { background: var(--accent); color: var(--accent-fg); }
+.jump-year > .jump-undated:only-child { grid-column: 1 / -1; justify-self: start; padding: 0 16px; }
+
+/* Where the jump landed, for a moment. */
+.section-head.jump-flash { animation: jump-flash 1.2s var(--ease); border-radius: var(--r-sm); }
+@keyframes jump-flash {
+  0%, 35% { background: var(--accent-weak); box-shadow: 0 0 0 6px var(--accent-weak); }
+  100% { background: transparent; box-shadow: 0 0 0 6px transparent; }
+}
+
+/* A finger has no date rail to keep clear of, and wants bigger targets. */
+@media (hover: none) and (pointer: coarse) {
+  .jump-btn { right: max(14px, env(safe-area-inset-right, 0px)); height: 44px; }
+  .jump-panel { right: max(14px, env(safe-area-inset-right, 0px)); bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
+  .jump-month { min-height: 40px; }
+}
+
+/* A phone held upright: the list rises from the bottom edge as a sheet. */
+@media (max-width: 620px) {
+  .jump-btn { right: max(12px, env(safe-area-inset-right, 0px)); }
+  .jump-panel {
+    position: fixed; left: 0; right: 0; bottom: 0; width: auto;
+    max-height: 72vh; max-height: 72dvh;
+    border-radius: var(--r-xl) var(--r-xl) 0 0; border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);
+    /* The page dimmed behind it; a tap there closes it. */
+    transform-origin: bottom center;
+    box-shadow: 0 0 0 100vmax rgba(8, 11, 16, .32), var(--shadow-lg);
+  }
+  .jump-head { padding: 10px 10px 6px 18px; }
+  .jump-body { padding: 0 14px 14px; }
+}
+
+/* Clear of the iPhone's "Add to Home Screen" banner while it shows. */
+body:has(#ios-install-banner:not([hidden])) .jump-btn { bottom: calc(128px + env(safe-area-inset-bottom, 0px)); }
+
+/* A phone on its side: the list uses the height there is, over the button. */
+@media (max-height: 520px) and (min-width: 621px) {
+  .jump-panel { bottom: max(8px, env(safe-area-inset-bottom, 0px)); max-height: calc(100% - 16px); }
+}

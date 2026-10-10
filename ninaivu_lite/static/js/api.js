@@ -236,6 +236,8 @@ export const api = {
   update: (id, fields) => post(`/api/asset/${id}`, fields),
   bulk: (ids, fields) => post('/api/assets/bulk', { ids, ...fields }),
   facets: () => get('/api/facets'),
+  // The months (and the undated) the grid as filtered has photographs in.
+  months: (filters, signal) => get(`/api/months?${buildQuery(filters)}`, { signal }),
   suggest: (q) => get(`/api/suggest?q=${encodeURIComponent(q)}`),
   shares: () => get('/api/shares'),
   createShare: (scope, targetId, expiresInDays, password) =>

@@ -315,6 +315,11 @@ async function galleryPage(viewport) {
 stages.gallery = async () => {
   let page = await galleryPage();
   await shot(page, 'g20-timeline', { wait: 1500 });
+  // Jump to: only the years and months there are photographs in
+  await page.click('#jump-btn');
+  await page.waitForSelector('.jump-month');
+  await shot(page, 'g20b-jump', { wait: 800 });
+  await page.keyboard.press('Escape');
   // search for a place
   await page.click('#search');
   await page.type('#search', 'Kanya', { delay: 60 });
