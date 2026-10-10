@@ -879,10 +879,13 @@ export class Grid extends EventTarget {
   }
 
   /** Ids with a generated thumbnail (flag bit 2), for the viewer's filmstrip. */
+  /** The ids that have a thumbnail, each to its version: the viewer's
+   *  filmstrip asks for the current one, so a photograph turned since is not
+   *  shown from the browser's year-long cache the old way up. */
   thumbedIds() {
-    const set = new Set();
-    for (const cell of this.layout.cells) if (cell.flags & 2) set.add(cell.id);
-    return set;
+    const versions = new Map();
+    for (const cell of this.layout.cells) if (cell.flags & 2) versions.set(cell.id, cell.v || 0);
+    return versions;
   }
 
   indexOfId(id) {

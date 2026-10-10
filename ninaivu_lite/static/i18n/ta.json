@@ -3240,5 +3240,14 @@
   "Jump to a year or month. Showing {month}.": "ஓர் ஆண்டு அல்லது மாதத்துக்குச் செல். இப்போது {month}.",
   "Could not load the months. Try again.": "மாதங்களை ஏற்ற முடியவில்லை. மீண்டும் முயலுங்கள்.",
   "Not finished: the drive was unplugged. Plug it back in and copy again; what was copied is kept.": "முடியவில்லை: டிரைவ் பிடுங்கப்பட்டது. அதை மீண்டும் இணைத்து மறுபடி நகலெடுங்கள்; நகலெடுத்தவை அப்படியே இருக்கும்.",
-  "Copied {copied} photos and videos to the drive. {errors} could not be copied; see the log. {too_big} were too big for this drive's format (over 4 GB on FAT32); a drive formatted as exFAT or NTFS holds them. Eject the drive before you unplug it.": "{copied} புகைப்படங்களும் காணொளிகளும் டிரைவுக்கு நகலெடுக்கப்பட்டன. {errors} நகலெடுக்க முடியவில்லை; பதிவைப் பாருங்கள். {too_big} இந்த டிரைவின் வடிவத்துக்குப் பெரியவை (FAT32-இல் 4 GB-க்கு மேல்); exFAT அல்லது NTFS ஆக வடிவமைத்த டிரைவ் அவற்றை வைத்திருக்கும். டிரைவைப் பிடுங்கும் முன் அதை வெளியேற்றுங்கள் (Eject)."
+  "Copied {copied} photos and videos to the drive. {errors} could not be copied; see the log. {too_big} were too big for this drive's format (over 4 GB on FAT32); a drive formatted as exFAT or NTFS holds them. Eject the drive before you unplug it.": "{copied} புகைப்படங்களும் காணொளிகளும் டிரைவுக்கு நகலெடுக்கப்பட்டன. {errors} நகலெடுக்க முடியவில்லை; பதிவைப் பாருங்கள். {too_big} இந்த டிரைவின் வடிவத்துக்குப் பெரியவை (FAT32-இல் 4 GB-க்கு மேல்); exFAT அல்லது NTFS ஆக வடிவமைத்த டிரைவ் அவற்றை வைத்திருக்கும். டிரைவைப் பிடுங்கும் முன் அதை வெளியேற்றுங்கள் (Eject).",
+  "Rotate this photo": "இந்தப் படத்தைச் சுழற்று",
+  "Rotate left (Shift+R)": "இடப்புறம் சுழற்று (Shift+R)",
+  "Rotate left": "இடப்புறம் சுழற்று",
+  "Rotate right (R)": "வலப்புறம் சுழற்று (R)",
+  "Rotate right": "வலப்புறம் சுழற்று",
+  "Save (Enter)": "சேமி (Enter)",
+  "Not saved yet": "இன்னும் சேமிக்கவில்லை",
+  "Rotation saved. The original file is not changed.": "சுழற்றியது சேமிக்கப்பட்டது. மூலக் கோப்பு மாற்றப்படவில்லை.",
+  "Rotation not saved": "சுழற்றியது சேமிக்கப்படவில்லை"
 }

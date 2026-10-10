@@ -96,7 +96,7 @@ def test_public_asset_share(app, family, library):
     item = r.json["item"]
     assert set(item) == SHARED_KEYS
     assert item["src"] == item["view"] == f"/api/share/{token}/file/{i['beach.jpg']}"
-    assert item["thumb"] == f"/api/share/{token}/thumb/{i['beach.jpg']}"
+    assert item["thumb"].startswith(f"/api/share/{token}/thumb/{i['beach.jpg']}?v=")
     t = stranger.get(item["thumb"])
     assert t.status_code == 200 and t.mimetype == "image/webp"
     assert t.headers["Cache-Control"] == "private, max-age=3600"

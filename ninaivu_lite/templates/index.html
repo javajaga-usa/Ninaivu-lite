@@ -476,6 +476,18 @@
     </div>
   </div>
 
+  <!-- Rotate: the photograph turns on screen first and is kept only when Save
+       is pressed. Kept in the index, never in the file. -->
+  <div class="rotate-bar" id="rotate-bar" hidden role="group" aria-label="Rotate this photo" data-i18n-label="Rotate this photo">
+    <button type="button" class="icon-btn" id="v-rotate-left" title="Rotate left (Shift+R)" data-i18n-title="Rotate left (Shift+R)" aria-label="Rotate left" data-i18n-label="Rotate left"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v5h5"/></svg></button>
+    <button type="button" class="icon-btn" id="v-rotate-right" title="Rotate right (R)" data-i18n-title="Rotate right (R)" aria-label="Rotate right" data-i18n-label="Rotate right"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button>
+    <span class="rotate-note" id="rotate-note" aria-live="polite"></span>
+    <div class="rotate-actions">
+      <button type="button" class="btn ghost small" id="v-rotate-cancel" data-i18n="Cancel">Cancel</button>
+      <button type="button" class="btn primary small" id="v-rotate-save" title="Save (Enter)" data-i18n-title="Save (Enter)" data-i18n="Save">Save</button>
+    </div>
+  </div>
+
   <button class="viewer-nav prev" id="v-prev" aria-label="Previous" data-i18n-label="Previous"><svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg></button>
   <button class="viewer-nav next" id="v-next" aria-label="Next" data-i18n-label="Next"><svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg></button>
 

@@ -248,7 +248,11 @@ def shared_item(row: sqlite3.Row, token: str) -> dict[str, Any]:
     item = {key: row[key] for key in SHARED_FIELDS}
     item["duration"] = item["duration"] or 0
     can_play = playable(row)
-    src = f"/api/share/{token}/file/{row['id']}"
+    # A photograph turned by hand since the link was last opened is a new
+    # picture: the turn and the thumbnail's version are in its addresses, so a
+    # browser that cached the old way up for an hour asks again.
+    turn = f"?r={row['rotation']}" if row["rotation"] else ""
+    src = f"/api/share/{token}/file/{row['id']}{turn}"
     item.update({
         "blurhash": None,
         "color": row["color"],
@@ -256,9 +260,10 @@ def shared_item(row: sqlite3.Row, token: str) -> dict[str, Any]:
         "has_thumb": row["thumb"] != db.THUMB_NONE,
         "playable": can_play,
         "src": src,
-        "thumb": f"/api/share/{token}/thumb/{row['id']}",
+        "thumb": f"/api/share/{token}/thumb/{row['id']}"
+                 + (f"?v={row['thumb_v']}" if row["thumb_v"] else ""),
         "view": src if can_play or row["kind"] != "picture"
-        else f"/api/share/{token}/preview/{row['id']}",
+        else f"/api/share/{token}/preview/{row['id']}{turn}",
     })
     return item
 

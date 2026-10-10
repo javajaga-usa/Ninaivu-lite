@@ -99,6 +99,8 @@ export class Viewer extends EventTarget {
     this.canSave = false;
     /** Set by the app: whether a photograph may be turned by hand (admins). */
     this.canRotate = false;
+    /** While the Rotate bar is up: the way up shown on screen, not yet saved. */
+    this.rotating = false;
     //: signed in: a photograph can become the person's own profile picture
     this.canAvatar = false;
     this.toast = null;
@@ -125,7 +127,15 @@ export class Viewer extends EventTarget {
     q('#v-zoom-out').onclick = () => this.zoomBy(1 / 1.5);
     q('#v-info').onclick = () => this.toggleInfo();
     if (q('#v-info-close')) q('#v-info-close').onclick = () => this.toggleInfo(false);
-    q('#v-rotate').onclick = () => this.rotate();
+    // Rotate opens the bar; its arrows turn the picture on screen and Save
+    // keeps the turn (in the index, never in the file).
+    // Focus moves to Save, so Enter keeps the turn rather than pressing
+    // Rotate again (the menu it was in has closed).
+    q('#v-rotate').onclick = () => { this.rotate(1); if (this.rotating) q('#v-rotate-save').focus(); };
+    q('#v-rotate-left').onclick = () => this.rotate(-1);
+    q('#v-rotate-right').onclick = () => this.rotate(1);
+    q('#v-rotate-save').onclick = () => this.saveRotation();
+    q('#v-rotate-cancel').onclick = () => this.cancelRotation();
     q('#v-avatar').onclick = () => {
       this.dispatchEvent(new CustomEvent('avatar', { detail: { item: this.item } }));
     };
@@ -133,7 +143,7 @@ export class Viewer extends EventTarget {
     // most visits never press it and its engine is the largest script here.
     q('#v-sudar').onclick = async () => {
       if (!this.canDownload || this.item?.kind !== 'picture') return;
-      const item = { ...this.item, rotation: this.transform.rotate };
+      const item = { ...this.item, rotation: this.shownTurn() };
       this.stopSlideshow();
       if (this.isKiosk) this.toggleKiosk();
       try {
@@ -285,6 +295,8 @@ export class Viewer extends EventTarget {
     date.textContent = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
   }
 
+  /** *thumbed*: the ids that have a thumbnail, as a Map to its version, so
+   *  the filmstrip asks for the current one (they are cached for a year). */
   async open(ids, index, thumbed = null) {
     this.ids = ids;
     this.thumbed = thumbed;
@@ -295,6 +307,7 @@ export class Viewer extends EventTarget {
   }
 
   close() {
+    this.endRotation();
     this.previousIndex = null;
     if (this.isKiosk) this.toggleKiosk();
     this.stopSlideshow();
@@ -350,6 +363,7 @@ export class Viewer extends EventTarget {
       return;
     }
     if (!this.isOpen || this.ids[this.index] !== id) return; // user moved on while loading
+    if (this.item !== item) this.endRotation();
     this.item = item;
 
     // Stage first: resetTransform needs the media element to exist, and
@@ -541,7 +555,8 @@ export class Viewer extends EventTarget {
           img.removeAttribute('src');
           img.classList.add('no-thumb');
         }, { once: true });
-        img.src = thumbUrl(this.ids[i], 256, this.cache.get(this.ids[i])?.thumb_v);
+        img.src = thumbUrl(this.ids[i], 256, this.cache.get(this.ids[i])?.thumb_v
+          || this.thumbed?.get?.(this.ids[i]));
       }
       this.filmstrip.appendChild(img);
     }
@@ -631,24 +646,85 @@ export class Viewer extends EventTarget {
     }
   }
 
-  /** A quarter turn more, kept in the index (an administrator's answer for
-   *  a photograph the scan could not judge). The file is never changed. */
-  async rotate() {
+  /** The way up the picture is shown now (0, 90, 180 or 270). */
+  shownTurn() {
+    return ((Math.round(this.transform.rotate / 90) * 90) % 360 + 360) % 360;
+  }
+
+  /** A quarter turn on screen (*direction* 1 clockwise, -1 the other way),
+   *  with the Rotate bar up to Save or Cancel it. Nothing is kept until Save. */
+  rotate(direction = 1) {
     const item = this.item;
-    if (!item || item.kind !== 'picture' || this.rotatePending) return;
+    if (!item || item.kind !== 'picture' || !this.canRotate || this.rotatePending) return;
+    this.rotating = true;
+    // The angle keeps counting past 360 so the picture always turns the short
+    // way on screen; shownTurn() is what would be saved.
+    this.transform.rotate += direction * 90;
+    // The bar first: the stage makes room for it, and the fit is measured after.
+    this.renderRotateBar();
+    this.applyTransform();
+  }
+
+  renderRotateBar() {
+    const bar = this.root.querySelector('#rotate-bar');
+    bar.hidden = !this.rotating;
+    this.root.classList.toggle('rotating', this.rotating);
+    if (!this.rotating) return;
+    const changed = this.shownTurn() !== Number(this.item?.rotation || 0) % 360;
+    this.root.querySelector('#v-rotate-save').disabled = !changed || !!this.rotatePending;
+    this.root.querySelector('#rotate-note').textContent = changed ? i18n.t('Not saved yet') : '';
+  }
+
+  /** Keep the turn shown: in the index, never in the file. The thumbnails
+   *  are made again the new way up. */
+  async saveRotation() {
+    const item = this.item;
+    if (!item || !this.rotating || this.rotatePending) return;
+    const rotation = this.shownTurn();
+    if (rotation === Number(item.rotation || 0) % 360) { this.endRotation(); return; }
     this.rotatePending = true;
-    const rotation = (Number(item.rotation || 0) + 90) % 360;
+    this.renderRotateBar();
     try {
       const updated = await api.rotate(item.id, rotation);
       Object.assign(item, updated);
       this.cache.set(item.id, item);
-      if (this.item === item) { this.resetTransform(); this.renderInfo(item); }
+      if (this.thumbed?.set && item.thumb_v) this.thumbed.set(item.id, item.thumb_v);
+      if (this.item === item) {
+        // The picture already shows this way up: no spin back to zero.
+        this.rotating = false;
+        this.renderRotateBar();
+        this.applyTransform();
+        this.renderChrome(item);
+        this.renderInfo(item);
+        this.renderFilmstrip();
+      }
+      this.toast?.(i18n.t('Rotation saved. The original file is not changed.'));
       this.dispatchEvent(new CustomEvent('mutated', { detail: { id: item.id, rotation } }));
     } catch (error) {
       this.toast?.(error.message, true);
     } finally {
       this.rotatePending = false;
+      if (this.rotating) this.renderRotateBar();
     }
+  }
+
+  /** Put the picture back the way it was saved and close the bar. */
+  cancelRotation() {
+    if (!this.rotating) return;
+    this.rotating = false;
+    this.transform.rotate = Number(this.item?.rotation || 0) % 360;
+    this.renderRotateBar();
+    this.applyTransform();
+  }
+
+  /** Leaving a photograph (or the viewer) with a turn not saved: dropped, and
+   *  said so, rather than kept without being asked. */
+  endRotation() {
+    if (!this.rotating) return;
+    const changed = this.item && this.shownTurn() !== Number(this.item.rotation || 0) % 360;
+    this.rotating = false;
+    this.renderRotateBar();
+    if (changed) this.toast?.(i18n.t('Rotation not saved'));
   }
 
   /* -- transform ------------------------------------------------------- */
@@ -658,9 +734,9 @@ export class Viewer extends EventTarget {
     // Thumbnails are baked upright by the scanner, but /api/file serves the
     // untouched original — so a photograph Ninaivu worked out the orientation
     // of would open sideways here while looking fine in the grid.
-    this.transform = {
-      scale: 1, x: 0, y: 0, rotate: Number(this.item?.rotation || 0) % 360,
-    };
+    // An unsaved turn on the Rotate bar stays as it is (0 resets the zoom).
+    const rotate = this.rotating ? this.transform.rotate : Number(this.item?.rotation || 0) % 360;
+    this.transform = { scale: 1, x: 0, y: 0, rotate };
     this.applyTransform();
   }
 
@@ -879,6 +955,8 @@ export class Viewer extends EventTarget {
     if (this.isKiosk && key === 'escape') { this.toggleKiosk(); return true; }
     switch (key) {
       case 'escape':
+        // An unsaved turn is put back first.
+        if (this.rotating) { this.cancelRotation(); return true; }
         // A177: Escape closes the Details panel first (on a phone it covers
         // the photograph), and only then the viewer.
         if (!this.info.hidden) { this.toggleInfo(false); return true; }
@@ -892,7 +970,12 @@ export class Viewer extends EventTarget {
         return true;
       case 'i': this.toggleInfo(); return true;
       case 'r':
-        if (!this.root.querySelector('#v-rotate').hidden) this.rotate();
+        // R turns clockwise, Shift+R the other way; Enter saves.
+        if (!this.root.querySelector('#v-rotate').hidden) this.rotate(event.shiftKey ? -1 : 1);
+        return true;
+      case 'enter':
+        if (!this.rotating) return false;
+        this.saveRotation();
         return true;
       case 'd':
         if (this.canDownload) this.root.querySelector('#v-download').click();

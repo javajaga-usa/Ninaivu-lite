@@ -3139,5 +3139,14 @@
   "Jump to a year or month. Showing {month}.": "Jump to a year or month. Showing {month}.",
   "Could not load the months. Try again.": "Could not load the months. Try again.",
   "Not finished: the drive was unplugged. Plug it back in and copy again; what was copied is kept.": "Not finished: the drive was unplugged. Plug it back in and copy again; what was copied is kept.",
-  "Copied {copied} photos and videos to the drive. {errors} could not be copied; see the log. {too_big} were too big for this drive's format (over 4 GB on FAT32); a drive formatted as exFAT or NTFS holds them. Eject the drive before you unplug it.": "Copied {copied} photos and videos to the drive. {errors} could not be copied; see the log. {too_big} were too big for this drive's format (over 4 GB on FAT32); a drive formatted as exFAT or NTFS holds them. Eject the drive before you unplug it."
+  "Copied {copied} photos and videos to the drive. {errors} could not be copied; see the log. {too_big} were too big for this drive's format (over 4 GB on FAT32); a drive formatted as exFAT or NTFS holds them. Eject the drive before you unplug it.": "Copied {copied} photos and videos to the drive. {errors} could not be copied; see the log. {too_big} were too big for this drive's format (over 4 GB on FAT32); a drive formatted as exFAT or NTFS holds them. Eject the drive before you unplug it.",
+  "Rotate this photo": "Rotate this photo",
+  "Rotate left (Shift+R)": "Rotate left (Shift+R)",
+  "Rotate left": "Rotate left",
+  "Rotate right (R)": "Rotate right (R)",
+  "Rotate right": "Rotate right",
+  "Save (Enter)": "Save (Enter)",
+  "Not saved yet": "Not saved yet",
+  "Rotation saved. The original file is not changed.": "Rotation saved. The original file is not changed.",
+  "Rotation not saved": "Rotation not saved"
 }

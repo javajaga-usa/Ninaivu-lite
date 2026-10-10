@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Rotate, then Save.** In the photo viewer, *Rotate* (or **R**) now opens a bar under the
+  photo with *Rotate left* and *Rotate right* (**Shift+R** / **R**), *Save* (**Enter**) and
+  *Cancel* (**Esc**). The photo turns on screen first and is kept only when *Save* is
+  pressed; moving to another photo without saving puts it back and says so. Before, each
+  press saved a quarter turn clockwise at once, with no way back but three more presses.
+  The turn is kept in Ninaivu Lite's own index, never in the file. Administrators only, as
+  before; English and Tamil.
+- **A saved turn shows everywhere at once.** The thumbnail strip at the bottom of the viewer
+  kept showing a turned photo the old way up (its thumbnails were cached for a year without
+  a version), and a guest's or a share link's copy could stay the old way up for up to a
+  day. Now the gallery tile, the strip, the family app and share links all show the new way
+  up straight after *Save*.
+
 ## 1.11.1 — 2026-10-10
 
 The index is unchanged (version 9), so 1.11.1, 1.11.0, 1.10.0, 1.9.0, 1.8.0 and 1.7.0 can open
