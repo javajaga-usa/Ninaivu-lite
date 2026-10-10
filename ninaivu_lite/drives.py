@@ -361,7 +361,7 @@ class Exporter:
     @staticmethod
     def _blank() -> dict[str, Any]:
         return {"running": False, "phase": "", "drive": "", "destination": "", "total": 0,
-                "done": 0, "copied": 0, "skipped": 0, "errors": 0, "bytes_total": 0,
+                "found": 0, "done": 0, "copied": 0, "skipped": 0, "errors": 0, "bytes_total": 0,
                 "bytes_done": 0, "message": None, "finished_at": None}
 
     @property
@@ -445,12 +445,20 @@ class Exporter:
                 if self.cancel.is_set():
                     raise InterruptedError
                 plan.append(item)
+                if len(plan) % 500 == 0:
+                    self._set(found=len(plan))      # said while counting
+            self._set(found=len(plan))
             # What is already there (same name, same size) is not copied again,
             # so an export to the same drive next month only adds what is new.
+            # On Windows each folder on the drive is listed once (see
+            # Listing), not asked about file by file.
             todo, claimed, skipped = [], set(), 0
+            there = Listing() if os.name == "nt" else None
             for src, dest, size in plan:
+                if self.cancel.is_set():
+                    raise InterruptedError
                 try:
-                    place = _place(dest, size, claimed)
+                    place = _place(dest, size, claimed, there)
                 except OSError as exc:
                     log.warning("export: could not check %s: %s", dest, exc)
                     self._error()
@@ -516,14 +524,60 @@ class Exporter:
             self._set(running=False, finished_at=time.time())
 
 
-def _place(dest: str, size: int, claimed: set[str] | None = None) -> str | None:
+class Listing:
+    """The files in each folder on the drive, read once per folder.
+
+    On Windows, asking the drive about every file one by one (does
+    IMG_0001.JPG exist, how big is it: a file opened and closed each time)
+    was the wait before a copy to a drive started, on a library of tens of
+    thousands: on a pendrive's FAT or exFAT a folder is searched from the top
+    for each name, and a big folder of photos is searched thousands of times.
+    A folder's listing carries every file's size there, so it is read once
+    and the answers come from memory. (On Linux and macOS a listing has no
+    sizes, so each file is asked about as before.)"""
+
+    def __init__(self) -> None:
+        self.folders: dict[str, tuple[dict[str, int], dict[str, str]]] = {}
+
+    def size(self, path: str) -> int | None:
+        """The size of the file at *path*, or None when there is none."""
+        folder, name = os.path.split(path)
+        if folder not in self.folders:
+            files: dict[str, int] = {}
+            try:
+                with os.scandir(long_path(folder)) as entries:
+                    for entry in entries:
+                        try:
+                            if entry.is_file():
+                                files[entry.name] = entry.stat().st_size
+                        except OSError:
+                            continue
+            except FileNotFoundError:
+                pass                       # nothing copied there yet
+            self.folders[folder] = (files, {n.casefold(): n for n in files})
+        files, folded = self.folders[folder]
+        if name in files:
+            return files[name]
+        if name.casefold() in folded:
+            # The same name but for its case: one file on a FAT drive or a
+            # Mac's, two on Linux's own. The drive says which.
+            try:
+                return os.stat(long_path(path)).st_size
+            except FileNotFoundError:
+                return None
+        return None
+
+
+def _place(dest: str, size: int, claimed: set[str] | None = None,
+           there: Listing | None = None) -> str | None:
     """Where a file of *size* goes: *dest*, or "name (2).jpg" when a different
     file already has that name; None when it is there already.
 
     *claimed* holds the names this export has already settled on, compared
     without case: on a FAT or exFAT drive (most pendrives) IMG_1.JPG and
     img_1.jpg are one file, and the second would overwrite the first. Only
-    a name that is not there is free; any other error is raised."""
+    a name that is not there is free; any other error is raised. *there*,
+    when given, answers from each folder's listing instead of the drive."""
     claimed = set() if claimed is None else claimed
     stem, ext = os.path.splitext(dest)
     for n in range(1, 1000):
@@ -531,12 +585,17 @@ def _place(dest: str, size: int, claimed: set[str] | None = None) -> str | None:
         key = os.path.normcase(candidate).lower()
         if key in claimed:
             continue
-        try:
-            there = os.stat(long_path(candidate)).st_size == size
-        except FileNotFoundError:
+        if there is not None:
+            found = there.size(candidate)
+        else:
+            try:
+                found = os.stat(long_path(candidate)).st_size
+            except FileNotFoundError:
+                found = None
+        if found is None:
             claimed.add(key)
             return candidate
-        if there:
+        if found == size:
             claimed.add(key)
             return None
     raise OSError(f"No free name for {dest}")

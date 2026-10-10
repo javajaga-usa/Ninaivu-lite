@@ -33,8 +33,9 @@ from urllib.parse import quote
 from flask import Blueprint, Response, current_app, jsonify, request, send_file
 from PIL import Image
 
-from . import auth, db, media
+from . import auth, db, media, parallel
 from .common import (
+    ApiError,
     asset_path,
     asset_public,
     body,
@@ -79,7 +80,7 @@ INLINE_TYPES = frozenset({
 NO_LOCATION_EXTS = frozenset({"gif", "bmp"})
 
 #: Videos copied without their metadata at once. ffmpeg runs inside the
-#: request, for guests and links too, and the server has eight threads in all.
+#: request, for guests and links too, and the server has sixteen threads in all.
 FFMPEG_SLOTS = threading.BoundedSemaphore(2)
 #: How long a second request for the same video waits for the first one's copy.
 STRIP_WAIT = 30.0
@@ -87,6 +88,14 @@ STRIP_WAIT = 30.0
 VIEWS_MAX_BYTES = 2 * 1024 ** 3
 VIEWS_CHECK_EVERY = 60.0
 _strip_locks: dict[int, threading.Lock] = {}
+#: Thumbnails made while a phone waits for them, and viewing copies: a few at
+#: a time (see :class:`parallel.Slots`), so they never hold every one of the
+#: server's threads. A tile past the waiting room is told to ask again (the
+#: grid does, once, a moment later); a photograph opened in the viewer waits.
+TILES = parallel.Slots(parallel.REQUEST_WORK, parallel.REQUEST_WAITING)
+VIEWS = parallel.Slots(parallel.REQUEST_WORK, parallel.SERVER_THREADS // 2, wait_for=60.0)
+#: Seconds a tile turned away is asked for again after (said in Retry-After).
+TILE_RETRY = 2
 _views_lock = threading.Lock()
 _views_checked_at = 0.0
 
@@ -687,10 +696,16 @@ def thumb_response(row: sqlite3.Row, requested: str | None, *, cache: str) -> Re
     # A file on disk is served only when the index says it is this row's:
     # ids are handed out again, and a removed photograph's thumbnail (a
     # Hidden one, say) stays behind until the new one is made over it.
-    made = scanner().thumbnail_now(conn(), row["id"], size)
-    if not made and size != "s":
-        size = "s"
-        made = scanner().thumbnail_now(conn(), row["id"], size)
+    try:
+        made = scanner().thumbnail_now(conn(), row["id"], size, slots=TILES)
+        if not made and size != "s":
+            size = "s"
+            made = scanner().thumbnail_now(conn(), row["id"], size, slots=TILES)
+    except parallel.Busy:
+        response = ApiError(503, "Busy making other thumbnails. Try again in a moment.") \
+            .get_response()
+        response.headers["Retry-After"] = str(TILE_RETRY)
+        return response
     path = media.thumb_path(thumbs, row["id"], size)
     if not made or not path.is_file():
         fail(404, "This item has no thumbnail.")
@@ -768,7 +783,12 @@ def viewing_response(row: sqlite3.Row, path: str, max_age: int, turned: bool = F
         f"{row['id']}-{st.st_size}-{int(st.st_mtime)}{f'-t{rotation}' if rotation else ''}.jpg"
     if not cache.is_file():
         try:
-            data = media.viewing_copy(path, rotation=rotation)
+            # A full photograph decoded and shrunk: a core's worth, so taken
+            # in turn with the thumbnails being made for others.
+            with VIEWS.slot():
+                data = media.viewing_copy(path, rotation=rotation)
+        except parallel.Busy:
+            fail(503, "Busy preparing other photographs. Try again in a moment.")
         except Exception as exc:  # noqa: BLE001 — damaged or unsupported: say so
             log.debug("no viewing copy for %s: %s", path, exc)
             fail(415, "This photograph could not be converted for the browser.")

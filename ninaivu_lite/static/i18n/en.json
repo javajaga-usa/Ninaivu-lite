@@ -3017,6 +3017,7 @@
   "Copying to the drive": "Copying to the drive",
   "The drive is the source. Check the destination, then press Start.": "The drive is the source. Check the destination, then press Start.",
   "Counting the photos and videos…": "Counting the photos and videos…",
+  "Counting the photos and videos… {found} so far": "Counting the photos and videos… {found} so far",
   "There is no library to copy yet. Choose a photo folder first.": "There is no library to copy yet. Choose a photo folder first.",
   "A copy to a drive is already running.": "A copy to a drive is already running.",
   "This drive holds the library itself, so it cannot be copied onto it.": "This drive holds the library itself, so it cannot be copied onto it.",
