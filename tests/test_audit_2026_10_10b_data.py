@@ -3,7 +3,6 @@ Rotate bar, index version 10)."""
 from __future__ import annotations
 
 import os
-import sys
 import time
 
 from PIL import Image
@@ -126,12 +125,7 @@ def test_two_copies_before_a_change_in_the_same_second_both_stay(tmp_path, monke
 
 
 def test_fat_and_exfat_are_known_from_the_mount_table(tmp_path):
-    import pytest
-
     from ninaivu_lite import drives
-    if not sys.platform.startswith("linux"):
-        # Linux's mount table and Linux paths; elsewhere the check is off.
-        pytest.skip("reads the mount table the way Linux writes it")
     mounts = tmp_path / "mounts"
     mounts.write_text("/dev/sda1 / ext4 rw 0 0\n"
                       "/dev/sdb1 /media/me/MY\\040STICK vfat rw 0 0\n"
