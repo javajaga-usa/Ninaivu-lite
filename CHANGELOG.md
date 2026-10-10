@@ -2,9 +2,17 @@
 
 ## Unreleased
 
-A complete audit of 1.11.0 (A137-A179 and M22-M25; the report is in the project's audits
-folder). The index is unchanged (version 9), so 1.11.0 and earlier can still open the data
-folder. The photographs and videos are never touched.
+## 1.11.1 — 2026-10-10
+
+The index is unchanged (version 9), so 1.11.1, 1.11.0, 1.10.0, 1.9.0, 1.8.0 and 1.7.0 can open
+each other's data folder: going back needs no backup restore. Before installing 1.11.1, stop
+Ninaivu Lite: in the Control Panel press **Stop**, then close it (on a Linux server,
+`sudo systemctl stop ninaivu-lite`); the photos, people, settings, index and backups are kept.
+Coming from an older portable zip: extract the new zip to a new folder and copy the old
+`data` folder beside the new `Ninaivu Lite.exe`.
+
+A complete audit of 1.11.0 (A137-A179 and M22-M25). The photographs and videos are never
+touched.
 
 Screens:
 
