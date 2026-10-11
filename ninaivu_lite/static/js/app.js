@@ -12,6 +12,7 @@ import { initPalette } from './palette.js';
 import { wireDialogs } from './dialogs.js';
 import { PosterMaker } from './posters.js';
 import { wireJump } from './jump.js';
+import { wireOnThisDay } from './on-this-day.js';
 
 const $ = (sel) => document.querySelector(sel);
 const store = {
@@ -30,7 +31,8 @@ const state = {
   user: null,
   view: 'all',
   filters: { q: '', kinds: [], favorites: false,
-             folder: '', camera: '', from: '', to: '', album: 0, sort: 'date_desc' },
+             folder: '', camera: '', from: '', to: '', album: 0, sort: 'date_desc',
+             onThisDay: '', near: 0, nearName: '' },
   albums: [],
   status: null,
   facets: null,
@@ -51,6 +53,8 @@ let searchController = null;
 let paging = { next: null, filters: null, signal: null, loading: false };
 //: The "Jump to" button over the grid (jump.js).
 let jump = null;
+//: The "On this day" row over the timeline (on-this-day.js).
+let onThisDay = null;
 /** Items per piece as the grid is scrolled; about a quarter of a second each. */
 const GALLERY_PAGE = 25000;
 /** The most one request may ask for (the server's own cap). */
@@ -974,6 +978,7 @@ async function reload({ resetScroll = false } = {}) {
     setLoading(false);
   }
   renderFilterBar();
+  onThisDay?.refresh();
   loadMoreIfNear();
 }
 
@@ -1084,7 +1089,7 @@ function setLoading(on) {
 function anyFilter() {
   const f = state.filters;
   return Boolean(f.q || f.folder || f.camera || f.from || f.to
-    || f.album || f.favorites || f.kinds?.length);
+    || f.album || f.favorites || f.kinds?.length || f.onThisDay || f.near);
 }
 
 function showEmpty(title, text, { signIn = false, retry = false } = {}) {
@@ -1238,6 +1243,14 @@ function wireChrome() {
     filters: currentFilters,
     hasMore: () => paging.next != null,
     loadMore: () => loadMoreIfNear({ force: true }),
+  });
+  onThisDay = wireOnThisDay({
+    wanted: () => state.view === 'all' && !anyFilter(),
+    open: (ids, index, thumbed) => viewer.open(ids, index, thumbed),
+    seeAll: (day) => {
+      state.filters.onThisDay = day;
+      reload({ resetScroll: true });
+    },
   });
   wireVisibility();
   wireSharing();
@@ -1590,6 +1603,11 @@ function renderFilterBar() {
     state.filters.from = '';
     state.filters.to = '';
   }]);
+  if (state.filters.onThisDay) chips.push([i18n.t('On this day'), state.filters.onThisDay.slice(5), () => (state.filters.onThisDay = '')]);
+  if (state.filters.near) chips.push([i18n.t('Taken nearby'), state.filters.nearName || i18n.t('Taken nearby'), () => {
+    state.filters.near = 0;
+    state.filters.nearName = '';
+  }]);
   if (state.filters.album) {
     const album = (state.albums || []).find((a) => a.id === state.filters.album);
     chips.push([i18n.t('Album'), album?.name || i18n.t('Album'), () => (state.filters.album = 0)]);
@@ -1668,7 +1686,8 @@ function renderFilterBar() {
 
 function clearFilters() {
   clearTimeout(searchTimer);
-  state.filters = { ...state.filters, q: '', folder: '', camera: '', from: '', to: '', album: 0 };
+  state.filters = { ...state.filters, q: '', folder: '', camera: '', from: '', to: '', album: 0,
+    onThisDay: '', near: 0, nearName: '' };
   $('#suggestions').hidden = true;
   $('#search').value = '';
   $('#clear-search').hidden = true;
@@ -2203,6 +2222,16 @@ function wireViewer() {
       }
     }
     refreshStatus();
+  });
+
+  // "Photos taken nearby" in a photograph's details: the grid, filtered to
+  // within a kilometre of where it was taken.
+  viewer.addEventListener('nearby', (event) => {
+    const { item } = event.detail;
+    viewer.close();
+    state.filters.near = item.id;
+    state.filters.nearName = item.name;
+    reload({ resetScroll: true });
   });
 
   viewer.addEventListener('jump', async (event) => {

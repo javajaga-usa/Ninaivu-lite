@@ -724,6 +724,20 @@ export class Viewer extends EventTarget {
       dd.textContent = escapeText(value);
       this.infoList.append(dt, dd);
     }
+    // Where it was taken is sent to the family only; with it, the grid can
+    // show what else was taken within a kilometre.
+    if (Array.isArray(item.gps) && item.gps[0] != null) {
+      const dt = document.createElement('dt');
+      dt.textContent = i18n.t('Place');
+      const dd = document.createElement('dd');
+      const near = document.createElement('button');
+      near.type = 'button';
+      near.className = 'btn ghost small info-nearby';
+      near.textContent = i18n.t('Photos taken nearby');
+      near.onclick = () => this.dispatchEvent(new CustomEvent('nearby', { detail: { item } }));
+      dd.appendChild(near);
+      this.infoList.append(dt, dd);
+    }
   }
 
   /* -- mutations ------------------------------------------------------- */

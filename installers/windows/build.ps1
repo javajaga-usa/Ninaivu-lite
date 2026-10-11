@@ -145,7 +145,7 @@ Write-Host "Noto Sans Tamil in $fonts"
 $wheels = Join-Path $here "wheels"
 if (Test-Path $wheels) { Remove-Item -Recurse -Force $wheels }
 New-Item -ItemType Directory $wheels | Out-Null
-python -m pip wheel --wheel-dir $wheels -r (Join-Path $root "requirements.txt"); Check "pip wheel (requirements)"
+python -m pip wheel --wheel-dir $wheels -r (Join-Path $root "requirements-installer.txt"); Check "pip wheel (requirements)"
 python -m pip wheel --wheel-dir $wheels --no-deps $root; Check "pip wheel (Ninaivu Lite)"
 
 # Tk, for the Control Panel. The embeddable Python pynsist bundles has no

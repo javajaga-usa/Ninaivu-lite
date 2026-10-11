@@ -8,9 +8,28 @@ start keeps the index as it was in `backups/before-update-from-index-10-<time>.z
 to 1.12.0, install it and restore that zip with `--restore <zip>` (favourites, albums and
 other changes made since are not in it). Stop Ninaivu Lite before installing, as always.
 
-Live Photos, and a read-only list of copies in the console. The photographs and videos are
-never moved, changed or deleted.
+Live Photos, a read-only list of copies, On this day, Photos taken nearby and HEIC in every
+installer. The photographs and videos are never moved, changed or deleted.
 
+- **iPhone HEIC photos in every installer.** The Windows installer, the portable zip, the
+  macOS and Linux installers and the Docker image now carry `pillow-heif`, so the HEIC photos
+  an iPhone takes show as photographs instead of plain tiles, with no command to run. Running
+  from a checkout keeps the three packages; `pip install pillow-heif` adds it there
+  (`requirements-installer.txt` lists what the installers carry). The macOS build checks the
+  bundled Python can load it.
+- **On this day.** Above the timeline, a row of the photos taken on today's date in earlier
+  years, each marked with its year: tap one to open it, *See all* to show them all in the
+  gallery, × to hide the row until tomorrow on that device. Only on the plain timeline, and
+  only what that person may see (`/api/segments?on_this_day=YYYY-MM-DD`).
+- **Photos taken nearby.** A photo that knows where it was taken has *Photos taken nearby* in
+  its details (ⓘ): the gallery then shows what was taken within about a kilometre of it, as
+  a filter that × removes. For the family and administrators only, as where a photo was
+  taken always is; a guest's request for it is ignored (`/api/segments?near=<id>`).
+- **Adding the gallery to a phone's home screen** is now a step in the user guide, for iPhone,
+  iPad and Android.
+- **M42:** the date scrubber down the right edge of the gallery lay over the filter bar and
+  the selection bar, so its year labels took clicks meant for *Clear all* and the last
+  button on the right. Those bars now sit above it.
 - **Live Photos are one photo that moves.** An iPhone keeps a Live Photo as `IMG_1234.HEIC` (or
   `.JPG`) and a short `IMG_1234.MOV` side by side; an export from Google Photos as
   `MVIMG_1234.jpg` and `.mp4`. The scan pairs them (same folder, same name in any case, a

@@ -72,7 +72,7 @@ else
     for p in "${platforms[@]}"; do platform_args+=(--platform "$p"); done
     python3 -m pip download --quiet --dest "$payload/wheels" --only-binary=:all: \
         --python-version "$minor" --implementation cp --abi "cp${minor/./}" --abi abi3 --abi none \
-        "${platform_args[@]}" -r "$root/requirements.txt"
+        "${platform_args[@]}" -r "$root/requirements-installer.txt"
 fi
 
 # 3. Ninaivu Lite itself.

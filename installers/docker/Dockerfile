@@ -23,8 +23,8 @@ RUN if [ "$WITH_FFMPEG" = "1" ]; then \
     fi
 
 WORKDIR /app
-COPY requirements.txt ./
-RUN pip install -r requirements.txt
+COPY requirements.txt requirements-installer.txt ./
+RUN pip install -r requirements-installer.txt
 COPY ninaivu_lite ./ninaivu_lite
 COPY README.md LICENSE ./
 
