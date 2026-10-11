@@ -241,6 +241,32 @@ def test_the_console_section_buttons_take_a_finger_sized_tap(browser, server):  
         context.close()
 
 
+def test_the_year_chips_take_a_finger_sized_tap(browser, server):  # noqa: F811
+    context, page, errors = phone(browser, server, 360, 740)
+    try:
+        page.goto(server["base"] + "/")
+        page.wait_for_selector("#grid .cell img.ready")
+        settle(page)
+        # The strip shows with two years or more; this library has one, so
+        # the strip is given two chips as filters.js draws them.
+        found = page.evaluate("""() => {
+          const strip = document.querySelector('#year-strip');
+          strip.innerHTML = '<button class="chip">2024</button><button class="chip">2023</button>';
+          strip.hidden = false;
+          const chip = strip.querySelector('.chip'), r = chip.getBoundingClientRect();
+          const at = (y) => { const e = document.elementFromPoint(r.left + r.width / 2, y);
+                              return !!e && (e === chip || chip.contains(e)); };
+          // 5 px above and below a 33 px chip: inside a 44 px target.
+          return { height: r.height, strip: strip.offsetHeight,
+                   above: at(r.top - 5), below: at(r.bottom + 5) }; }""")
+        # PHONE7: the sideways strip stopped the target 2 px under the chip.
+        assert found["above"] and found["below"], found
+        assert found["strip"] <= 47, found      # was 43: a little taller only
+        assert not errors, errors
+    finally:
+        context.close()
+
+
 @pytest.fixture(scope="module")
 def first_day(tmp_path_factory):
     """`python -m ninaivu_lite` with no library folder yet and an

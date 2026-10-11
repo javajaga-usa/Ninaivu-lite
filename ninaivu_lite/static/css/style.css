@@ -1446,6 +1446,13 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 @media (max-width: 900px) {
   .year-strip:not([hidden]) { display: flex; }
 }
+/* PHONE7: the strip scrolls sideways and so clips what its chips draw outside
+   it: their 44 px touch targets stopped 2 px under the chips, 40 px in all.
+   6 px each side holds the target; the strip is 2 px taller. (A phone on its
+   side and the Pi's screen show no strip: M64.) */
+@media (hover: none) and (pointer: coarse) {
+  .year-strip { padding-block: 6px; }
+}
 
 /* On this day (on-this-day.js) ------------------------------------------- */
 
