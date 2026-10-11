@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from ninaivu_lite import db, drives, importer, media, parallel
+from ninaivu_lite import db, drives, import_copy, importer, media, parallel
 from ninaivu_lite import scanner as scanner_module
 from ninaivu_lite.scanner import Scanner
 
@@ -355,7 +355,7 @@ def test_a126_a_failed_write_waits_for_the_read_in_flight(tmp_path, monkeypatch)
         f = real_open(path, mode, *args, **kwargs)
         return Full(f) if "w" in mode else f
 
-    monkeypatch.setattr(importer, "open", opening, raising=False)
+    monkeypatch.setattr(import_copy, "open", opening, raising=False)
     before = threading.active_count()
     with pytest.raises(OSError):
         imp._copy_and_hash(str(tmp_path / "src.bin"), str(tmp_path / "out.tmp"))
@@ -516,7 +516,7 @@ def test_a129_an_import_asks_the_library_to_look_now_and_then_not_every_500_file
     assert len(looks) == 1
 
     looks.clear()
-    monkeypatch.setattr(importer, "SHOW_EVERY", 0)
+    monkeypatch.setattr(import_copy, "SHOW_EVERY", 0)
     for i in range(3):
         (card / "new" / f"N{i}.jpg").parent.mkdir(exist_ok=True)
         (card / "new" / f"N{i}.jpg").write_bytes(b"\xff\xd8\xff" + bytes([i]) * importer.MIN_BYTES)

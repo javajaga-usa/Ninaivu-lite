@@ -101,6 +101,7 @@ ninaivu_lite/
   scanner.py      incremental walk, dates, folder rules, two thumbnail passes, watching
   media.py dates.py folders.py backups.py net.py export.py
   importer.py     one background thread: dated archive, hashes, duplicates, dry run, audit
+  import_plan.py import_walk.py import_copy.py   its rules and checks, its walk, its copying
   takeout.py      a Google Photos export's albums, made again after the import
   common.py       request helpers, visibility filter, Ninaivu item shape
   pages.py        /, /admin, /share/<token>, manifests, health, local stop

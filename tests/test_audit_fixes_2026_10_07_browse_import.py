@@ -18,7 +18,7 @@ from types import SimpleNamespace
 import pytest
 from conftest import ids, sign_in
 
-from ninaivu_lite import auth, db, drives, importer, phones
+from ninaivu_lite import auth, db, drives, import_copy, importer, phones
 from ninaivu_lite.importer import Importer
 from test_import import noisy_jpeg, rows, run, sha, wait_for
 
@@ -335,7 +335,7 @@ def test_a90_free_space_counts_only_what_this_archive_already_holds(tmp_path, mo
     assert engine._done_bytes([str(first)], str(tmp_path / "Archive2")) == 0
     assert engine._done_bytes([str(second)], str(tmp_path / "Archive1")) == 0
     # Another archive with almost no room: earlier imports elsewhere do not make room.
-    monkeypatch.setattr(importer, "free_space", lambda _d: 1000)
+    monkeypatch.setattr(import_copy, "free_space", lambda _d: 1000)
     other = run(data, [second], tmp_path / "Archive2")
     assert other.job["phase"] == "failed"
     said = other.job["message"]
@@ -624,7 +624,7 @@ def test_a100_a_sidecar_is_written_whole_or_not_at_all(tmp_path, monkeypatch):
             f.write("<x:xm")
         raise OSError(errno.ENOSPC, "No space left on device")
 
-    monkeypatch.setattr(importer.shutil, "copy2", short)
+    monkeypatch.setattr(import_copy.shutil, "copy2", short)
     engine._copy_sidecars(str(photo), str(final))
     assert not (out / "IMG_1.xmp").exists()
     assert not (out / "IMG_1.xmp.partial").exists()
@@ -666,7 +666,7 @@ def test_a90_a_full_destination_stops_the_run_at_once(tmp_path, monkeypatch):
         raise OSError(errno.ENOSPC, "No space left on device")
 
     monkeypatch.setattr(Importer, "_copy_and_hash", full)
-    monkeypatch.setattr(importer, "too_big", lambda dest, size: False)   # really full
+    monkeypatch.setattr(import_copy, "too_big", lambda dest, size: False)   # really full
     src = tmp_path / "Drive"
     photos(src, 4)
     engine = run(tmp_path / "data", [src], tmp_path / "Archive")
