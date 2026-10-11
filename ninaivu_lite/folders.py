@@ -84,7 +84,7 @@ def starting_points() -> list[dict[str, str]]:
 def unbrowsable(path: str) -> bool:
     """True for a system folder the picker never opens (/proc and the like)."""
     key = _key(os.path.abspath(path))
-    return any(key == u or key.startswith(u + "/") for u in UNBROWSABLE)
+    return any(key == u or key.startswith((u + "/", u + "\\")) for u in UNBROWSABLE)
 
 
 def list_dirs(path: str) -> dict:
