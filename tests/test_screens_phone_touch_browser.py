@@ -77,6 +77,45 @@ def test_back_closes_the_photograph_not_the_gallery(browser, server):  # noqa: F
         context.close()
 
 
+def test_back_closes_the_drawer_not_the_gallery(browser, server):  # noqa: F811
+    context, page, errors = phone(browser, server)
+    drawer_open = "document.querySelector('.shell').classList.contains('mobile-open')"
+    try:
+        page.goto(server["base"] + "/healthz")
+        page.goto(server["base"] + "/")
+        page.wait_for_selector("#grid .cell img.ready")
+        settle(page)
+        start = page.evaluate("history.length")
+        page.tap("#sidebar-toggle")
+        page.wait_for_timeout(300)
+        assert page.evaluate(drawer_open)
+        # PHONE6: Back went to the page before the gallery.
+        page.go_back()
+        page.wait_for_timeout(400)
+        assert page.url == server["base"] + "/", page.url
+        assert not page.evaluate(drawer_open)
+        # Closed by a pick in it, then the photograph opened and closed: one
+        # entry each came and went, and Back leaves the gallery as before.
+        page.tap("#sidebar-toggle")
+        page.wait_for_timeout(300)
+        page.tap(".side-item[data-view='all']")
+        page.wait_for_timeout(500)
+        assert not page.evaluate(drawer_open)
+        page.locator("#grid .cell").first.tap()
+        page.wait_for_selector("#viewer:not([hidden])")
+        page.tap("#v-close")
+        page.wait_for_timeout(400)
+        # Never more than the one entry above the gallery's own.
+        assert page.evaluate("history.length") == start + 1, page.evaluate("history.length")
+        assert not page.evaluate("history.state?.viewer || history.state?.drawer")
+        page.go_back()
+        page.wait_for_timeout(400)
+        assert page.url.endswith("/healthz"), page.url
+        assert not errors, errors
+    finally:
+        context.close()
+
+
 # The grid glides on after a flick: a scroll every frame for 700 ms, as a
 # fling runs. Returns once it has stopped.
 GLIDE = """() => new Promise((done) => {
