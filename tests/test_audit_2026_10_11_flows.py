@@ -59,6 +59,25 @@ def test_installer_builds_take_wheels_only():
     assert "--only-binary=:all:" in linux
 
 
+def test_a_linux_install_with_sudo_does_not_warn_about_pip_as_root():
+    """`sudo sh Ninaivu-Lite-…-linux-arm64.sh` printed pip's warning that
+    running it as root could render the system unusable."""
+    install = (ROOT / "installers" / "linux" / "install.sh").read_text(encoding="utf-8")
+    call = install[install.index("-m pip install"):]
+    call = call[:call.index("wheels/*.whl")]
+    assert "--root-user-action=ignore" in call
+
+
+def test_a_release_waits_for_the_docker_image():
+    """People build the Docker image from the released tag: a Dockerfile that
+    no longer builds must stop the release, as a broken installer does."""
+    release = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    job = release[release.index("\n  release:"):]
+    needs = re.search(r"needs: \[([^\]]*)\]", job).group(1)
+    assert {"version", "tests", "windows", "macos", "linux", "docker"} <= {
+        n.strip() for n in needs.split(",")}
+
+
 def test_ci_runs_the_tests_with_what_the_installers_carry():
     """Every installer carries pillow-heif; the tests run with it too, so the
     HEIC path that ships is the path that is tested."""
@@ -222,3 +241,39 @@ def test_an_iphone_heic_and_its_movie_show_as_one_photograph(app, admin, library
     assert thumb.status_code == 200 and Image.open(io.BytesIO(thumb.data)).size[0] > 0
     # Never written to.
     assert still.read_bytes() == before
+
+
+# --- an import that leaves small files out says so ----------------------------------------
+
+
+def test_an_import_says_how_many_small_files_it_left_out(tmp_path):
+    """Photos under 24 KB (an old phone's VGA pictures) are left out of an
+    import; the run said only "Finished: 0 files archived and verified", so a
+    card could be wiped believing everything was safe."""
+    from test_import import noisy_jpeg, run
+
+    src = tmp_path / "Old phone"
+    noisy_jpeg(src / "big.jpg", seed=3)
+    for n in range(2):
+        tiny = src / f"tiny-{n}.jpg"
+        Image.new("RGB", (64, 48), (n * 90, 40, 200)).save(tiny, "JPEG")
+        assert tiny.stat().st_size < 24 * 1024
+    for mode in ("dry-run", "copy"):
+        done = run(tmp_path / f"data-{mode}", [src], tmp_path / f"Archive-{mode}", mode=mode)
+        said = done.job["message"]
+        small = "{small} files under 24 KB were left out as icons or thumbnails."
+        assert small in [part["key"] for part in said["more"]], mode
+        assert "2 files under 24 KB were left out" in said["text"]
+    ta = json.loads((STATIC / "i18n" / "ta.json").read_text(encoding="utf-8"))
+    assert "{small}" in ta[small]
+
+
+def test_a_restore_under_a_running_linux_service_says_how_to_stop_it(tmp_path, monkeypatch,
+                                                                     capsys):
+    """A Linux server has no Control Panel: the refusal named only its Stop."""
+    from ninaivu_lite import __main__ as cli
+    from ninaivu_lite import net
+    monkeypatch.setattr(net, "already_running", lambda port, instance=None: True)
+    assert cli.main(["--data", str(tmp_path / "data"), "--restore", str(tmp_path / "x.zip")]) == 2
+    said = capsys.readouterr().err
+    assert "Control Panel" in said and "sudo systemctl stop ninaivu-lite" in said

@@ -3112,6 +3112,7 @@
   "{errors} could not be archived.": "{errors} could not be archived.",
   "{unreadable} folders could not be read.": "{unreadable} folders could not be read.",
   "{packed} zip or other packed files were left alone: unpack them (a Google Takeout export, say) and import the folder.": "{packed} zip or other packed files were left alone: unpack them (a Google Takeout export, say) and import the folder.",
+  "{small} files under 24 KB were left out as icons or thumbnails.": "{small} files under 24 KB were left out as icons or thumbnails.",
   "The run failed.": "The run failed.",
   "The run stopped with an error: {why}": "The run stopped with an error: {why}",
   "Not enough room: the archive needs about {needed} free and the destination has {free}.": "Not enough room: the archive needs about {needed} free and the destination has {free}.",

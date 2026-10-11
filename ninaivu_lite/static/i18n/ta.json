@@ -3213,6 +3213,7 @@
   "{errors} could not be archived.": "{errors} ஐக் காப்பகத்தில் சேர்க்க முடியவில்லை.",
   "{unreadable} folders could not be read.": "{unreadable} கோப்புறைகளைப் படிக்க முடியவில்லை.",
   "{packed} zip or other packed files were left alone: unpack them (a Google Takeout export, say) and import the folder.": "{packed} zip அல்லது சுருக்கிய கோப்புகள் தொடப்படவில்லை: அவற்றை விரித்து (எ.கா. Google Takeout ஏற்றுமதி) அந்தக் கோப்புறையை இறக்குமதி செய்யவும்.",
+  "{small} files under 24 KB were left out as icons or thumbnails.": "24 KB-க்குக் குறைவான {small} கோப்புகள் சின்னங்கள் அல்லது சிறுபடங்கள் என விடப்பட்டன.",
   "The run failed.": "ஓட்டம் தோல்வியடைந்தது.",
   "The run stopped with an error: {why}": "பிழையுடன் ஓட்டம் நின்றது: {why}",
   "Not enough room: the archive needs about {needed} free and the destination has {free}.": "இடம் போதவில்லை: காப்பகத்துக்குச் சுமார் {needed} காலியிடம் தேவை; இலக்கில் {free} உள்ளது.",

@@ -149,8 +149,8 @@ def restore_backup(data_dir: str | None, bundle: str) -> int:
     if (lock.held_elsewhere(folder)
             or net.already_running(state_port(folder, DEFAULT_PORT), lock.known_instance(folder))
             or not lock.acquire(folder)):
-        print(f"  {APP_NAME} is running. Stop it (Control Panel, Stop) and run this again.",
-              file=sys.stderr)
+        print(f"  {APP_NAME} is running. Stop it (Control Panel, Stop; on a Linux server, "
+              "sudo systemctl stop ninaivu-lite) and run this again.", file=sys.stderr)
         return 2
     try:
         aside = backups.restore(folder, bundle)

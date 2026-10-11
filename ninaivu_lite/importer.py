@@ -509,7 +509,7 @@ class Importer:
                 "processed": 0, "stepped_over": 0, "total_files": 0, "total_bytes": 0,
                 "bytes_copied": 0, "started_at": time.time(), "ended_at": None,
                 "fresh_started": None, "unreadable": 0, "job_id": None, "plan_aside": {},
-                "library": [f for f in library if f], "packed": 0,
+                "library": [f for f in library if f], "packed": 0, "too_small": 0,
             }
             self._thread = threading.Thread(target=self._run, name="importer", daemon=True)
             self._thread.start()
@@ -842,6 +842,12 @@ class Importer:
             parts.append("{packed} zip or other packed files were left alone: unpack them (a "
                          "Google Takeout export, say) and import the folder.")
             values["packed"] = f"{j['packed']:,}"
+        if j.get("too_small"):
+            # Left out without a word, an import of an old phone's tiny photos
+            # said "0 files archived", and the card could be wiped believing
+            # everything was safe.
+            parts.append("{small} files under 24 KB were left out as icons or thumbnails.")
+            values["small"] = f"{j['too_small']:,}"
         said = [_say(part, **{k: v for k, v in values.items() if "{" + k + "}" in part})
                 for part in parts]
         return {"key": said[0]["key"], "vars": said[0]["vars"],
@@ -875,7 +881,7 @@ class Importer:
             if total % 500 == 0:
                 self._set(total_files=total, total_bytes=size)
         self._set(total_files=total, total_bytes=size, unreadable=counters.get("unreadable", 0),
-                  packed=counters.get("packed", 0))
+                  packed=counters.get("packed", 0), too_small=counters.get("too_small", 0))
         if not dry:
             # Only what this run's sources already put in this archive is
             # room not needed again: every earlier import, to anywhere, is not.
