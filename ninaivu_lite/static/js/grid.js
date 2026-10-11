@@ -610,7 +610,12 @@ export class Grid extends EventTarget {
     // Tiles on screen still waiting for their picture come first: while any
     // is, nothing ahead is started (the prefetcher asks tilesLoading), and
     // the tiles' own load events start it again.
-    this.prefetcher.want(urls, this.shownUrls());
+    const keep = this.shownUrls();
+    // PERF4: stopped, the small pictures already on their way are let
+    // finish: cancelled at every short pause, the tiles the next stretch of
+    // the scroll put there waited for them from the start, blank.
+    if (!this.scrolling) for (const url of this.prefetcher.active.keys()) keep.add(url);
+    this.prefetcher.want(urls, keep);
   }
 
   /**
