@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Albums scroll like a film roll, as in the iPhone's Photos app.** While the finger or
+  the wheel moves, tiles take the small picture (a quarter of the bytes; on a phone every
+  tile wanted the sharp one, and a scroll met its tiles still empty) and are sharpened once
+  it stops, fetched and decoded on the side first so nothing blinks: Safari blanks a picture
+  the moment its address changes. A picture that arrives at once is simply there, with no
+  fade. Tiles no longer each take a layer of their own (hundreds of GPU textures on a
+  phone), and the hover look stays off until the mouse itself moves, while a click during
+  a glide still opens the photograph under it. (`static/js/grid.js`, `static/css/style.css`)
 - **The largest files are split into smaller ones, and the tests are grouped by what they
   cover.** The gallery's and the console's scripts, the gallery's calls and the importer are
   now several modules each, and the tests named after an audit's date are named after their
