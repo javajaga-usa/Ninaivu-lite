@@ -70,9 +70,10 @@ jobs:
   # The stylesheets and scripts checked for mistakes (package.json), and the
   # whole suite again with what the other jobs leave out, so that nothing is
   # only ever skipped: a real browser (every tests/*_browser.py, and the other
-  # pages the tests open in Chromium), ffmpeg for videos, and OpenCV for the
-  # optional face straightening. Naming one test file here left the film-roll
-  # scroll and the phone long-press tests skipped in every run (FLOW1).
+  # pages the tests open in Chromium), ffmpeg for videos, OpenCV for the
+  # optional face straightening, and a screen (Xvfb) for the Control Panel.
+  # Naming one test file here left the film-roll scroll and the phone
+  # long-press tests skipped in every run (FLOW1).
   browser:
     name: Lint and browser
     runs-on: ubuntu-latest
@@ -94,11 +95,11 @@ jobs:
           cache-dependency-path: requirements*.txt
       - run: python -m pip install -r requirements-browser.txt -r requirements-straighten.txt
       - run: python -m playwright install --with-deps chromium
-      - run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends ffmpeg
-      - name: Every test, with a browser, ffmpeg and OpenCV
+      - run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends ffmpeg xvfb
+      - name: Every test, with a browser, ffmpeg, OpenCV and a screen
         env:
           # Here a missing browser is a failure, not a skip.
           NINAIVU_BROWSER_TESTS: "1"
         # -rs first: what was still skipped (only what needs another system)
         # is listed above any failure.
-        run: python -m pytest -rsfE --tb=short
+        run: xvfb-run -a python -m pytest -rsfE --tb=short
