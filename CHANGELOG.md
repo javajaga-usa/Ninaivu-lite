@@ -89,7 +89,7 @@ installer. The photographs and videos are never moved, changed or deleted.
   signed by the Python Software Foundation), so a different file is refused before use, as
   the macOS and Linux builds already did. The build also shows the hash as a run notice.
 
-A sixth complete audit, of everything above together with 1.12.0 (A203-A245 and M43-M77, 78
+A sixth complete audit, of everything above together with 1.12.0 (A203-A246 and M43-M77, 79
 problems, one High): security, data safety, speed, the installers and flows, and the screens
 on desktop and phone in English and Tamil. The photographs and videos are still never moved,
 changed or deleted.
@@ -129,8 +129,9 @@ changed or deleted.
   A231: Duplicates and each scan pass read only files that share a size (0.57 s to under
   0.1 s). A228: Live Photos are paired only in folders that changed (1.6 s to 1 ms a walk while
   importing). A229: a HEIC is decoded once for both thumbnails (a first scan of iPhone photos
-  about twice as fast). A230: memory a large photo took is given back (about 790 MB to 340 MB
-  on Linux), which a 1 GB Pi needs.
+  about twice as fast). A246: a photo turned again while its thumbnails were being made in the
+  background was made twice. A230: memory a large photo took is given back (about 790 MB to 340
+  MB on Linux), which a 1 GB Pi needs.
 - **Installers and flows.** A232: the optional face straightening asks for OpenCV 4 again;
   OpenCV 5 has no face finder, so it had stopped working. A233-A235, A240, A242, A243: builds
   take wheels only; CI decodes a real HEIC; release notes for a heading without a date; the

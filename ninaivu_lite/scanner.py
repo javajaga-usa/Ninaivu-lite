@@ -1048,6 +1048,9 @@ class Scanner:
             conn = db.connect(self.data_dir)
             # Written down in batches, as in the thumbnail pass (see Batch).
             with Batch(conn, self._record_many) as batch:
+                # Made in this run but perhaps not written down yet (the batch):
+                # asked for again meanwhile, the same turn is not made twice.
+                made_as: dict[int, tuple] = {}
                 while not self._stop.is_set():
                     with self._remaking_lock:
                         if not self._remaking:
@@ -1061,13 +1064,17 @@ class Scanner:
                     # the library meanwhile: nothing to do.
                     if row is None or row["thumb"] != 0 or row["missing"]:
                         continue
+                    if made_as.get(asset_id) == (row["rotation"], row["mirror"]):
+                        continue
                     try:
                         made = self._render(row, ("s", "l"))
                     except Exception:  # noqa: BLE001 — the thumbnail pass tries again
                         log.debug("could not remake thumbnails for %s", asset_id, exc_info=True)
                         continue
-                    if made is not None and batch.add((row, *made)):
-                        self.generation += 1
+                    if made is not None:
+                        made_as[asset_id] = (row["rotation"], row["mirror"])
+                        if batch.add((row, *made)):
+                            self.generation += 1
         finally:
             self.generation += 1
             if not finished:
