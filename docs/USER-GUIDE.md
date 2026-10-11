@@ -140,10 +140,16 @@ Public photograph; choose one you are happy to show.
   months that have photos (*Undated* last), for *Newest first* and *Oldest first*. On a phone
   a row of years sits above the photographs: tap one to see that year; the date button opens
   the list from the bottom of the screen.
+- **On this day** — above the timeline, a row of the photos taken on today's date in earlier
+  years, each marked with its year. Tap one to open it, or *See all* to fill the gallery with
+  them; × hides the row until tomorrow on that device. It shows only when no search, folder,
+  year or album is chosen, and only what you may see.
 - **Folders** — the left menu lists folders with their counts.
 - **Search** — type a file name, a folder, a year or month, or a camera name.
 - **Viewer** — tap a photo. Swipe or use ← → to move, Esc to close. ♡ adds it to your
-  favourites; ⓘ shows the date, size and camera; ⬇ downloads the original.
+  favourites; ⓘ shows the date, size and camera; ⬇ downloads the original. When the photo
+  knows where it was taken, ⓘ also has *Photos taken nearby*: the gallery then shows everything
+  taken within about a kilometre of it (for the family; guests are never shown places).
 - **Select** — *Select all* on a day, or tick photos (on a phone, press and hold a photo, then
   tap others), to add them to an album or download them
   together.
@@ -158,6 +164,13 @@ Public photograph; choose one you are happy to show.
 - **On a phone** — the gallery opens quickly on later visits: the phone keeps the app's own
   files until Ninaivu Lite is updated, then fetches the new ones by itself. Held sideways,
   the sign-in screens and dialogs scroll, so every button can be reached.
+- **An icon on the phone's home screen** — open the gallery's address once in the phone's
+  browser, then: on an **iPhone or iPad**, in Safari, tap Share (the square with an arrow),
+  then *Add to Home Screen*, then *Add*; on **Android**, in Chrome, tap ⋮, then *Add to Home
+  screen* (or *Install app*), then *Add*. The Ninaivu icon then opens the gallery full screen,
+  like an app. The gallery offers this itself the first time, in a small banner at the bottom;
+  × on the banner stops it asking. The phone must be on the home Wi-Fi for the icon to open
+  the photos.
 - **Sideways photos** are put right during the scan, from the camera's own tag, and, when the
   OpenCV extra is installed, from the faces in a photo that has none. The administrator can
   turn or flip any photo or video by hand with ⋯ → *Rotate* (or **R**): on the bar that opens,
@@ -336,8 +349,9 @@ member or administrator scrolls past it or plays it: their browser draws one fra
 Ninaivu keeps it for everyone. A video the browser cannot play keeps the plain tile (install
 `ffmpeg` on the computer for those); it can still be downloaded.
 
-**iPhone HEIC photos show a plain tile.** Run `.venv\Scripts\pip install pillow-heif`
-(Windows) or `.venv/bin/pip install pillow-heif`, then restart.
+**iPhone HEIC photos show a plain tile.** The installers, the portable zip and the Docker image
+read HEIC photos from 1.13.0 on. Running from a checkout, run `.venv\Scripts\pip install
+pillow-heif` (Windows) or `.venv/bin/pip install pillow-heif`, then restart.
 
 **Port 8080 is busy.** Ninaivu Lite uses the next free port and prints it; or choose one
 with `--port`.

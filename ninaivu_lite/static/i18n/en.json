@@ -3162,5 +3162,13 @@
   "Turned {count}; {skipped} could not be turned. The files are not changed.": "Turned {count}; {skipped} could not be turned. The files are not changed.",
   "Play": "Play",
   "Position in the video": "Position in the video",
-  "Shared video": "Shared video"
+  "Shared video": "Shared video",
+  "On this day": "On this day",
+  "See all": "See all",
+  "Hide until tomorrow": "Hide until tomorrow",
+  "On this day in {year}": "On this day in {year}",
+  "1 year ago": "1 year ago",
+  "{count} years ago": "{count} years ago",
+  "Taken nearby": "Taken nearby",
+  "Place": "Place"
 }

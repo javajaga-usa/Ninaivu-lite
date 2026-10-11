@@ -1,0 +1,7 @@
+# What every installer, the portable zip and the Docker image carry: the
+# three packages Ninaivu Lite needs, and pillow-heif, so the HEIC photos an
+# iPhone takes show as photographs rather than plain tiles. It ships wheels for
+# Windows, macOS (Apple silicon and Intel) and Linux on x86-64 and ARM (a Pi).
+# Running from a checkout it stays optional: `pip install pillow-heif`.
+-r requirements.txt
+pillow-heif>=1.1,<2

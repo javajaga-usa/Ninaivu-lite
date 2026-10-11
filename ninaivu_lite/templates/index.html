@@ -364,6 +364,19 @@
       </div>
     </div>
 
+    <!-- On this day: photographs taken on today's date in earlier years,
+         over the plain timeline only (on-this-day.js). -->
+    <section class="on-this-day" id="on-this-day" hidden aria-labelledby="on-this-day-title">
+      <div class="otd-head">
+        <h2 id="on-this-day-title" data-i18n="On this day">On this day</h2>
+        <button class="btn ghost small" id="on-this-day-all" data-i18n="See all">See all</button>
+        <button class="icon-btn" id="on-this-day-close" aria-label="Hide until tomorrow" title="Hide until tomorrow" data-i18n-label="Hide until tomorrow" data-i18n-title="Hide until tomorrow">
+          <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="otd-list" id="on-this-day-list"></div>
+    </section>
+
     <!-- Years, one tap each, where a phone has no sidebar rail. Filled with
          the sidebar's years; hidden with fewer than two. -->
     <div class="year-strip" id="year-strip" hidden role="group" aria-label="Years" data-i18n-label="Years"></div>
