@@ -129,8 +129,8 @@ changed or deleted.
   A231: Duplicates and each scan pass read only files that share a size (0.57 s to under
   0.1 s). A228: Live Photos are paired only in folders that changed (1.6 s to 1 ms a walk while
   importing). A229: a HEIC is decoded once for both thumbnails (a first scan of iPhone photos
-  about twice as fast). A246: a photo rotated twice the same way while its thumbnails were being
-  remade was made twice. A230: memory a large photo took is given back (about 790 MB to 340
+  about twice as fast). A246: when one selection was rotated in two overlapping pieces, a thumbnail
+  could be made twice. A230: memory a large photo took is given back (about 790 MB to 340
   MB on Linux), which a 1 GB Pi needs.
 - **Installers and flows.** A232: the optional face straightening asks for OpenCV 4 again;
   OpenCV 5 has no face finder, so it had stopped working. A233-A235, A240, A242, A243: builds
