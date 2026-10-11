@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 from test_install_backup_restore import clean_logging  # noqa: F401 — a fixture
 
 from ninaivu_lite import __main__ as cli
@@ -42,6 +45,12 @@ def test_a_damaged_index_names_the_backup_and_restore_brings_it_back(
     assert f'--restore "{zipped}"' in said
     log = (data / "logs" / "ninaivu-lite.log").read_text(encoding="utf-8")
     assert "not starting" in log and "is damaged" in log
+    # Nothing holds the damaged file open: on Windows a handle left open kept
+    # --restore from setting it aside.
+    fds = Path("/proc/self/fd")
+    if fds.is_dir():
+        held = [os.readlink(fd) for fd in fds.iterdir() if fd.is_symlink()]
+        assert str(data / db.DB_FILE) not in held, held
 
     # The command it gives puts the index back.
     assert cli.main(["--data", str(data), "--restore", str(zipped)]) == 0
