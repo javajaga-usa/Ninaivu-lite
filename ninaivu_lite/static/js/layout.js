@@ -419,7 +419,7 @@ export function sectionAt(layout, offset) {
       hi = mid - 1;
     }
   }
-  // DESK1: small days share a row (packed), each header at the row's height.
+  // M78: small days share a row (packed), each header at the row's height.
   // The row is the first of its days, the one read first: the last of them
   // had Jump to say "Jul 2026" over a top row that starts in September.
   while (at > 0 && list[at - 1].y === list[at].y) at -= 1;

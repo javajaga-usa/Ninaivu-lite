@@ -591,7 +591,7 @@ export function cycleTheme() {
   const current = document.documentElement.dataset.theme || 'system';
   const next = order[(order.indexOf(current) + 1) % order.length];
   applyTheme(next);
-  // DESK4: said in words, not as the setting's own name ("Theme: dark",
+  // M81: said in words, not as the setting's own name ("Theme: dark",
   // "தோற்றம்: dark").
   toast(i18n.t(THEME_TOASTS[next]));
 }
@@ -629,7 +629,7 @@ function wireGrid() {
     viewer.open(grid.ids, event.detail.index, grid.thumbedIds());
   });
 
-  // DESK3: a change of language redraws what the page wrote itself here too:
+  // M80: a change of language redraws what the page wrote itself here too:
   // "3 selected" on the bar, and the profile button's name and tooltip.
   i18n.onChange(() => {
     if (grid.selection.size) {
@@ -723,7 +723,7 @@ function wireViewer() {
   wireViewerBack();
 }
 
-/* PHONE1, PHONE6: a phone's Back button (or edge swipe) with a photograph or
+/* M86, M91: a phone's Back button (or edge swipe) with a photograph or
    the drawer open closed the whole gallery — the browser went to the page
    before it, or an installed app quit — instead of what was open, as every
    photo app does. Each now has its own history entry: Back takes it away,

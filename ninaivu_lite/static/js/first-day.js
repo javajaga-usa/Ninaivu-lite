@@ -204,7 +204,7 @@ export class FirstDay {
     const lede = el('p', 'lede',
       i18n.t('Ninaivu can sweep the photos and videos off old drives, memory cards, phone backups and backup folders into one archive, filed by the day each was taken, and show them in the library. Add every folder or drive that holds them: the top folder is enough, because every folder inside it is scanned, however deep. Each file is copied and checked; the originals are never changed, moved or deleted.'));
     body.append(lede);
-    // PHONE9: on a phone this one paragraph was eleven lines in Tamil and the
+    // M94: on a phone this one paragraph was eleven lines in Tamil and the
     // step's own buttons were three screens down its little scroll. It opens
     // at three lines, the rest a tap on More away, and the folder field and
     // Browse come before the list of folders added so far.

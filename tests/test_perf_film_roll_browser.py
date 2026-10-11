@@ -1,7 +1,7 @@
 """The film-roll scroll (grid.js) on a phone with a Retina density, where every
 tile wants the sharp 640 px thumbnail: the sharp pictures fetched on the side
 for tiles that took the small one while the scroll went on stop when a photo
-is opened over the grid, as the rest of the fetching ahead does (PERF2).
+is opened over the grid, as the rest of the fetching ahead does (A253).
 Uses the smoke tests' server and Chromium, and skips the same way they do."""
 
 from __future__ import annotations
@@ -119,7 +119,7 @@ def test_an_open_photo_stops_the_sharpening_fetches(browser, long_gallery):  # n
 
 
 def test_a_short_pause_lets_the_small_pictures_on_their_way_finish(browser, long_gallery):  # noqa: F811
-    """PERF4: reading down a page a short pause at a time, each pause turned
+    """A255: reading down a page a short pause at a time, each pause turned
     the fetching ahead to the sharp pictures and cancelled the small ones
     already on their way, so the tiles the next stretch of the scroll put
     there waited for them from the start: 0.9-5% of the tiles on screen were

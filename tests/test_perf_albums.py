@@ -1,4 +1,4 @@
-"""The Albums page reads each album from the album's side (PERF3): SQLite,
+"""The Albums page reads each album from the album's side (A252): SQLite,
 with no statistics to go by, started its albums queries from every photograph
 the viewer may see and looked each one up in the album, three times an album.
 On a 100,000-photo library with 61 albums the page took 4.5 s (42 ms now),

@@ -60,7 +60,7 @@ const ROLE_COUNTS = {
   admin: i18n.key('{count} admin'),
 };
 
-// DESK7: "1 photo", not "1 photos"; and 12,345 with its separator.
+// M83: "1 photo", not "1 photos"; and 12,345 with its separator.
 const PHOTOS = [i18n.key('1 photo'), i18n.key('{count} photos')];
 const VIDEOS = [i18n.key('1 video'), i18n.key('{count} videos')];
 function counted(n, [one, many]) {

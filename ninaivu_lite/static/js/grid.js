@@ -66,7 +66,7 @@ const MOUNT_BUDGET = 24;
 const KIND_NAMES = ['picture', 'video', 'audio'];
 
 const LONG_PRESS_MS = 450;
-/** PHONE2: a finger put down within this of the grid's last scroll event,
+/** M87: a finger put down within this of the grid's last scroll event,
  *  itself as close to the one before, lands on a glide still running (a
  *  fling's scroll moves every frame; a jump to a place is one event), and the
  *  tap only stops it, as in every photo app. */
@@ -611,7 +611,7 @@ export class Grid extends EventTarget {
     // is, nothing ahead is started (the prefetcher asks tilesLoading), and
     // the tiles' own load events start it again.
     const keep = this.shownUrls();
-    // PERF4: stopped, the small pictures already on their way are let
+    // A255: stopped, the small pictures already on their way are let
     // finish: cancelled at every short pause, the tiles the next stretch of
     // the scroll put there waited for them from the start, blank.
     if (!this.scrolling) for (const url of this.prefetcher.active.keys()) keep.add(url);
@@ -631,7 +631,7 @@ export class Grid extends EventTarget {
       this.holds.add(reason);
       this.lookahead = 0;
       this.prefetcher.want([], this.shownUrls());
-      // PERF2: and the sharp pictures being fetched for tiles that have a
+      // A253: and the sharp pictures being fetched for tiles that have a
       // small one (see swapIn). A photo opened just after a scroll stopped
       // waited behind a screenful of them (850 KB on a phone, measured);
       // they are fetched again when the grid is back.
@@ -823,7 +823,7 @@ export class Grid extends EventTarget {
         node.querySelector('.title').textContent = title;
         node.querySelector('.sub').textContent = sub;
         // A pooled header may have been made in the language used before.
-        // DESK2: only the label's words, never the button's own text, which
+        // M79: only the label's words, never the button's own text, which
         // took the tick with it and cut a narrow Tamil day's count to "1…".
         const select = node.querySelector('[data-select-section]');
         select.querySelector('.label').textContent = i18n.t('Select all');
@@ -963,7 +963,7 @@ export class Grid extends EventTarget {
   releaseCell(node, keep = this.pool.length < POOL_LIMIT) {
     node.remove();
     clearTimeout(node.shimmerTimer);
-    // PERF2: its sharp picture too, still coming for a tile now gone past.
+    // A253: its sharp picture too, still coming for a tile now gone past.
     this.dropSide(node);
     if (keep) {
       node.className = 'cell';
@@ -1183,7 +1183,7 @@ export class Grid extends EventTarget {
 
   onPressStart(event) {
     if (event.pointerType !== 'touch') return;
-    // PHONE2: the finger that stops a glide is not choosing the photograph
+    // M87: the finger that stops a glide is not choosing the photograph
     // that happened to slide under it. Its tap opened (or, while selecting,
     // ticked) whatever photograph the glide had brought there.
     const now = performance.now(), last = this.lastScrollAt || -Infinity;

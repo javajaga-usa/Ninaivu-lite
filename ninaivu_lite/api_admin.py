@@ -269,7 +269,7 @@ def preview():
 
 def _shortcuts() -> list[dict[str, Any]]:
     """Where the folder picker can jump to. ``name`` in English; ``key`` and
-    ``vars`` say it in the reader's language (FLOW4: a Tamil picker read
+    ``vars`` say it in the reader's language (A259: a Tamil picker read
     "Home" and "Photos (current)")."""
     c = cfg()
     home = _norm(os.path.expanduser("~"))
@@ -319,7 +319,7 @@ def browse():
     else:
         target = os.path.expanduser("~")
     target = os.path.normpath(target)
-    # FLOW3: a folder not made yet (the archive's own, before the first
+    # A258: a folder not made yet (the archive's own, before the first
     # import) or on a drive since unplugged opens at the nearest one that is
     # there, not at "Not a directory" with nowhere to go from it.
     while raw and not os.path.lexists(target) and os.path.dirname(target) != target:

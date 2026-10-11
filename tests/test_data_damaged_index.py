@@ -17,7 +17,7 @@ def damage(path) -> None:
     path.write_bytes(bytes(data))
 
 
-def test_data4_a_damaged_index_names_the_backup_and_restore_brings_it_back(
+def test_a_damaged_index_names_the_backup_and_restore_brings_it_back(
         tmp_path, capsys, clean_logging):  # noqa: F811
     data, photos = tmp_path / "data", tmp_path / "Photos"
     photos.mkdir()

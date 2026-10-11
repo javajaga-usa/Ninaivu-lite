@@ -8,7 +8,7 @@ import { $, grid, state, viewer } from './state.js';
 import { toast } from './toast.js';
 
 export function wireSelection() {
-  // DESK5: where the actions are one line that scrolls sideways (a phone, the
+  // M82: where the actions are one line that scrolls sideways (a phone, the
   // Pi's short screen), a mouse wheel scrolls it too, as a finger would.
   const actions = $('.sel-actions');
   actions?.addEventListener('wheel', (event) => {

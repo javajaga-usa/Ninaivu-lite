@@ -12,7 +12,7 @@ from ninaivu_lite import auth, db, media
 from ninaivu_lite.scanner import Scanner
 
 
-def test_data1_a_move_seen_by_a_scan_cut_short_keeps_albums_and_hidden(tmp_path, monkeypatch):
+def test_a_move_seen_by_a_scan_cut_short_keeps_albums_and_hidden(tmp_path, monkeypatch):
     root, data = tmp_path / "Photos", tmp_path / "data"
     for k in range(4):
         make_jpeg(root / "Trip" / f"p{k}.jpg", f"2020:01:0{k + 1} 10:00:00")
@@ -61,7 +61,7 @@ def test_data1_a_move_seen_by_a_scan_cut_short_keeps_albums_and_hidden(tmp_path,
     assert not (data / "scan-unfinished").exists()
 
 
-def test_data2_a_profile_picture_stays_when_its_photo_is_moved_in_explorer(app, family, library):
+def test_a_profile_picture_stays_when_its_photo_is_moved_in_explorer(app, family, library):
     root, _data = library
     me = family.post("/api/me/avatar", json={"asset_id": ids(app)["beach.jpg"]}).get_json()
     assert me["avatar"]

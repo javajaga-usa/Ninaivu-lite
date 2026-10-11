@@ -1,5 +1,5 @@
 """The pages name every script module they import, however deep, as a
-modulepreload link (PERF1): split into gallery/ and console/, the gallery's
+modulepreload link (A254): split into gallery/ and console/, the gallery's
 thirty modules were found a level at a time, four round trips deep, and a
 first visit over a 250 ms link took 3.5 s to its first picture where it took
 2.8 s before the split (3.2 s with the links)."""

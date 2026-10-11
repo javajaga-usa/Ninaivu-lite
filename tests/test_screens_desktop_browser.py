@@ -93,7 +93,7 @@ def toasts(page):
       .observe(document.querySelector('#toasts'), { childList: true }); }""")
 
 
-# DESK1 -----------------------------------------------------------------------
+# M78 -----------------------------------------------------------------------
 
 def test_jump_to_names_the_month_the_top_row_starts_with(browser, desk):  # noqa: F811
     with opened(browser, desk) as (page, _errors):
@@ -105,7 +105,7 @@ def test_jump_to_names_the_month_the_top_row_starts_with(browser, desk):  # noqa
         assert label.startswith("Sep"), label          # was "Jul 2019", the row's last day
 
 
-# DESK2 -----------------------------------------------------------------------
+# M79 -----------------------------------------------------------------------
 
 def test_a_narrow_day_shows_its_whole_count_and_a_tick_in_tamil(browser, desk):  # noqa: F811
     def narrow_heads(page):
@@ -133,7 +133,7 @@ def test_a_narrow_day_shows_its_whole_count_and_a_tick_in_tamil(browser, desk): 
             assert head["tick"] and head["label"] == "Select all" and not head["cut"], head
 
 
-# DESK3 -----------------------------------------------------------------------
+# M80 -----------------------------------------------------------------------
 
 def test_a_new_language_redraws_the_selection_count_and_the_profile_button(browser, desk):  # noqa: F811
     with opened(browser, desk, "en") as (page, _errors):
@@ -149,7 +149,7 @@ def test_a_new_language_redraws_the_selection_count_and_the_profile_button(brows
         assert page.get_attribute("#grid .cell .pick", "aria-label") == TAMIL["Select"]
 
 
-# DESK4 -----------------------------------------------------------------------
+# M81 -----------------------------------------------------------------------
 
 def test_the_theme_key_says_which_theme_in_the_page_language(browser, desk):  # noqa: F811
     with opened(browser, desk, "ta") as (page, _errors):
@@ -164,7 +164,7 @@ def test_the_theme_key_says_which_theme_in_the_page_language(browser, desk):  # 
                                        TAMIL["The theme follows this device"]]), said
 
 
-# DESK5 -----------------------------------------------------------------------
+# M82 -----------------------------------------------------------------------
 
 def test_the_selection_bar_is_one_line_on_the_pi_screen(browser, desk):  # noqa: F811
     for lang in ("en", "ta"):
@@ -191,7 +191,7 @@ def test_the_selection_bar_is_one_line_on_the_pi_screen(browser, desk):  # noqa:
             == "contents"
 
 
-# DESK6 -----------------------------------------------------------------------
+# A259 -----------------------------------------------------------------------
 
 def test_the_folder_pickers_shortcuts_are_named_in_tamil(browser, desk):  # noqa: F811
     with opened(browser, desk, "ta", path="/admin") as (page, _errors):
@@ -206,7 +206,7 @@ def test_the_folder_pickers_shortcuts_are_named_in_tamil(browser, desk):  # noqa
         assert not [c for c in chips if re.search(r"\(current\)|^Home$|: drive$", c)], chips
 
 
-# DESK7 -----------------------------------------------------------------------
+# M83 -----------------------------------------------------------------------
 
 def test_the_overview_counts_one_video_as_one_video(browser, desk):  # noqa: F811
     with opened(browser, desk, "en", path="/admin") as (page, _errors):
@@ -214,7 +214,7 @@ def test_the_overview_counts_one_video_as_one_video(browser, desk):  # noqa: F81
         assert page.text_content("#overview-cards .card-sub") == "7 photos · 1 video"
 
 
-# DESK8 -----------------------------------------------------------------------
+# M84 -----------------------------------------------------------------------
 
 def test_the_viewer_shows_no_arrow_past_either_end(browser, desk):  # noqa: F811
     def arrows(page):
@@ -235,7 +235,7 @@ def test_the_viewer_shows_no_arrow_past_either_end(browser, desk):  # noqa: F811
         assert arrows(page) == [True, False]
 
 
-# DESK9 -----------------------------------------------------------------------
+# M85 -----------------------------------------------------------------------
 
 WALKING = json.dumps({
     "running": True, "uses": ["disk"],

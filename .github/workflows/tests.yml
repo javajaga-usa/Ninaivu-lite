@@ -73,7 +73,7 @@ jobs:
   # pages the tests open in Chromium), ffmpeg for videos, OpenCV for the
   # optional face straightening, and a screen (Xvfb) for the Control Panel.
   # Naming one test file here left the film-roll scroll and the phone
-  # long-press tests skipped in every run (FLOW1).
+  # long-press tests skipped in every run (A256).
   browser:
     name: Lint and browser
     runs-on: ubuntu-latest

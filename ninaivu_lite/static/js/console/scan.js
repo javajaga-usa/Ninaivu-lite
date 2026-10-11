@@ -27,7 +27,7 @@ function onProgress(scan) {
     const counter = scan.tag_total ? SCAN_COUNTS[scan.status] : null;
     const percent = counter
       ? Math.round((scan.tagged / scan.tag_total) * 100) : scan.percent;
-    // DESK9: while the folders are walked nothing is known of the total, and
+    // M85: while the folders are walked nothing is known of the total, and
     // the bar said "Indexing 12,000 / 0" for as long as that took.
     const walking = scan.status === 'walking';
     const counted = counter

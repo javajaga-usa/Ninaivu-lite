@@ -323,7 +323,7 @@ def module_closure(static: str, entry: str) -> list[str]:
     """Every module *entry* (a /static/ address) imports, however deep, in
     the order a browser meets them; the entry itself is not included.
 
-    PERF1: a browser finds a page's modules a level at a time, one round trip
+    A254: a browser finds a page's modules a level at a time, one round trip
     a level. Split into gallery/ and console/ (1.13), the gallery's took four
     levels where it took three (activity.js is reached only through
     gallery/data.js and gallery/progress.js), and twice the files queue

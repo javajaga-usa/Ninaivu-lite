@@ -369,7 +369,7 @@ export class Viewer extends EventTarget {
     if (index < 0 || index >= this.ids.length) return;
     this.index = index;
     const id = this.ids[index];
-    // DESK8: no arrow where there is nothing to go to. At the first photograph
+    // M84: no arrow where there is nothing to go to. At the first photograph
     // the left one was drawn and did nothing (step stops at the ends), and a
     // photograph opened on its own had two.
     this.root.querySelector('#v-prev').hidden = index <= 0;

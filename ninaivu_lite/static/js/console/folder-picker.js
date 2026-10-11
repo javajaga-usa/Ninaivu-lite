@@ -18,7 +18,7 @@ let browseSelectable = false;
  */
 let picker = null;
 
-/** A shortcut's name in the page's language (DESK6): the server said
+/** A shortcut's name in the page's language (A259): the server said
  *  "Photos (current)", "Home" and "C: drive" in English on a Tamil page. A
  *  folder's own name is left as it is on the disk. */
 export function openFolderPicker(options = {}) {
@@ -57,7 +57,7 @@ async function loadBrowse(path) {
   // Choosing from the tree is an answer, so it replaces whatever was typed
   // earlier — otherwise `typed || browsePath` submits the old string and the
   // folder the admin just clicked is silently ignored. Cleared now, as the
-  // folder is chosen, not when its listing arrives (FLOW2): a path typed
+  // folder is chosen, not when its listing arrives (A257): a path typed
   // while a slow drive was being listed was wiped, and "Use this folder"
   // then took the folder the picker had opened at (often the home folder).
   $('#fm-manual').value = '';

@@ -14,7 +14,7 @@ EN = json.loads((STATIC / "i18n" / "en.json").read_text(encoding="utf-8"))
 TA = json.loads((STATIC / "i18n" / "ta.json").read_text(encoding="utf-8"))
 
 
-def test_flow4_the_pickers_shortcuts_are_said_in_the_readers_language(admin, library):
+def test_the_pickers_shortcuts_are_said_in_the_readers_language(admin, library):
     """A Tamil folder picker listed "Home" and "Photos (current)" in English:
     the server sent finished English labels."""
     root, _ = library
@@ -31,7 +31,7 @@ def test_flow4_the_pickers_shortcuts_are_said_in_the_readers_language(admin, lib
     assert "i18n.t(shortcut.key, shortcut.vars)" in picker
 
 
-def test_flow5_duplicates_never_suggest_removing_a_copy_in_the_app():
+def test_duplicates_never_suggest_removing_a_copy_in_the_app():
     """The Duplicates page and the guide said to remove unwanted copies "in
     the folders themselves (or in Ninaivu)", but nothing in Ninaivu Lite
     removes a file (SECURITY.md): an administrator looked for a button that

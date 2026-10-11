@@ -56,7 +56,7 @@ def own_album(album_id: int, who: auth.User) -> sqlite3.Row:
     return row
 
 
-#: An album's items with their rows, read from the album's side. PERF3: written
+#: An album's items with their rows, read from the album's side. A252: written
 #: as a plain JOIN, SQLite (with no statistics to go by) started from the
 #: assets, every row this person may see, and looked each up in the album:
 #: the Albums page took 4.5 s for 61 albums on a 100,000-photo library

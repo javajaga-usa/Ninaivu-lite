@@ -113,7 +113,7 @@ def auth_setup():
         fail(409, "This library already has an administrator.")
     key = f"setup:{request.remote_addr}"
     local = _is_local()
-    # This computer needs no code, so it is never held back (SEC1): ten
+    # This computer needs no code, so it is never held back (A247): ten
     # wrong codes from anywhere on the network used to keep the owner from
     # making the first administrator at all, for as long as they were sent.
     if not local and throttle_setup.blocked(key, "setup:all"):

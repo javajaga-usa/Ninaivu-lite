@@ -295,7 +295,7 @@ def main(argv: list[str] | None = None) -> int:
     except sqlite3.DatabaseError as exc:
         # A damaged index (a disk error, a power cut on a drive that lies
         # about its writes) printed a traceback, which the Control Panel
-        # showed as it was, and the log said nothing (DATA4).
+        # showed as it was, and the log said nothing (A251).
         refuse(damaged_index(cfg.data_dir, exc))
         return 2
     if args.reset_password:

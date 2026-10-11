@@ -28,10 +28,10 @@ def _new_library(library):
                       addresses=["192.168.1.20"])
 
 
-# --- SEC1: a stranger cannot keep the owner from making the first administrator ----------
+# --- A247: a stranger cannot keep the owner from making the first administrator ----------
 
 
-def test_sec1_wrong_setup_codes_from_the_network_do_not_lock_out_this_computer(
+def test_wrong_setup_codes_from_the_network_do_not_lock_out_this_computer(
         library, fresh_setup_limit):
     app = _new_library(library)
     client = app.test_client()

@@ -1014,7 +1014,7 @@ body.admin .admin-bar .brand span:not(.console-tag) { display: inline; }
   min-height: 34px; padding: 6px 12px; border-radius: 999px;
   font-size: 12.5px; letter-spacing: 0; text-transform: none; font-weight: 560;
 }
-/* PHONE4: the row scrolls sideways, so it clipped the 44 px touch target
+/* M89: the row scrolls sideways, so it clipped the 44 px touch target
    each section button has on a touch screen (style.css) to its top edge:
    38 px. The row reaches into the space above it; nothing drawn moves. */
 @media (hover: none) and (pointer: coarse) {
@@ -1489,7 +1489,7 @@ body.admin .admin-bar .brand span:not(.console-tag) { display: inline; }
   /* A long step (Tamil, several sources) scrolls inside the card instead of
      spilling over the footer and the Start button. */
   overflow-y: auto; overscroll-behavior: contain; }
-/* PHONE9: and says so — a shadow at the edge with more behind it, as the
+/* M94: and says so — a shadow at the edge with more behind it, as the
    console's page list does (the covers scroll with the text, the shadows
    stay with the box, so each shows only when there is something there). */
 @supports (color: color-mix(in srgb, red 50%, blue)) {
@@ -1857,14 +1857,14 @@ button.drive-notice-main:focus-visible { outline: 2px solid var(--accent); outli
      the second. */
   .fd-body form.row > .input { flex: 1 1 calc(50% - 4px); }
   .fd-body form.row > .input:nth-child(3) { flex-basis: 0; }
-  /* PHONE5: the four step names took four lines beside Skip (Tamil, 320 px)
+  /* M90: the four step names took four lines beside Skip (Tamil, 320 px)
      and left the step 171 px, its own "Choose a folder" 60 px out of sight
      below in that little scroll with nothing to say it was there. The other
      steps are dots; the current one keeps its name (all four are still read
      out, the list being labelled "Steps"). */
   .fd-steps { gap: 6px 8px; }
   .fd-steps li:not(.current) { font-size: 0; gap: 0; }
-  /* PHONE9: the import step's long paragraph opens at three lines on a
+  /* M94: the import step's long paragraph opens at three lines on a
      phone (first-day.js), its More just under it. */
   .fd-body .lede.fd-clamped {
     display: -webkit-box; -webkit-box-orient: vertical;

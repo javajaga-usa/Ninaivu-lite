@@ -10,7 +10,7 @@ from test_smoke_browser import browser, server, sign_in  # noqa: F401
 pytest.importorskip("playwright.sync_api")
 
 
-def test_flow2_a_path_typed_while_the_folder_list_loads_is_the_one_used(browser, server, tmp_path):  # noqa: F811
+def test_a_path_typed_while_the_folder_list_loads_is_the_one_used(browser, server, tmp_path):  # noqa: F811
     """The picker emptied the typed path when the folder list arrived, so on a
     slow drive (a Pi, a Windows PC listing its network drives) "Use this
     folder" took the folder the picker had opened at, the home folder, and

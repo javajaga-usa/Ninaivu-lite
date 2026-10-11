@@ -249,7 +249,7 @@ def _read_settings(path: Path) -> str:
     moment (an antivirus or a backup on Windows, a save under way) cannot be
     read for that moment, which says nothing about what is in it: taken for
     damage, the household's settings were set aside and written over with
-    the defaults (DATA3). Tried again a few times first."""
+    the defaults (A250). Tried again a few times first."""
     for attempt in range(READ_TRIES):
         try:
             return path.read_text(encoding="utf-8")

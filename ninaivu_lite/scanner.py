@@ -264,7 +264,7 @@ class Scanner:
         that finds it gone (see _carry_over). A walk cut short (the computer
         shut down, Stop) had already written some of the moved photographs
         at their new place, so the next walk took them as old, and they lost
-        their albums, favourites and Hidden (DATA1)."""
+        their albums, favourites and Hidden (A248)."""
         path = self.data_dir / UNFINISHED_FILE
         try:
             return min(now, int(path.read_text(encoding="ascii").strip()))
@@ -577,7 +577,7 @@ class Scanner:
         photograph it was made from is in the library (A146), named by its
         id beside the picture (api_auth.avatar_source_file). Moved in
         Explorer, the photograph has a new id: the record follows it, or the
-        picture went from the sign-in screen for good (DATA2)."""
+        picture went from the sign-in screen for good (A249)."""
         try:
             records = list((self.data_dir / AVATARS_DIR).glob("*.jpg.source"))
         except OSError:

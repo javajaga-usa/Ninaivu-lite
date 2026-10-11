@@ -302,10 +302,10 @@ def test_a59_every_released_installer_is_also_run():
     assert "docker build -f installers/docker/Dockerfile" in docker and "/api/health" in docker
 
 
-# --- FLOW1: every test runs somewhere ------------------------------------------------------
+# --- A256: every test runs somewhere ------------------------------------------------------
 
 
-def test_flow1_the_browser_job_runs_every_test_with_what_the_others_skip_for():
+def test_the_browser_job_runs_every_test_with_what_the_others_skip_for():
     """The browser job named tests/test_smoke_browser.py alone, so the
     film-roll scroll, the phone long-press and the first-day import tests
     (Chromium) were skipped in every run, as were the video tests (no ffmpeg
@@ -326,7 +326,7 @@ def test_flow1_the_browser_job_runs_every_test_with_what_the_others_skip_for():
     assert "NINAIVU_BROWSER_TESTS=1 python -m pytest" in contributing
 
 
-def test_flow6_the_installers_readme_says_what_the_release_workflow_runs():
+def test_the_installers_readme_says_what_the_release_workflow_runs():
     """installers/README.md said the macOS app and the arm64 installer were
     built but not run, and that a sudo install and the Docker image were not
     tried at all, while release.yml runs every one of them."""

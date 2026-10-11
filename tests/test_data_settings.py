@@ -10,7 +10,7 @@ from ninaivu_lite import config
 from ninaivu_lite.config import Config
 
 
-def test_data3_settings_busy_for_a_moment_are_not_taken_for_damage(tmp_path, monkeypatch):
+def test_settings_busy_for_a_moment_are_not_taken_for_damage(tmp_path, monkeypatch):
     library = tmp_path / "Photos"
     library.mkdir()
     Config(data_dir=str(tmp_path), folders=[str(library)], active=str(library), language="ta",

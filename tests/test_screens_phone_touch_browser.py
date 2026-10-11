@@ -45,7 +45,7 @@ def test_back_closes_the_photograph_not_the_gallery(browser, server):  # noqa: F
         settle(page)
         page.locator("#grid .cell").first.tap()
         page.wait_for_selector("#viewer:not([hidden])")
-        # PHONE1: Back went to the page before the gallery.
+        # M86: Back went to the page before the gallery.
         page.go_back()
         page.wait_for_timeout(400)
         assert page.url == server["base"] + "/", page.url
@@ -89,7 +89,7 @@ def test_back_closes_the_drawer_not_the_gallery(browser, server):  # noqa: F811
         page.tap("#sidebar-toggle")
         page.wait_for_timeout(300)
         assert page.evaluate(drawer_open)
-        # PHONE6: Back went to the page before the gallery.
+        # M91: Back went to the page before the gallery.
         page.go_back()
         page.wait_for_timeout(400)
         assert page.url == server["base"] + "/", page.url
@@ -161,7 +161,7 @@ def test_a_tap_that_stops_a_glide_opens_nothing(browser, long_gallery):  # noqa:
         page.wait_for_timeout(400)
         # The tap reached a photograph mid-glide (the test means something)...
         assert clicked == [True], clicked
-        # ...and PHONE2: it only stopped the glide; nothing opened.
+        # ...and M87: it only stopped the glide; nothing opened.
         assert page.is_hidden("#viewer")
         # At rest, the next tap opens the photograph under the finger.
         spot = page.evaluate(TARGET)
@@ -209,7 +209,7 @@ def test_the_selection_actions_take_a_finger_sized_tap(browser, server):  # noqa
           return out; }""")
         assert found["buttons"], found
         for button in found["buttons"]:
-            # PHONE3: the sideways row clipped the target to the 28 px drawn.
+            # M88: the sideways row clipped the target to the 28 px drawn.
             assert button["above"] and button["below"], button
         # Nothing drawn moved: the bar is as tall as before (M63's one line).
         assert found["bar"] <= 92, found
@@ -234,7 +234,7 @@ def test_the_console_section_buttons_take_a_finger_sized_tap(browser, server):  
         }).filter(Boolean)""")
         assert len(found) >= 3, found
         for button in found:
-            # PHONE4: the sideways row cut the target off at its top edge.
+            # M89: the sideways row cut the target off at its top edge.
             assert button["above"] and button["below"], button
         assert not errors, errors
     finally:
@@ -259,7 +259,7 @@ def test_the_year_chips_take_a_finger_sized_tap(browser, server):  # noqa: F811
           // 5 px above and below a 33 px chip: inside a 44 px target.
           return { height: r.height, strip: strip.offsetHeight,
                    above: at(r.top - 5), below: at(r.bottom + 5) }; }""")
-        # PHONE7: the sideways strip stopped the target 2 px under the chip.
+        # M92: the sideways strip stopped the target 2 px under the chip.
         assert found["above"] and found["below"], found
         assert found["strip"] <= 47, found      # was 43: a little taller only
         assert not errors, errors
@@ -314,13 +314,13 @@ def test_the_first_day_steps_show_their_own_buttons_on_a_small_phone(browser, fi
             .filter((b) => b.offsetWidth && b.getBoundingClientRect().bottom > body.bottom + 1)
             .map((b) => b.textContent.trim() || b.placeholder); }"""
         assert page.evaluate("document.documentElement.lang") == "ta"
-        # PHONE5: "Choose a folder" sat 60 px below the step's little scroll
+        # M90: "Choose a folder" sat 60 px below the step's little scroll
         # (Tamil, 320 px), the household's Name, PIN and Add 60 px too.
         assert page.evaluate(out_of_sight) == []
         page.click("#fd-next")
         page.wait_for_selector("#fd-start-import")
         page.wait_for_timeout(200)
-        # PHONE9: the import step's paragraph ran eleven lines and put the
+        # M94: the import step's paragraph ran eleven lines and put the
         # folder field and Browse 280 px down its scroll. The field, Add and
         # Browse are in sight; the rest of the paragraph is behind More.
         hidden = page.evaluate(out_of_sight)
@@ -364,7 +364,7 @@ def test_the_share_sheet_hints_fit_a_320px_phone_in_tamil(browser, server):  # n
             return { hint: i.placeholder, room, width: pen.measureText(i.placeholder).width };
           }).filter((f) => f.width > f.room)""")
         assert page.evaluate("document.documentElement.lang") == "ta"
-        # PHONE8: "வேண்டாமென்றால் காலியாக விடுங்கள்" was 260 px in a 220 px field.
+        # M93: "வேண்டாமென்றால் காலியாக விடுங்கள்" was 260 px in a 220 px field.
         assert cut == [], cut
         assert not errors, errors
     finally:
