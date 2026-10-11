@@ -320,6 +320,10 @@ def test_flow1_the_browser_job_runs_every_test_with_what_the_others_skip_for():
     assert "requirements-browser.txt" in browser and "requirements-straighten.txt" in browser
     assert "install --with-deps chromium" in browser
     assert "apt-get install -y --no-install-recommends ffmpeg xvfb" in browser
+    # And the contributors' guide says to run them all the same way.
+    contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    assert "pytest tests/test_smoke_browser.py" not in contributing
+    assert "NINAIVU_BROWSER_TESTS=1 python -m pytest" in contributing
 
 
 # --- A62: tool versions do not float ------------------------------------------------------
