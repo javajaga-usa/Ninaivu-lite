@@ -372,7 +372,8 @@ def test_the_family_app_labels_are_in_sentence_case():
         assert title not in en and title not in ta
         assert en[sentence] == sentence and sentence in ta
     sources = "".join(p.read_text(encoding="utf-8") for p in (
-        STATIC / "js" / "app.js", ROOT / "ninaivu_lite" / "templates" / "index.html"))
+        STATIC / "js" / "app.js", *sorted((STATIC / "js" / "gallery").glob("*.js")),
+        ROOT / "ninaivu_lite" / "templates" / "index.html"))
     assert "Delete Album" not in sources and "Generate Link" not in sources
 
 

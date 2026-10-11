@@ -58,7 +58,7 @@ def test_the_jump_button_has_its_own_rule():
 # -- A175: Sudar (a modal <dialog>) owns the keyboard ----------------------------
 
 def test_the_gallery_keys_stand_aside_for_an_open_dialog():
-    app = read(STATIC / "js" / "app.js")
+    app = read(STATIC / "js" / "gallery" / "keyboard.js")
     start = app.index("function wireKeyboard()")
     handler = app[start:start + 3000]
     guard = handler.index("document.querySelector('dialog[open]')")

@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 from conftest import ids, make_jpeg, sign_in
 from test_gallery_api import all_items, rescan, set_vis
-from test_safe_upgrade_2026_10_08 import older_index
+from test_install_safe_upgrade import older_index
 from test_share_api import share
 
 from ninaivu_lite import api_admin, copies, db, export, scanner
@@ -360,9 +360,9 @@ def test_the_copies_list_is_quick_on_100000_files(app):
 
 
 def test_the_console_lists_copies_read_only_and_opens_them_in_the_gallery():
-    admin_js = (STATIC / "js" / "admin.js").read_text(encoding="utf-8")
+    admin_js = (STATIC / "js" / "console" / "duplicates.js").read_text(encoding="utf-8")
     start = admin_js.index("function renderDuplicates")
-    body = admin_js[start:admin_js.index("async function loadAssignable")]
+    body = admin_js[start:]
     assert "item.open" in body and "delete" not in body.lower()
     page = (STATIC.parent / "templates" / "admin.html").read_text(encoding="utf-8")
     assert 'data-tab="duplicates"' in page and 'data-panel="duplicates"' in page

@@ -130,7 +130,7 @@ def test_only_the_heart_is_filled_when_lit():
 # -- Tamil ---------------------------------------------------------------------
 
 def test_the_preview_names_a_role_in_the_page_language():
-    admin = read(JS / "admin.js")
+    admin = read(JS / "console" / "overview.js")
     assert "i18n.t(data.role_label || data.as)" in admin
     ta = json.loads(read(STATIC / "i18n" / "ta.json"))
     for role in ("Guest", "Family member"):
@@ -183,7 +183,7 @@ def test_escape_in_the_console_closes_the_dialog_on_top():
 
 
 def test_escape_closes_the_sidebar_drawer():
-    app = read(JS / "app.js")
+    app = read(JS / "gallery" / "keyboard.js")
     keys = app[app.index("function wireKeyboard()"):]
     drawer = keys[keys.index("event.key === 'Escape' && document.querySelector('.shell.mobile-open')"):]
     drawer = drawer[:drawer.index("return;")]

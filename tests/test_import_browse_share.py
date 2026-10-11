@@ -1,7 +1,7 @@
 """Regression tests for the browse/share findings (A78-A86) and the
 import/wizard/drives findings (A87-A102) of the 2026-10-07 audit. Each test
 checks the fixed behaviour; a fix that lives only in a page's script is
-checked on the script the server sends, as tests/test_audit_fixes_p4_ui.py
+checked on the script the server sends, as tests/test_screens_pages.py
 does."""
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from types import SimpleNamespace
 import pytest
 from conftest import ids, sign_in
 
-from ninaivu_lite import auth, db, drives, importer, phones
+from ninaivu_lite import auth, db, drives, import_copy, importer, phones
 from ninaivu_lite.importer import Importer
 from test_import import noisy_jpeg, rows, run, sha, wait_for
 
@@ -191,7 +191,7 @@ def test_a84_vis_reasons_use_the_servers_rule_name(app, admin):
     assert r.status_code == 200, r.get_json()
     item = admin.get(f"/api/asset/{ids(app)['beach.jpg']}").get_json()
     assert item["visibility_source"] == "rule"
-    app_js = read(JS / "app.js")
+    app_js = read(JS / "gallery" / "visibility.js")
     reasons = app_js[app_js.index("const VIS_REASONS = {"):]
     reasons = reasons[:reasons.index("};")]
     assert "rule: i18n.key('Follows the rule set on its folder')" in reasons
@@ -208,7 +208,7 @@ def test_a84_the_undo_strip_undoes_the_change_it_names(app, admin):
     vis = dict(c.execute("SELECT name, visibility FROM assets WHERE name IN "
                          "('beach.jpg', 'sunset.jpg')").fetchall())
     assert vis == {"beach.jpg": db.VIS_FAMILY, "sunset.jpg": db.VIS_HIDDEN}
-    admin_js = read(JS / "admin.js")
+    admin_js = read(JS / "console" / "visibility.js")
     assert "strip.dataset.batch = String(last.id)" in admin_js
     undo = admin_js[admin_js.index("async function undoLastVisibility()"):]
     assert "adminApi.undoVisibility(named)" in undo[:undo.index("\n}\n")]
@@ -335,7 +335,7 @@ def test_a90_free_space_counts_only_what_this_archive_already_holds(tmp_path, mo
     assert engine._done_bytes([str(first)], str(tmp_path / "Archive2")) == 0
     assert engine._done_bytes([str(second)], str(tmp_path / "Archive1")) == 0
     # Another archive with almost no room: earlier imports elsewhere do not make room.
-    monkeypatch.setattr(importer, "free_space", lambda _d: 1000)
+    monkeypatch.setattr(import_copy, "free_space", lambda _d: 1000)
     other = run(data, [second], tmp_path / "Archive2")
     assert other.job["phase"] == "failed"
     said = other.job["message"]
@@ -624,7 +624,7 @@ def test_a100_a_sidecar_is_written_whole_or_not_at_all(tmp_path, monkeypatch):
             f.write("<x:xm")
         raise OSError(errno.ENOSPC, "No space left on device")
 
-    monkeypatch.setattr(importer.shutil, "copy2", short)
+    monkeypatch.setattr(import_copy.shutil, "copy2", short)
     engine._copy_sidecars(str(photo), str(final))
     assert not (out / "IMG_1.xmp").exists()
     assert not (out / "IMG_1.xmp.partial").exists()
@@ -666,7 +666,7 @@ def test_a90_a_full_destination_stops_the_run_at_once(tmp_path, monkeypatch):
         raise OSError(errno.ENOSPC, "No space left on device")
 
     monkeypatch.setattr(Importer, "_copy_and_hash", full)
-    monkeypatch.setattr(importer, "too_big", lambda dest, size: False)   # really full
+    monkeypatch.setattr(import_copy, "too_big", lambda dest, size: False)   # really full
     src = tmp_path / "Drive"
     photos(src, 4)
     engine = run(tmp_path / "data", [src], tmp_path / "Archive")

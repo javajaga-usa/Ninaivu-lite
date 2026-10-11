@@ -99,7 +99,7 @@ def test_album_covers_carry_their_thumbnail_version(app, admin):
     listed = next(a for a in admin.get("/api/albums").json["albums"] if a["id"] == album_id)
     assert listed["cover_v"] == turned["thumb_v"]
     assert admin.get(f"/api/albums/{album_id}").json["album"]["cover_v"] == turned["thumb_v"]
-    app_js = (STATIC / "js" / "app.js").read_text(encoding="utf-8")
+    app_js = (STATIC / "js" / "gallery" / "albums.js").read_text(encoding="utf-8")
     assert "thumbUrl(album.cover_id, 80, album.cover_v)" in app_js
     assert "thumbUrl(album.cover_id, 64, album.cover_v)" in app_js
 
@@ -169,7 +169,7 @@ def test_a_turned_tiff_is_not_converted_again_on_every_other_look(app, admin, gu
 
 
 def test_escape_leaves_a_turned_video_from_its_position_bar():
-    app_js = (STATIC / "js" / "app.js").read_text(encoding="utf-8")
+    app_js = (STATIC / "js" / "gallery" / "keyboard.js").read_text(encoding="utf-8")
     viewer_branch = app_js[app_js.index("    if (viewer.isOpen) {"):][:400]
     assert "event.key === 'Escape' && target.matches('input[type=\"range\"]')" in viewer_branch
 

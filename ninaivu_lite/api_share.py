@@ -24,13 +24,13 @@ from typing import Any
 from flask import Blueprint, Response, jsonify, request
 
 from . import auth, db, media
-from .api_gallery import (
-    as_id,
+from .api_albums import own_album
+from .api_gallery import as_id
+from .gallery_files import (
     may_carry_location,
-    stripped_video_response,
     original_path,
     original_response,
-    own_album,
+    stripped_video_response,
     thumb_response,
     viewing_response,
 )

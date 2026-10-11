@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **The largest files are split into smaller ones, and the tests are grouped by what they
+  cover.** The gallery's and the console's scripts, the gallery's calls and the importer are
+  now several modules each, and the tests named after an audit's date are named after their
+  area. Nothing changes for anybody using Ninaivu Lite. (`static/js/gallery/`,
+  `static/js/console/`, `gallery_files.py`, `api_albums.py`, `import_plan.py`,
+  `import_walk.py`, `import_copy.py`)
+
 ## 1.13.0 — 2026-10-11
 
 **The index goes to version 11** (four new columns and the grid's indexes made again, for Live

@@ -15,9 +15,9 @@ from conftest import ids, make_jpeg
 from PIL import Image, TiffImagePlugin
 from test_gallery_api import all_items, rescan
 from test_import import noisy_jpeg, run
+from test_install_safe_upgrade import older_index
 from test_live_photos_duplicates import conn_of, make_clip
 from test_on_this_day_nearby import names, place
-from test_safe_upgrade_2026_10_08 import older_index
 from test_share_api import share
 
 from ninaivu_lite import backups, db, importer, media

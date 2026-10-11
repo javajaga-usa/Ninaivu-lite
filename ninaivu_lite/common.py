@@ -421,7 +421,7 @@ def asset_public(row: sqlite3.Row, who: auth.User | None = None) -> dict[str, An
         "src": f"/api/file/{asset_id}{turn}",
         "view": f"/api/file/{asset_id}{turn}" if can_play else f"/api/preview/{asset_id}{turn}",
         # A guest is served a re-encoded copy with the index's turn already in
-        # it (api_gallery.guarded_file), so the viewer must not turn it again.
+        # it (gallery_files.guarded_file), so the viewer must not turn it again.
         "rotation": 0 if served_turned else (row["rotation"] or 0),
         "mirror": False if served_turned else bool(row["mirror"]),
         "rotation_source": row["rot_source"] or "none",

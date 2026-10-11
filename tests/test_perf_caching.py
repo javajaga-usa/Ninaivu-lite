@@ -117,7 +117,7 @@ def test_a120_a_huge_picture_is_made_alone(tmp_path, monkeypatch):
 
 
 def test_a120_workers_leave_a_core_for_the_gallery():
-    # Since A123 no longer at most 3: see test_parallel_2026_10_08.py.
+    # Since A123 no longer at most 3: see test_perf_parallel.py.
     assert 1 <= scanner_module.THUMB_WORKERS <= max(1, parallel.cores() - 1)
 
 

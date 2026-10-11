@@ -101,17 +101,20 @@ ninaivu_lite/
   scanner.py      incremental walk, dates, folder rules, two thumbnail passes, watching
   media.py dates.py folders.py backups.py net.py export.py
   importer.py     one background thread: dated archive, hashes, duplicates, dry run, audit
+  import_plan.py import_walk.py import_copy.py   its rules and checks, its walk, its copying
   takeout.py      a Google Photos export's albums, made again after the import
   common.py       request helpers, visibility filter, Ninaivu item shape
   pages.py        /, /admin, /share/<token>, manifests, health, local stop
   control.py      state file, start/stop from outside, start at sign-in (stdlib only)
   panel.py        the Control Panel window (Tk)
   api_auth.py api_gallery.py api_share.py api_admin.py   Ninaivu-compatible JSON API
+  gallery_files.py api_albums.py   the gallery's files and downloads, and its albums
   api_import.py   the Import page's calls (Ninaivu's archive API, trimmed)
   api_sudar.py    Sudar's one call: save the edited copy beside the original
   templates/      index.html, admin.html, share.html   (Ninaivu's, trimmed)
   static/         Ninaivu's JS modules and CSS, trimmed; i18n/en.json, ta.json
                   js/studio/ the develop engine, js/sudar/ the studio, js/archive.js the Import page
+                  js/app.js and js/gallery/ the family app, js/admin.js and js/console/ the console
 launcher/start.py, start.cmd, start.sh, tools/
 tests/
 ```

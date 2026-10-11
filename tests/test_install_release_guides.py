@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from test_audit_fixes_2026_10_07_backup_install import (INSTALL, stand_in_payload,
+from test_install_backup_restore import (INSTALL, stand_in_payload,
                                                         user_install_env)
 
 ROOT = Path(__file__).resolve().parent.parent
