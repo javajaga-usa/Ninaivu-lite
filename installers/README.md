@@ -218,10 +218,24 @@ for a checkout, to be edited for its user and paths.
 
 ## What has been tested
 
-The release workflow builds every installer on each tag. It also installs,
-starts, checks and removes the Windows installer (silently, Control Panel
-included), the portable zip (from a path with a space and Tamil letters) and the
-Linux amd64 installer (as an ordinary user, without the service). The macOS app
-and the arm64 installer are built but not run there, and an install with `sudo`
-(with its service) and the Docker image are not tried by the workflow at all: try
-those by hand before publishing a release.
+The release workflow builds every installer on each tag, and runs each one as a
+person would before anything is published:
+
+- **Windows:** installed silently; the Control Panel's Python opens a Tk window;
+  started, the gallery and the console answer, and it stops when asked; the same
+  installer run again over the running copy, as an update, keeps the data folder
+  and starts it again; the uninstaller stops it and removes start-at-sign-in.
+- **The portable zip:** extracted to a path with a space and Tamil letters;
+  *Ninaivu Lite.exe* opens the Control Panel on the folder's own data; started
+  and stopped, with its data and log left beside it.
+- **macOS**, both architectures: the disk image is opened, the app inside it
+  starts, answers and stops.
+- **Linux**, amd64 and arm64 (each on a machine of its kind, so a Raspberry Pi's
+  installer is run too): as an ordinary user without the service, into a folder
+  of its own on another port, and with `sudo` as a service under its own
+  account, installed twice as an upgrade is, then removed with `--purge`.
+- **Docker:** the image is built and started, answers, and runs as user 1000.
+
+Still to try by hand before publishing: a real Raspberry Pi, the Control Panel
+window on a macOS and a Linux desktop, and what Windows SmartScreen and macOS
+Gatekeeper say about the signed (or unsigned) files.

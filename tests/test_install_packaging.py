@@ -326,6 +326,20 @@ def test_flow1_the_browser_job_runs_every_test_with_what_the_others_skip_for():
     assert "NINAIVU_BROWSER_TESTS=1 python -m pytest" in contributing
 
 
+def test_flow6_the_installers_readme_says_what_the_release_workflow_runs():
+    """installers/README.md said the macOS app and the arm64 installer were
+    built but not run, and that a sudo install and the Docker image were not
+    tried at all, while release.yml runs every one of them."""
+    release = read(".github/workflows/release.yml")
+    readme = " ".join(read("installers/README.md").split())
+    assert "hdiutil attach" in job(release, "macos")
+    assert "runner: ubuntu-24.04-arm" in job(release, "linux")
+    assert 'sudo sh "$installer"' in job(release, "linux") and "docker build" in job(release, "docker")
+    assert "built but not run" not in readme and "not tried by the workflow" not in readme
+    for said in ("macOS", "arm64", "with `sudo` as a service", "Docker:", "portable zip"):
+        assert said in readme, said
+
+
 # --- A62: tool versions do not float ------------------------------------------------------
 
 
