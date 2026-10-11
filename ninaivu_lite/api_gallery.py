@@ -1084,6 +1084,18 @@ class _Pipe(io.RawIOBase):
         return out
 
 
+#: Characters a name in a ZIP must not carry: a file named "..\\..\\x.jpg" (one
+#: name on Linux or a NAS) is a path on Windows, and some unzippers there
+#: wrote it outside the folder it was unzipped into.
+_NOT_IN_ZIP = str.maketrans({c: "_" for c in '<>:"\\|?*/' + "".join(map(chr, range(32)))})
+
+
+def zip_name(name: str) -> str:
+    """*name* as a ZIP entry: one file, never a folder or another drive."""
+    name = name.translate(_NOT_IN_ZIP)
+    return "_" if not name.strip(" .") else name
+
+
 def unique_name(taken: set[str], name: str) -> str:
     """*name*, or "name (2).ext" and so on when the archive already has it."""
     stem, dot, ext = name.rpartition(".")
@@ -1161,7 +1173,7 @@ def download_zip():
         for row in (rows[asset_id], motion):
             if row is None:
                 continue
-            name = unique_name(taken, row["name"])
+            name = unique_name(taken, zip_name(row["name"]))
             try:
                 path = asset_path(row)
             except ApiError:

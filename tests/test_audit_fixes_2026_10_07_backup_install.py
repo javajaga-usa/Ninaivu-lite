@@ -14,7 +14,6 @@ import shutil
 import sqlite3
 import subprocess
 import sys
-import urllib.request
 import zipfile
 from contextlib import contextmanager
 from datetime import date, timedelta
@@ -91,7 +90,7 @@ def scanned_data(tmp_path: Path, library) -> tuple[Path, Path]:
 
 
 def fake_health(monkeypatch, answer: dict) -> None:
-    monkeypatch.setattr(urllib.request, "urlopen",
+    monkeypatch.setattr(net, "local_urlopen",
                         lambda *a, **k: io.BytesIO(json.dumps(answer).encode()))
 
 

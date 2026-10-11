@@ -947,9 +947,9 @@ def undo_visibility():
     raw = body().get("batch_id")
     batch_id: int | None = None
     if raw not in (None, "", 0, False):
-        try:
-            batch_id = int(raw)
-        except (TypeError, ValueError, OverflowError):
+        batch_id = row_id(raw)
+        if batch_id is None:
+            # Too large for the index is no batch at all, not a 500 from SQLite.
             fail(400, "batch_id must be a number.")
     c = conn()
     if batch_id is None:

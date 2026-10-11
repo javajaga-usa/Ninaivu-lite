@@ -104,7 +104,8 @@ def auth_setup():
     if not _is_local():
         code = str(data.get("setup_code") or "").strip().upper()
         import hmac
-        if not hmac.compare_digest(code, auth.setup_code()):
+        # As bytes: compare_digest refuses text that is not ASCII (a 500).
+        if not hmac.compare_digest(code.encode("utf-8"), auth.setup_code().encode("ascii")):
             throttle_setup.fail(key, "setup:all")
             fail(403, "Enter the setup code shown where Ninaivu Lite was started.",
                  setup_code_required=True)
@@ -134,7 +135,9 @@ def _too_many(account: str) -> bool:
 
 
 def _failed(account: str) -> None:
-    log.warning("sign-in failed for %r from %s", account, request.remote_addr)
+    # Never the whole of what was typed: one long "username" filled the log
+    # file, and its rotation then dropped every line that came before.
+    log.warning("sign-in failed for %r from %s", account[:100], request.remote_addr)
     throttle_short.fail(f"{request.remote_addr}|{account}")
     throttle_long.fail(account)
     throttle_day.fail(account)

@@ -428,8 +428,10 @@ def strip_video(path: str, out: str) -> bool:
                                f"{os.path.splitext(out)[1]}")
     try:
         proc = subprocess.run(
+            # No subtitle or data streams: a drone or a dashcam writes where it
+            # was, second by second, into one (a .mkv keeps it, copied as is).
             [FFMPEG, "-v", "quiet", "-y", "-i", dates.long_path(path), "-map_metadata", "-1",
-             "-map_metadata:s", "-1", "-c", "copy", "-movflags", "+faststart", tmp],
+             "-map_metadata:s", "-1", "-sn", "-dn", "-c", "copy", "-movflags", "+faststart", tmp],
             capture_output=True, timeout=300, check=False,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if proc.returncode == 0 and os.path.getsize(tmp) > 0:
