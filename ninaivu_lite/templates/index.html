@@ -114,7 +114,7 @@
 
   <div class="searchbar" role="search">
     <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-    <input id="search" type="search" autocomplete="off" spellcheck="false"
+    <input id="search" type="search" autocomplete="off" spellcheck="false" enterkeyhint="search"
            placeholder="Search" aria-label="Search" data-i18n-label="Search"
            role="combobox" aria-autocomplete="list"
            aria-controls="suggestions" aria-expanded="false">
@@ -345,6 +345,9 @@
       </button>
       <strong id="sel-count">0 selected</strong>
       <div class="spacer"></div>
+      <!-- One row that scrolls sideways on a phone, rather than four lines of
+           buttons over the photographs being chosen. -->
+      <div class="sel-actions">
       <button class="btn ghost small" id="sel-all" data-i18n="Select all">Select all</button>
       <button class="btn ghost small" id="sel-fav" data-i18n="Favourite">Favourite</button>
       <button class="btn ghost small" id="sel-unfav" data-i18n="Unfavourite">Unfavourite</button>
@@ -362,6 +365,7 @@
         <button class="btn ghost small" data-sel-vis="public" data-i18n="Everyone">Everyone</button>
         <button class="btn ghost small" data-sel-vis="family" data-i18n="Family">Family</button>
         <button class="btn ghost small" data-sel-vis="hidden" data-i18n="Nobody">Nobody</button>
+      </div>
       </div>
     </div>
 

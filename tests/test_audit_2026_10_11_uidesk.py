@@ -144,7 +144,7 @@ def test_the_scrubber_rail_starts_where_the_grid_does():
 
 def test_search_suggestions_name_their_kind_in_the_page_language():
     assert "kind.textContent = entry.type;" not in APP_JS
-    assert "const KIND_LABELS = { folder: 'Folder', camera: 'Camera'" in APP_JS
+    assert "const SUGGESTION_KINDS = {" in APP_JS
     ta = json.loads(read(STATIC / "i18n" / "ta.json"))
     assert ta["Folder"] and ta["Camera"] and ta["Search"]
 

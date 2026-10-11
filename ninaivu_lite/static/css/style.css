@@ -931,6 +931,19 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 .section-head.packed .title { grid-column: 1 / -1; }
 .section-head.packed .sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .section-head.packed button { padding: 0 6px; }
+.section-head button svg { display: none; }
+/* A narrow packed day: "1 உருப்படி" and "அனைத்தையும் தேர்ந்தெடு" do not fit
+   side by side, and the count was cut to "1…". The button keeps only its tick
+   there; its name stays as its label and tooltip. */
+.section-head.packed { container-type: inline-size; }
+@container (max-width: 260px) {
+  .section-head.packed button { padding: 2px 4px; line-height: 0; }
+  .section-head.packed button .label { display: none; }
+  .section-head.packed button svg {
+    display: block; width: 16px; height: 16px; fill: none; stroke: currentColor;
+    stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round;
+  }
+}
 
 /* Scrubber ------------------------------------------------------------ */
 
@@ -1141,7 +1154,10 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 .viewer-tools-more.open .viewer-tools-more-label { display: inline; font-size: 14px; }
 .viewer-tools-more.open .vis-picker { margin: 4px 6px; align-self: flex-start; }
 .viewer-tools-more-label { display: none; }
-#v-more, #v-download, #v-close { flex: none; }
+/* Every button on the bar keeps its size; the name gives way (ellipsis). On a
+   320-360 px phone Favourite, Share and Details were squeezed to 20-25 px,
+   side by side, too narrow to hit one and not the next. */
+.viewer-tools, .viewer-tools > .icon-btn { flex: none; }
 .viewer-tools .icon-btn { color: rgba(255, 255, 255, .82); }
 .viewer-tools .icon-btn:hover { background: rgba(255, 255, 255, .14); color: #fff; }
 /* Lit while its panel is open (Details). The filled pink is the heart's own:
@@ -1398,7 +1414,7 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 
 /* On a phone "Select all" waits for selection mode (a long press starts it)
    instead of sitting on every day's header. */
-@media (max-width: 620px) {
+@media (max-width: 620px), (hover: none) and (pointer: coarse) {
   .section-head button { display: none; }
   .selecting .section-head button { display: inline-block; }
 }
@@ -1447,6 +1463,23 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 }
 @media (max-width: 600px) {
   .otd-tile { width: 76px; height: 76px; }
+}
+/* A phone on its side and the Pi's 800x480 screen: the row and the year strip
+   stood over the grid at 96 px and 45 px and left the photographs a 141 px
+   slit of a 390 px screen. The row's heading moves beside its tiles, and the
+   years give their line to Jump to, which lists them with their months. */
+@media (max-height: 520px) {
+  .on-this-day {
+    display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center;
+    column-gap: 10px; padding: 6px 12px 4px;
+  }
+  .otd-head {
+    display: grid; grid-template-columns: auto auto; gap: 2px 4px;
+    justify-items: start; align-items: center; margin: 0;
+  }
+  .otd-head h2 { grid-column: 1 / -1; }
+  .otd-tile { width: 64px; height: 64px; }
+  .year-strip:not([hidden]) { display: none; }
 }
 .info-nearby { padding: 2px 8px; }
 
@@ -1603,7 +1636,10 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 }
 .role-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .row { display: flex; gap: 8px; }
-.row .input { flex: 1; }
+/* min-width: 0, or a text box keeps its 20-character width and pushes Save
+   off the profile sheet on a 320 px phone. */
+.row .input { flex: 1; min-width: 0; }
+.row > .btn { flex: none; }
 .stack { display: flex; flex-direction: column; gap: 9px; }
 .hint { font-size: 12px; color: var(--text-3); }
 .hint.warn { color: var(--gold); }
@@ -1718,6 +1754,9 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 
 body[data-role="guest"] .segmented button[data-layout="film"] { display: none; }
 
+/* Wider screens lay the actions out with the rest of the bar, as before. */
+.sel-actions { display: contents; }
+
 @media (max-width: 720px) {
   .person { flex-wrap: wrap; }
   .person-controls { width: 100%; justify-content: flex-start; }
@@ -1729,6 +1768,15 @@ body[data-role="guest"] .segmented button[data-layout="film"] { display: none; }
      line(s) instead of running off the right edge unreachable. */
   .selection-bar { flex-wrap: wrap; row-gap: 6px; }
   .selection-bar .spacer { flex-basis: 100%; height: 0; }
+  /* The actions: one line that scrolls sideways. Wrapped, they took four or
+     five lines (159 px in English, 193 px in Tamil at 360 px). */
+  .sel-actions {
+    display: flex; flex: 1 1 100%; min-width: 0; gap: 6px; align-items: center;
+    overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+  .sel-actions::-webkit-scrollbar { display: none; }
+  .sel-actions > *, .sel-actions .sel-rotate { flex: none; }
 }
 
 .select:disabled, .btn:disabled {
@@ -2029,7 +2077,10 @@ body[data-role="guest"] .segmented button[data-layout="film"] { display: none; }
    hold to keep it moving. Above the picture, below the top bar. The dot
    pulses only while it plays. */
 .viewer-stage > .live-badge {
-  top: 70px; left: max(16px, env(safe-area-inset-left)); right: auto; z-index: 6;
+  /* Below the top bar, which starts under an iPhone's notch: at a flat 70px
+     the badge sat on the photo's name and date there. */
+  top: calc(58px + max(12px, env(safe-area-inset-top, 0px)));
+  left: max(16px, env(safe-area-inset-left)); right: auto; z-index: 6;
   pointer-events: auto; cursor: pointer;
   font: inherit; font-size: 11px; font-weight: 750;
   padding: 5px 9px; gap: 6px; border-radius: 8px;
@@ -2935,6 +2986,8 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
    scrubber, keeps clear of its gutter, and wraps rather than running past. */
 .selection-bar { position: relative; z-index: 25; flex-wrap: wrap; row-gap: 6px; padding-right: 56px; }
 @media (max-width: 480px) { .selection-bar { padding-right: 40px; } }
+/* A finger has no date rail (it is hidden for touch): no gutter kept for it. */
+@media (hover: none) and (pointer: coarse) { .selection-bar { padding-right: 16px; } }
 
 /* ==========================================================================
    Phones: nothing on top of anything else (M01–M13, 2026-10-08)
@@ -2947,6 +3000,11 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
    height left by the browser's bars; older browsers keep the vh above. */
 .modal-card { overflow-y: auto; overscroll-behavior: contain; max-height: min(640px, 86dvh); }
 .viewer-tools-more { max-height: calc(100dvh - 90px); }
+/* The same for the profile sheet and the command palette: in Safari on an
+   iPhone 88vh is measured with the toolbars hidden, so with them showing the
+   bottom of the sheet (its Save) sat under the toolbar. */
+.sheet-card { max-height: min(720px, 88dvh); }
+.palette-card { max-height: min(520px, 70dvh); }
 
 /* The sign-in, setup and "who's watching" screens: on a phone on its side
    the card is taller than the screen and was cut off at both ends with no
@@ -3224,4 +3282,45 @@ body:has(#ios-install-banner:not([hidden])) .jump-btn { bottom: calc(128px + env
 /* A phone on its side: the list uses the height there is, over the button. */
 @media (max-height: 520px) and (min-width: 621px) {
   .jump-panel { bottom: max(8px, env(safe-area-inset-bottom, 0px)); max-height: calc(100% - 16px); }
+}
+
+/* ==========================================================================
+   Touch: a finger-sized target for the small round buttons (2026-10-11)
+   ========================================================================== */
+
+/* The top bar's buttons, the viewer's bar and the close buttons are drawn at
+   30-34 px. Each gets an invisible 44 px target around it (Apple's and
+   Android's minimum) without moving or growing what is drawn. */
+@media (hover: none) and (pointer: coarse) {
+  #sidebar-toggle, #more-btn, #view-btn, #lang-btn, #profile-btn,
+  #on-this-day-close, #sel-cancel, #jump-close, .viewer-tools > .icon-btn {
+    position: relative;
+  }
+  #sidebar-toggle::after, #more-btn::after, #view-btn::after, #lang-btn::after,
+  #profile-btn::after, #on-this-day-close::after, #sel-cancel::after,
+  #jump-close::after, .viewer-tools > .icon-btn::after {
+    content: ""; position: absolute; left: 50%; top: 50%;
+    width: 44px; height: 44px; transform: translate(-50%, -50%);
+  }
+}
+
+/* An iPhone on its side: the notch and the rounded corners take the left and
+   right edges. The top bar and the grid already kept clear of them; the rows
+   between (On this day, the years, the filter and selection bars) and the
+   Details panel did not, and their first and last buttons sat under the
+   notch. */
+.on-this-day, .year-strip {
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px));
+}
+.filter-bar, .selection-bar { padding-left: max(16px, env(safe-area-inset-left, 0px)); }
+.filter-bar { padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+@media (hover: none) and (pointer: coarse) {
+  .selection-bar { padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+}
+.viewer-info {
+  padding-left: max(18px, env(safe-area-inset-left, 0px));
+  /* + 6px: the close button reaches 6px into the padding (margin-right: -6px). */
+  padding-right: max(18px, calc(env(safe-area-inset-right, 0px) + 6px));
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
 }
