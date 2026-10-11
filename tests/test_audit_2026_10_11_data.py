@@ -336,3 +336,75 @@ def test_publish_refuses_an_existing_name(tmp_path):
     final.unlink()
     assert importer.publish(str(tmp), str(final)) is True
     assert final.read_bytes() == b"new" and not tmp.exists()
+
+
+# --- a Live Photo copied to a drive ---------------------------------------------------------
+
+
+def test_an_export_keeps_a_live_photos_clip_with_its_renamed_still(app, admin, library,
+                                                                    tmp_path, monkeypatch):
+    from test_drives import fake_drive, wait_export
+
+    from ninaivu_lite import drives
+    root, _ = library
+    make_jpeg(root / "iphone" / "IMG_0042.JPG", "2024:01:15 10:00:00", color=(1, 2, 3))
+    clip = make_clip(root / "iphone" / "IMG_0042.MOV", datetime(2024, 1, 15, 4, 30), 2.5)
+    usb = tmp_path / "USB"
+    out = usb / "Ninaivu Lite" / root.name / "iphone"
+    out.mkdir(parents=True)
+    # On the drive already: another photograph of that name, and a video of
+    # the same size as this clip beside it (the other photograph's own).
+    (out / "IMG_0042.JPG").write_bytes(b"another photograph")
+    theirs = os.urandom(clip.stat().st_size)
+    (out / "IMG_0042.MOV").write_bytes(theirs)
+    monkeypatch.setattr(drives, "CACHE_SECONDS", 0)
+    app.config["DRIVES"] = drives.Watcher(lister=lambda: [fake_drive(usb)])
+    assert admin.post("/api/admin/drives/export", json={"id": "usb1"}).status_code == 200
+    assert wait_export(admin)["phase"] == "done"
+    assert (out / "IMG_0042 (2).JPG").read_bytes() == (root / "iphone" / "IMG_0042.JPG").read_bytes()
+    assert (out / "IMG_0042 (2).MOV").read_bytes() == clip.read_bytes()
+    assert (out / "IMG_0042.MOV").read_bytes() == theirs
+    assert (out / "IMG_0042.JPG").read_bytes() == b"another photograph"
+
+
+# --- copies of the index are their owner's alone ----------------------------------------------
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permissions")
+def test_copies_of_the_index_and_the_log_are_the_owners_alone(tmp_path, monkeypatch):
+    import logging
+
+    from ninaivu_lite import __main__ as cli
+    old = os.umask(0o022)
+    try:
+        data = tmp_path / "data"
+        db.connect(data).close()
+        (data / "settings.json").write_text("{}", encoding="utf-8")
+        folder = data / "backups"
+        folder.mkdir(mode=0o755)
+        earlier = folder / "ninaivu-lite-2026-01-01.zip"
+        earlier.write_bytes(b"PK old")
+        os.chmod(earlier, 0o644)
+        made = [backups.daily(data), backups.before_change(data, "update-from-index-10")]
+        for path in [*made, earlier]:
+            assert path.stat().st_mode & 0o777 == 0o600, path
+        assert folder.stat().st_mode & 0o777 == 0o700
+
+        backups.restore(data, made[0])
+        assert (data / db.DB_FILE).stat().st_mode & 0o077 == 0
+        assert (data / "settings.json").stat().st_mode & 0o077 == 0
+
+        root = logging.getLogger()
+        handlers = list(root.handlers)
+        try:
+            cli.setup_logging(str(data))
+            logs = data / "logs"
+            assert logs.stat().st_mode & 0o777 == 0o700
+            assert all(p.stat().st_mode & 0o077 == 0 for p in logs.iterdir())
+        finally:
+            for handler in root.handlers[:]:
+                if handler not in handlers:
+                    root.removeHandler(handler)
+                    handler.close()
+    finally:
+        os.umask(old)

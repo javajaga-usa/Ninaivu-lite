@@ -308,8 +308,10 @@ class Controller:
         # panel to show: it has no console of its own.
         said = self.data_dir / "logs" / "last-start.txt"
         try:
-            said.parent.mkdir(parents=True, exist_ok=True)
+            said.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             errors = open(said, "wb")       # noqa: SIM115 — handed to the child
+            if os.name != "nt":
+                os.chmod(said, 0o600)
         except OSError:
             # Nothing can be written there (a write-protected pendrive, a CD):
             # the server could not keep its index either, and there would be
