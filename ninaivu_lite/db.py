@@ -388,7 +388,10 @@ def migrate(conn: sqlite3.Connection) -> int:
             if version > len(MIGRATIONS):
                 raise NewerIndex(
                     f"The index is version {version}, made by a newer Ninaivu Lite; this one "
-                    f"knows versions up to {len(MIGRATIONS)}. Update Ninaivu Lite to open it.")
+                    f"knows versions up to {len(MIGRATIONS)}. Update Ninaivu Lite to open it; "
+                    "or, to go back to this version, restore the copy the update kept, "
+                    f"backups/before-update-from-index-{len(MIGRATIONS)}-<time>.zip, with --restore "
+                    "(what was changed since is not in it).")
             if version == len(MIGRATIONS):
                 return len(MIGRATIONS)
             conn.commit()

@@ -224,8 +224,6 @@ def preview():
     before handing out a login."""
     require_admin()
     c = cfg()
-    if not c.folders:
-        return jsonify({"total": 0, "items": []})
     person_id = request.args.get("person")
     if person_id:
         number = row_id(person_id)
@@ -240,6 +238,11 @@ def preview():
         label = auth.ROLE_LABELS[role]
         viewer = auth.User(id=0, username="preview", display_name=label, role=role,
                            library=request.args.get("library") or None)
+    if not c.folders:
+        # No library yet: nothing to count, but still said as whom.
+        return jsonify({"as": label, "role": viewer.role,
+                        "role_label": auth.ROLE_LABELS[viewer.role], "scope": None,
+                        "total": 0, "items": []})
     where, params = visible(viewer)
     total = conn().execute(f"SELECT COUNT(*) FROM assets a WHERE {where}", params).fetchone()[0]
     rows = conn().execute(

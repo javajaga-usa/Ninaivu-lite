@@ -32,6 +32,8 @@ const TOUR = [
   [i18n.key('Share links'), i18n.key('One photo or an album, with a password and an expiry if you like; the visitor\'s copy carries no location.')],
   [i18n.key('Sudar, the photo studio'), i18n.key('Light, colour, detail, crops and looks in the browser, or say it in plain words; the original is never touched.')],
   [i18n.key('Sideways photos put right'), i18n.key('The camera\'s tag, then the faces in a photo, decide which way is up during the scan; a turn by hand in the viewer corrects any.')],
+  [i18n.key('On this day, and nearby'), i18n.key('Above the timeline, the photos taken on this date in earlier years; in a photo\'s details, the ones taken near it.')],
+  [i18n.key('Live Photos and copies'), i18n.key('An iPhone\'s Live Photo shows once and moves when LIVE is pressed; Duplicates, in the console, shows a file kept in more than one place.')],
   [i18n.key('Import old drives'), i18n.key('Sweep cards, phone backups and old disks into one archive filed by date, every copy checked, duplicates left in place.')],
   [i18n.key('Tamil and English'), i18n.key('Every screen in either language, chosen by each person.')],
   [i18n.key('Backups and the Control Panel'), i18n.key('A backup of settings, people and albums whenever you ask; a small window starts, stops and watches Ninaivu Lite.')],
