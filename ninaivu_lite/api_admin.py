@@ -321,7 +321,10 @@ def browse():
     target = os.path.normpath(target)
     # A258: a folder not made yet (the archive's own, before the first
     # import) or on a drive since unplugged opens at the nearest one that is
-    # there, not at "Not a directory" with nowhere to go from it.
+    # there, not at "Not a directory" with nowhere to go from it. A system
+    # folder is refused as asked, even where it does not exist (/proc on a Mac).
+    if folders.unbrowsable(target):
+        fail(403, _CANNOT_OPEN.format(target))
     while raw and not os.path.lexists(target) and os.path.dirname(target) != target:
         target = os.path.dirname(target)
     try:

@@ -81,10 +81,16 @@ def starting_points() -> list[dict[str, str]]:
     return out
 
 
+def unbrowsable(path: str) -> bool:
+    """True for a system folder the picker never opens (/proc and the like)."""
+    key = _key(os.path.abspath(path))
+    return any(key == u or key.startswith(u + "/") for u in UNBROWSABLE)
+
+
 def list_dirs(path: str) -> dict:
     """The folders inside *path*, for the picker. Hidden and system folders left out."""
     path = os.path.abspath(path)
-    if any(_key(path) == u or _key(path).startswith(u + "/") for u in UNBROWSABLE):
+    if unbrowsable(path):
         raise PermissionError(path)
     dirs = []
     with os.scandir(long_path(path)) as entries:
