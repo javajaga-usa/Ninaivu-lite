@@ -302,6 +302,44 @@ def test_a59_every_released_installer_is_also_run():
     assert "docker build -f installers/docker/Dockerfile" in docker and "/api/health" in docker
 
 
+# --- FLOW1: every test runs somewhere ------------------------------------------------------
+
+
+def test_flow1_the_browser_job_runs_every_test_with_what_the_others_skip_for():
+    """The browser job named tests/test_smoke_browser.py alone, so the
+    film-roll scroll, the phone long-press and the first-day import tests
+    (Chromium) were skipped in every run, as were the video tests (no ffmpeg
+    on the runners), the face straightening (no OpenCV) and, on Linux, the
+    Control Panel (no screen)."""
+    tests = read(".github/workflows/tests.yml")
+    browser = tests[tests.index("\n  browser:\n"):]
+    run = re.search(r'NINAIVU_BROWSER_TESTS: "1"\n(?:\s+#.*\n)*\s+run: (.+)', browser).group(1)
+    assert run.startswith("xvfb-run -a python -m pytest"), run
+    assert "tests/" not in run and "-k" not in run, run
+    assert "-rs" in run
+    assert "requirements-browser.txt" in browser and "requirements-straighten.txt" in browser
+    assert "install --with-deps chromium" in browser
+    assert "apt-get install -y --no-install-recommends ffmpeg xvfb" in browser
+    # And the contributors' guide says to run them all the same way.
+    contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    assert "pytest tests/test_smoke_browser.py" not in contributing
+    assert "NINAIVU_BROWSER_TESTS=1 python -m pytest" in contributing
+
+
+def test_flow6_the_installers_readme_says_what_the_release_workflow_runs():
+    """installers/README.md said the macOS app and the arm64 installer were
+    built but not run, and that a sudo install and the Docker image were not
+    tried at all, while release.yml runs every one of them."""
+    release = read(".github/workflows/release.yml")
+    readme = " ".join(read("installers/README.md").split())
+    assert "hdiutil attach" in job(release, "macos")
+    assert "runner: ubuntu-24.04-arm" in job(release, "linux")
+    assert 'sudo sh "$installer"' in job(release, "linux") and "docker build" in job(release, "docker")
+    assert "built but not run" not in readme and "not tried by the workflow" not in readme
+    for said in ("macOS", "arm64", "with `sudo` as a service", "Docker:", "portable zip"):
+        assert said in readme, said
+
+
 # --- A62: tool versions do not float ------------------------------------------------------
 
 

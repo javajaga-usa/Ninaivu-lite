@@ -3296,6 +3296,9 @@
   "Copies": "நகல்கள்",
   "Where each one is": "ஒவ்வொன்றும் இருக்கும் இடம்",
   "Copies in more than one place": "ஒன்றுக்கு மேற்பட்ட இடங்களில் உள்ள நகல்கள்",
-  "The same file, byte for byte, in more than one folder of the library. Ninaivu Lite only shows where they are: it never moves or deletes a file. To tidy up, remove the copies you do not want in the folders themselves (or in Ninaivu); the next scan updates this list.": "ஒவ்வொரு பைட்டும் ஒன்றாக உள்ள அதே கோப்பு, நூலகத்தின் ஒன்றுக்கு மேற்பட்ட கோப்புறைகளில். அவை எங்கே உள்ளன என்பதை மட்டுமே நினைவு லைட் காட்டும்: அது ஒருபோதும் ஒரு கோப்பை நகர்த்துவதோ நீக்குவதோ இல்லை. ஒழுங்குபடுத்த, வேண்டாத நகல்களைக் கோப்புறைகளிலேயே (அல்லது நினைவில்) நீக்குங்கள்; அடுத்த ஸ்கேன் இந்தப் பட்டியலைப் புதுப்பிக்கும்.",
-  "Pages of copies": "நகல்களின் பக்கங்கள்"
+  "The same file, byte for byte, in more than one folder of the library. Ninaivu Lite only shows where they are: it never moves or deletes a file. To tidy up, remove the copies you do not want in the folders themselves; the next scan updates this list.": "ஒவ்வொரு பைட்டும் ஒன்றாக உள்ள அதே கோப்பு, நூலகத்தின் ஒன்றுக்கு மேற்பட்ட கோப்புறைகளில். அவை எங்கே உள்ளன என்பதை மட்டுமே நினைவு லைட் காட்டும்: அது ஒருபோதும் ஒரு கோப்பை நகர்த்துவதோ நீக்குவதோ இல்லை. ஒழுங்குபடுத்த, வேண்டாத நகல்களைக் கோப்புறைகளிலேயே நீக்குங்கள்; அடுத்த ஸ்கேன் இந்தப் பட்டியலைப் புதுப்பிக்கும்.",
+  "Pages of copies": "நகல்களின் பக்கங்கள்",
+  "Home folder": "வீட்டுக் கோப்புறை",
+  "{name} (current)": "{name} (இப்போதையது)",
+  "{letter}: drive": "{letter}: டிரைவ்"
 }

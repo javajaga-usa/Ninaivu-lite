@@ -3194,6 +3194,9 @@
   "Copies": "Copies",
   "Where each one is": "Where each one is",
   "Copies in more than one place": "Copies in more than one place",
-  "The same file, byte for byte, in more than one folder of the library. Ninaivu Lite only shows where they are: it never moves or deletes a file. To tidy up, remove the copies you do not want in the folders themselves (or in Ninaivu); the next scan updates this list.": "The same file, byte for byte, in more than one folder of the library. Ninaivu Lite only shows where they are: it never moves or deletes a file. To tidy up, remove the copies you do not want in the folders themselves (or in Ninaivu); the next scan updates this list.",
-  "Pages of copies": "Pages of copies"
+  "The same file, byte for byte, in more than one folder of the library. Ninaivu Lite only shows where they are: it never moves or deletes a file. To tidy up, remove the copies you do not want in the folders themselves; the next scan updates this list.": "The same file, byte for byte, in more than one folder of the library. Ninaivu Lite only shows where they are: it never moves or deletes a file. To tidy up, remove the copies you do not want in the folders themselves; the next scan updates this list.",
+  "Pages of copies": "Pages of copies",
+  "Home folder": "Home folder",
+  "{name} (current)": "{name} (current)",
+  "{letter}: drive": "{letter}: drive"
 }
