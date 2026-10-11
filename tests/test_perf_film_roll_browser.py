@@ -116,3 +116,48 @@ def test_an_open_photo_stops_the_sharpening_fetches(browser, long_gallery):  # n
         assert not errors, errors
     finally:
         context.close()
+
+
+def test_a_short_pause_lets_the_small_pictures_on_their_way_finish(browser, long_gallery):  # noqa: F811
+    """PERF4: reading down a page a short pause at a time, each pause turned
+    the fetching ahead to the sharp pictures and cancelled the small ones
+    already on their way, so the tiles the next stretch of the scroll put
+    there waited for them from the start: 0.9-5% of the tiles on screen were
+    blank while scrolling (300 ms pauses, a 250 ms link, a slow phone), none
+    before the film roll. A pause now lets them finish: none blank."""
+    context, page, errors = phone(browser, long_gallery)
+    try:
+        cdp = context.new_cdp_session(page)
+        cdp.send("Network.enable")
+        # Slow enough that the pictures fetched ahead are still coming at the
+        # pause, whatever the computer.
+        cdp.send("Network.emulateNetworkConditions", {
+            "offline": False, "latency": 3000, "downloadThroughput": 2_000_000,
+            "uploadThroughput": 1_000_000})
+        found = page.evaluate("""async () => {
+          const { grid } = window.__mv;
+          const p = grid.prefetcher;
+          const frame = () => new Promise((r) => requestAnimationFrame(r));
+          // A short scroll, within the tiles already on the page and loaded.
+          for (let i = 0; i < 6; i += 1) { grid.scroller.scrollTop += 20; await frame(); }
+          await frame();
+          // What the scroll is fetching ahead as it stops: small pictures for
+          // tiles well past the page.
+          const top = grid.scroller.scrollTop, view = grid.scroller.clientHeight;
+          const far = grid.layout.cells.filter((c) => c.y > top + view * 4)
+            .slice(0, 4).map((c) => grid.cellThumbUrl(c, true));
+          p.want(far, grid.shownUrls());
+          const coming = far.filter((u) => p.active.has(u));
+          // The pause: the grid settles, and fetches the sharp pictures ahead.
+          await new Promise((r) => setTimeout(r, 500));
+          return { scrolling: grid.scrolling, coming,
+                   dropped: coming.filter((u) => !p.active.has(u) && !p.done.has(u)) };
+        }""")
+        assert not found["scrolling"], found
+        # Small pictures were on their way when the scroll stopped…
+        assert found["coming"], found
+        # …and the stop let every one of them carry on.
+        assert not found["dropped"], found
+        assert not errors, errors
+    finally:
+        context.close()
