@@ -234,6 +234,7 @@ def daily(data_dir: str | Path) -> Path | None:
     if today.exists():
         return None
     folder.mkdir(parents=True, exist_ok=True)
+    _clear_leftovers(folder, "ninaivu-lite-*.zip")
     tmp = today.with_name(today.name + ".tmp")
     write_bundle(data_dir, tmp)
     tmp.replace(today)
@@ -283,6 +284,7 @@ def before_change(data_dir: str | Path, what: str) -> Path | None:
     target = None
     try:
         folder.mkdir(parents=True, exist_ok=True)
+        _clear_leftovers(folder, "before-*.zip")
         # Never over an earlier copy: two taken in the same second (two
         # people removed one after the other) get -2, -3. The name is
         # claimed first, so two at once cannot both choose it. Counted on
@@ -314,14 +316,52 @@ def before_change(data_dir: str | Path, what: str) -> Path | None:
             except OSError:
                 pass
         return None
-    # Newest first by when they were taken, whatever they were taken before
-    # (by name, every "before-update" copy would outlive newer "before-person" ones).
-    for old in sorted(folder.glob("before-*.zip"), key=_taken_at, reverse=True)[KEEP_BEFORE:]:
-        try:
-            old.unlink()
-        except OSError:
-            pass
+    _prune_before(folder)
     return target
+
+
+def _prune_before(folder: Path) -> None:
+    """The newest :data:`KEEP_BEFORE` copies taken before a change are kept,
+    newest first by when they were taken, whatever they were taken before (by
+    name, every "before-update" copy would outlive newer "before-person"
+    ones). The newest copy taken before an update is kept beyond those: it is
+    the only way back to the version before, whose index the later copies
+    are too new for. A copy still being written (or left empty by a power
+    cut while it was) is not one of them."""
+    made = []
+    for path in folder.glob("before-*.zip"):
+        try:
+            if path.stat().st_size:
+                made.append(path)
+        except OSError:
+            continue
+    made.sort(key=_taken_at, reverse=True)
+    keep = set(made[:KEEP_BEFORE])
+    keep.update([p for p in made if p.name.startswith("before-update-")][:1])
+    for old in made:
+        if old not in keep:
+            try:
+                old.unlink()
+            except OSError:
+                pass
+
+
+#: A copy left half-written this long ago is never going to be finished.
+LEFTOVER_SECONDS = 3600
+
+
+def _clear_leftovers(folder: Path, pattern: str) -> None:
+    """What a copy cut short by a power cut or a closed window left behind:
+    its ``.tmp`` and the empty name it had claimed. Only old ones: a copy
+    being taken now, in this or another process, looks the same."""
+    cutoff = time.time() - LEFTOVER_SECONDS
+    for path in [*folder.glob(pattern), *folder.glob(pattern + ".tmp")]:
+        try:
+            st = path.stat()
+            if (path.suffix == ".tmp" or st.st_size == 0) and st.st_mtime < cutoff:
+                path.unlink()
+        except OSError:
+            continue
 
 
 _TAKEN = re.compile(r"(\d{4}-\d{2}-\d{2}-\d{6})(?:-(\d{1,3}))?$")
@@ -345,6 +385,8 @@ def listing(data_dir: str | Path) -> list[dict]:
             st = p.stat()
         except OSError:
             continue
+        if not st.st_size:
+            continue                # still being written, or cut short
         out.append({"name": p.name, "size": st.st_size, "at": st.st_mtime,
                     "before": p.name.startswith("before-")})
     return sorted(out, key=lambda item: item["at"], reverse=True)
