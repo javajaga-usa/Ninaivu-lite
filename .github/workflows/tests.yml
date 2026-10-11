@@ -66,3 +66,34 @@ jobs:
           tail=$( (cat server.log; tail -n 20 "$RUNNER_TEMP/nl-data/logs/ninaivu-lite.log" 2>/dev/null) | tail -n 40 | tr '\n' '~' | sed 's/~/%0A/g')
           echo "::error title=server did not answer::$tail"
           exit 1
+
+  # The stylesheets and scripts checked for mistakes (package.json), and the
+  # screens opened in a real browser: the gallery, the console, a share link
+  # and the sign-in, in English and Tamil, on a phone and a laptop
+  # (tests/test_smoke_browser.py).
+  browser:
+    name: Lint and browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Lint the stylesheets and scripts
+        run: |
+          npm ci
+          npm run lint
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: python -m pip install -r requirements-browser.txt
+      - run: python -m playwright install --with-deps chromium
+      - name: The screens in a browser
+        env:
+          # Here a missing browser is a failure, not a skip.
+          NINAIVU_BROWSER_TESTS: "1"
+        run: python -m pytest -rfE --tb=short tests/test_smoke_browser.py

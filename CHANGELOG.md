@@ -21,6 +21,24 @@
 - **M42:** the date scrubber down the right edge of the gallery lay over the filter bar and
   the selection bar, so its year labels took clicks meant for *Clear all* and the last
   button on the right. Those bars now sit above it.
+- **The screens are opened in a real browser on every change.** A new CI job starts the
+  server over a few sample photos and opens the family gallery and its viewer, every page of
+  the admin console, a share link, *Who's watching?* and the console's sign-in in headless
+  Chromium, in English and Tamil, at phone (360×780) and laptop (1280×800) size. It fails on
+  a script or console error, a server error, a key part drawn with no size, or a page wider
+  than the screen. It also checks that the browser keeps every rule of every stylesheet, so a
+  broken comment like the one that hid the Jump to button in 1.11.0 (M22) fails it.
+  (`tests/test_smoke_browser.py`, `requirements-browser.txt`; skipped where Playwright is not
+  installed)
+- **The stylesheets and scripts are linted** for mistakes only, not for layout: stylesheets
+  that do not parse, unknown properties and values, bad colours; scripts with undefined names.
+  It found nothing to fix. (`package.json`, `stylelint.config.mjs`, `eslint.config.mjs`; Node
+  is needed only for this, never to run Ninaivu Lite)
+- **Every installer opens the gallery and the console before a release.** The release
+  workflow already started each installed copy and asked for its health; now the Windows
+  installer, the portable zip, the Mac disk image, the Linux installer (as a person, as a
+  service, and into a folder of its own with `--prefix`) and the Docker image must also
+  answer `/` and `/admin`. (`.github/workflows/release.yml`)
 
 ## 1.12.0 — 2026-10-10
 
