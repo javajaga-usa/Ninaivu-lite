@@ -375,6 +375,27 @@ def _private(path: Path) -> None:
             pass
 
 
+def owner_only(path: str | Path, folder: bool = False) -> None:
+    """On Linux and macOS, *path* readable by its owner only (0600, or 0700
+    for a folder): copies of the index and the settings, and the logs,
+    which name people's photographs and folders. Windows keeps the data
+    folder's own permissions (a per-user folder already)."""
+    if os.name == "nt":
+        return
+    try:
+        os.chmod(path, 0o700 if folder else 0o600)
+    except OSError:
+        pass
+
+
+def private_file(path: str | Path) -> None:
+    """Create (or empty) *path* as its owner's alone before anything is
+    written into it, so it is never readable by others, even for a moment."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_BINARY", 0)
+    os.close(os.open(path, flags, 0o600))
+    owner_only(path)
+
+
 _MIGRATE_LOCK = threading.Lock()
 
 
@@ -388,7 +409,10 @@ def migrate(conn: sqlite3.Connection) -> int:
             if version > len(MIGRATIONS):
                 raise NewerIndex(
                     f"The index is version {version}, made by a newer Ninaivu Lite; this one "
-                    f"knows versions up to {len(MIGRATIONS)}. Update Ninaivu Lite to open it.")
+                    f"knows versions up to {len(MIGRATIONS)}. Update Ninaivu Lite to open it; "
+                    "or, to go back to this version, restore the copy the update kept, "
+                    f"backups/before-update-from-index-{len(MIGRATIONS)}-<time>.zip, with --restore "
+                    "(what was changed since is not in it).")
             if version == len(MIGRATIONS):
                 return len(MIGRATIONS)
             conn.commit()

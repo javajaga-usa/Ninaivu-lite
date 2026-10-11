@@ -14,6 +14,7 @@ Lite never changes a photograph: the only writes here are to the index
 
 from __future__ import annotations
 
+import calendar
 import io
 import logging
 import math
@@ -433,8 +434,12 @@ def grid_filters(who: auth.User) -> tuple[str, list[Any]]:
     # The same day of the year in the years before (the "On this day" row).
     day = query.get("on_this_day") or ""
     if DAY_RE.match(day):
-        clauses.append("substr(a.date_key, 6, 5) = ? AND a.date_key < ?")
-        args += [day[5:], day[:4]]
+        days = [day[5:]]
+        if days == ["02-28"] and not calendar.isleap(int(day[:4])):
+            days.append("02-29")      # a leap day's photographs, in the years between
+        clauses.append(f"substr(a.date_key, 6, 5) IN ({','.join('?' * len(days))}) "
+                       f"AND a.date_key < ?")
+        args += [*days, day[:4]]
 
     # Taken within a kilometre of a photograph this person may see. Where a
     # photograph was taken is for the family, as in its details.
@@ -443,6 +448,12 @@ def grid_filters(who: auth.User) -> tuple[str, list[Any]]:
         box = near_box(near, who)
         if box is None:
             clauses.append("0")
+        elif box[2] < -180 or box[3] > 180:
+            # Across the 180th meridian (Fiji, Kamchatka): east of the west
+            # edge, or west of the east edge, on the other side of it.
+            clauses.append("a.gps_lat BETWEEN ? AND ? AND (a.gps_lon >= ? OR a.gps_lon <= ?)")
+            args += [box[0], box[1], box[2] + 360 if box[2] < -180 else box[2],
+                     box[3] - 360 if box[3] > 180 else box[3]]
         else:
             clauses.append("a.gps_lat BETWEEN ? AND ? AND a.gps_lon BETWEEN ? AND ?")
             args += box
@@ -1084,6 +1095,18 @@ class _Pipe(io.RawIOBase):
         return out
 
 
+#: Characters a name in a ZIP must not carry: a file named "..\\..\\x.jpg" (one
+#: name on Linux or a NAS) is a path on Windows, and some unzippers there
+#: wrote it outside the folder it was unzipped into.
+_NOT_IN_ZIP = str.maketrans({c: "_" for c in '<>:"\\|?*/' + "".join(map(chr, range(32)))})
+
+
+def zip_name(name: str) -> str:
+    """*name* as a ZIP entry: one file, never a folder or another drive."""
+    name = name.translate(_NOT_IN_ZIP)
+    return "_" if not name.strip(" .") else name
+
+
 def unique_name(taken: set[str], name: str) -> str:
     """*name*, or "name (2).ext" and so on when the archive already has it."""
     stem, dot, ext = name.rpartition(".")
@@ -1161,7 +1184,7 @@ def download_zip():
         for row in (rows[asset_id], motion):
             if row is None:
                 continue
-            name = unique_name(taken, row["name"])
+            name = unique_name(taken, zip_name(row["name"]))
             try:
                 path = asset_path(row)
             except ApiError:

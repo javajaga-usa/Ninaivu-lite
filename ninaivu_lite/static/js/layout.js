@@ -46,7 +46,9 @@ function makeIndex(cells, headers, height) {
 
 /**
  * @param {Array<{key:string, items:Array<Array<number>>}>} segments
- * @param {{width:number, mode:string, zoom:number, gap:number, headers:boolean}} opts
+ * @param {{width:number, mode:string, zoom:number, gap:number, headers:boolean,
+ *          packMin?:number}} opts  packMin: the narrowest a packed day's header
+ *          fits in, in the language on screen (PACK_MIN when not given).
  */
 export function computeLayout(segments, opts) {
   const { width, mode, zoom } = opts;
@@ -62,7 +64,7 @@ export function computeLayout(segments, opts) {
 
   // Days small enough to share a row. Worked out once per segment, and only
   // as far as the first item that makes it too wide, so this stays linear.
-  const packing = showHeaders ? packPlan(segments, mode, width, gap, target) : null;
+  const packing = showHeaders ? packPlan(segments, mode, width, gap, target, opts.packMin) : null;
 
   for (let s = 0; s < segments.length; s++) {
     const segment = segments[s];
@@ -168,9 +170,9 @@ function naturalRow(segment, mode, width, gap, target, limit) {
  * run of one is laid out exactly as before, full width, so a library of busy
  * days looks the way it always has.
  */
-function packPlan(segments, mode, width, gap, target) {
+function packPlan(segments, mode, width, gap, target, packMin = PACK_MIN) {
   const limit = width * PACK_MAX;
-  const minBlock = Math.min(PACK_MIN, Math.floor((width - PACK_GAP) / 2));
+  const minBlock = Math.min(Math.max(PACK_MIN, packMin || 0), Math.floor((width - PACK_GAP) / 2));
   const rows = new Map();          // segment index -> its naturalRow, or null
   const rowOf = (i) => {
     if (!rows.has(i)) {

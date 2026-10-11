@@ -17,6 +17,9 @@ Every installer carries its own Python and every package: nothing is downloaded
 when it installs or runs. Each one opens the **Control Panel**, from which
 Ninaivu Lite is started and stopped; the first visit in the browser makes the
 administrator, and the console's first-day guide asks for the photo folder.
+The packages are those in `requirements-installer.txt`: what Ninaivu Lite needs, and
+`pillow-heif` for the HEIC photos an iPhone takes. They are taken as wheels only, so a
+package with no wheel for the bundled Python stops the build by name.
 
 | Folder | Makes | Build with |
 | --- | --- | --- |

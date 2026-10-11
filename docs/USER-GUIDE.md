@@ -282,6 +282,8 @@ later. The visitor does not see the file's name.
   for how it was installed (`--restore <zip>` goes in the same place):
   - **Windows installer, or Linux without `sudo`:** `ninaivu-lite --reset-password <username>`
     (on Windows, in a new Command Prompt).
+  - **macOS app:** in Terminal,
+    `"/Applications/Ninaivu Lite.app/Contents/MacOS/ninaivu-lite" --server --reset-password <username>`.
   - **Linux with `sudo`:** `sudo systemctl stop ninaivu-lite`, then
     `sudo -u ninaivu-lite /usr/local/bin/ninaivu-lite --reset-password <username>`, then
     `sudo systemctl start ninaivu-lite`.

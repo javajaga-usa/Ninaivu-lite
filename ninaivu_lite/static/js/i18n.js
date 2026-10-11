@@ -118,14 +118,24 @@ const ROLES = {
  *  and a British one reads 3/4 as April. It used to be British everywhere. */
 export function locale() {
   if (current === 'ta') return 'ta-IN';
-  try {
-    for (const tag of navigator.languages || [navigator.language || '']) {
-      if (!/^en(-|$)/i.test(String(tag))) continue;
-      // Only a tag Intl accepts: some systems report "en-US@posix", and a
-      // date formatted with that throws instead of printing a date.
-      try { return Intl.getCanonicalLocales(String(tag))[0]; } catch { /* next */ }
-    }
-  } catch { /* no navigator: a test, or a worker */ }
+  let tags = [];
+  try { tags = navigator.languages || [navigator.language || '']; } catch { /* no navigator: a test, or a worker */ }
+  // Asked for on every frame of a scroll (the scrubber's label, each day's
+  // heading): worked out again only when the browser's languages change.
+  const key = tags.join(',');
+  if (localeFor.key !== key) localeFor = { key, value: englishLocale(tags) };
+  return localeFor.value;
+}
+
+let localeFor = { key: null, value: 'en-GB' };
+
+function englishLocale(tags) {
+  for (const tag of tags) {
+    if (!/^en(-|$)/i.test(String(tag))) continue;
+    // Only a tag Intl accepts: some systems report "en-US@posix", and a
+    // date formatted with that throws instead of printing a date.
+    try { return Intl.getCanonicalLocales(String(tag))[0]; } catch { /* next */ }
+  }
   return 'en-GB';
 }
 

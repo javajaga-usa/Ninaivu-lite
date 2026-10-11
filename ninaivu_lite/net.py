@@ -120,6 +120,17 @@ def _addresses_by_name(timeout: float) -> list[str]:
     return list(result) if not thread.is_alive() else []
 
 
+def local_urlopen(target, timeout: float):
+    """urllib's urlopen for this computer's own server, never through a proxy.
+    urllib takes the proxy from the environment, or from Windows' and macOS'
+    own settings, and sends 127.0.0.1 there unless told not to: the server
+    then looked stopped, and the Control Panel's stop token went to the proxy."""
+    import urllib.request
+
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    return opener.open(target, timeout=timeout)
+
+
 def already_running(port: int, instance: str | None = None) -> bool:
     """Is Ninaivu Lite itself already answering on this port, and, given
     *instance* (the data folder's name, see lock.instance_id), is it the one
@@ -128,10 +139,9 @@ def already_running(port: int, instance: str | None = None) -> bool:
     of 1.7.0 or later (one names its folder before it answers), so a server
     that names its own folder is another copy's."""
     import json
-    import urllib.request
 
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=1.5) as r:
+        with local_urlopen(f"http://127.0.0.1:{port}/api/health", timeout=1.5) as r:
             data = json.load(r)
     except Exception:  # noqa: BLE001 — nothing there, or something else is
         return False

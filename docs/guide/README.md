@@ -7,7 +7,7 @@ they are made again from the app.
 | File | What it is |
 | --- | --- |
 | `en.html`, `ta.html`, `guide.css` | the guide text and layout; UI labels are `<span class="ui">` and must be strings from the app's `static/i18n/en.json` / `ta.json` |
-| `make_library.py` | draws the sample library (120 Pillow pictures with EXIF dates, cameras and GPS, 2012–2025, plus 3 ffmpeg clips) and an "old drive" for the Import page |
+| `make_library.py` | draws the sample library (120 Pillow pictures with EXIF dates, cameras and GPS, 2012–2025, plus 3 ffmpeg clips), then the extras for the newer pages: photos dated today's day and month in earlier years (*On this day*), an iPhone Live Photo pair in `Temples` (needs ffmpeg) and byte-for-byte copies in `Phone backup 2019` (*Duplicates*); and an "old drive" for the Import page |
 | `shots.js` | Playwright: every screenshot, stage by stage, against a fresh Ninaivu Lite (`LANG_GUIDE=en|ta`) |
 | `serve.sh`, `run_all.sh` | start a fresh app per language; `run_all.sh` does library + both languages + the Control Panel |
 | `panel_shot.sh` | the Control Panel (Tk) on Xvfb, before an administrator exists (so it shows the setup code) |

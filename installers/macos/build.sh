@@ -54,7 +54,7 @@ fi
 tar -xzf "$build/$tarball" -C "$app/Contents/Resources"      # unpacks to ./python
 rm "$build/$tarball"
 py="$app/Contents/Resources/python/bin/python3"
-"$py" -m pip install --quiet --disable-pip-version-check -r "$root/requirements-installer.txt"
+"$py" -m pip install --quiet --disable-pip-version-check --only-binary=:all: -r "$root/requirements-installer.txt"
 "$py" -m pip install --quiet --disable-pip-version-check --no-deps "$root"
 "$py" -c "import tkinter, ninaivu_lite.panel, pillow_heif" || { echo "the bundled Python cannot open the Control Panel or read HEIC photos" >&2; exit 1; }
 find "$app/Contents/Resources/python" -name "__pycache__" -type d -prune -exec rm -rf {} +

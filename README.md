@@ -51,7 +51,12 @@ archive, and **Sudar**, the photo studio that runs in the browser.
 
 - **Gallery** at `http://<computer>:8080/` — timeline with a date scrubber, folders,
   favourites, albums, simple search (name, folder, date, camera), a full-screen viewer with
-  swipe and arrow keys, video playback, download.
+  swipe and arrow keys, video playback, download. *On this day* above the timeline shows the
+  photos taken on today's date in earlier years; a photo that knows where it was taken offers
+  *Photos taken nearby* in its details.
+- **iPhone photos** — HEIC photos show as photographs (every installer carries `pillow-heif`),
+  and a Live Photo (`IMG_1234.HEIC` with its short `IMG_1234.MOV`) shows once, moving when
+  **LIVE** is pressed.
 - **Sign-in like Ninaivu** — a profile picker; each person enters with no secret, a PIN or a
   password (the administrator's tile takes the password); a *Just looking* tile shows public
   photos to visitors (can be turned off). A tile shows initials on a colour, or a photograph
@@ -60,6 +65,7 @@ archive, and **Sudar**, the photo studio that runs in the browser.
   set per folder (new files follow the folder) or per photo, with undo.
 - **Admin console** at `/admin` — overview, library folders and rescans, people (role,
   PIN/password, which folder they see), visibility, settings and a backup download.
+  *Duplicates* lists the same photo or video kept in more than one folder, read-only.
 - **Import** — sweep old drives, cards and backup folders into one archive filed by the day
   each photo was taken, every copy hash-checked, duplicates left in place, sources never
   changed. Google Takeout exports keep their dates, places, descriptions and albums.
@@ -113,7 +119,9 @@ index forward on its own, after keeping a copy of it as it was in the data folde
 `backups` (a `before-update-…` zip). If you forget to stop it, the Windows and Linux
 installers offer to stop it for you, and refuse to replace a copy they cannot stop rather
 than leave it half updated. For the portable zip, extract the new version to a new folder
-and copy the old `data` folder into it (see `app\README-PORTABLE.txt`).
+and copy the old `data` folder into it (see `app\README-PORTABLE.txt`). To go back to the
+earlier version after such an update, install it and restore that `before-update-…` zip with
+`--restore <zip>` (see below); what was changed since is not in it.
 
 **The releases are not code-signed yet.** Free signing through the
 [SignPath Foundation](https://signpath.org) has been applied for and is pending; until then
@@ -192,6 +200,7 @@ Lite first):
 | Installed with | Run |
 | --- | --- |
 | Windows installer, or Linux without `sudo` | `ninaivu-lite --reset-password NAME` (a new Command Prompt on Windows) |
+| macOS app | in Terminal: `"/Applications/Ninaivu Lite.app/Contents/MacOS/ninaivu-lite" --server --reset-password NAME` |
 | Linux with `sudo` | `sudo systemctl stop ninaivu-lite`, then `sudo -u ninaivu-lite /usr/local/bin/ninaivu-lite --reset-password NAME` |
 | Windows portable zip | in its `Ninaivu Lite` folder: `app\Python\python.exe -m ninaivu_lite --data "<that folder>\data" --reset-password NAME` |
 | this repository | `python -m ninaivu_lite --reset-password NAME`, inside the activated `.venv` |
@@ -206,7 +215,8 @@ a data folder of your own. What was in the data folder before a restore is kept 
 (or run `tools\start-with-windows.cmd`); on a Raspberry Pi or a server, use the
 [Linux installer](#install), which sets up a systemd service that starts it at boot.
 
-**Optional extras:** `pip install pillow-heif` shows iPhone HEIC photos. `ffmpeg` on the PATH
+**Optional extras:** `pip install pillow-heif` shows iPhone HEIC photos when running from a
+copy of the source (every installer already carries it). `ffmpeg` on the PATH
 gives videos the browsers cannot play a preview picture (the family's browsers make the others
 without it), and **is needed to share videos with guests and share links**: it removes a
 video's location before it is sent. Without it such a video is refused to them, unless an

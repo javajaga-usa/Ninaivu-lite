@@ -31,6 +31,7 @@ import logging
 import os
 import shutil
 import sqlite3
+import sys
 import threading
 import time
 import uuid
@@ -67,6 +68,9 @@ NEVER_MEDIA_EXTS = {
 IGNORE_DIRS = {"$RECYCLE.BIN", "System Volume Information", "@eaDir", "#recycle", "node_modules",
                "__pycache__", "Windows", "Program Files", "Program Files (x86)", "ProgramData"}
 TERMINAL = ("verified", "duplicate", "skipped")
+#: A Live Photo: a still and its short video of the same name (see scanner._pair_live).
+LIVE_STILL_EXTS = {".heic", ".heif", ".jpg", ".jpeg"}
+LIVE_CLIP_EXTS = {".mov", ".mp4"}
 PLAN = ("planned", "plan-duplicate", "plan-skip")
 ESTIMATE_CAP = 200_000
 #: Seconds between asking the library to look at what an import brought in.
@@ -215,6 +219,30 @@ def target_folder(destination: str, taken: datetime | None) -> str:
     if taken is None:
         return os.path.join(destination, UNDATED)
     return os.path.join(destination, f"{taken.year:04d}", f"{taken.month:02d}", f"{taken.day:02d}")
+
+
+def publish(tmp: str, final: str) -> bool:
+    """Move a finished copy *tmp* to *final*, never over a file there: False,
+    and nothing moved, when one is. A hard link (or, on Windows, a rename)
+    refuses an existing name in the same step; a drive without hard links
+    (FAT, exFAT, some network drives) is checked just before instead."""
+    if sys.platform == "win32":
+        try:
+            os.rename(long_path(tmp), long_path(final))
+        except FileExistsError:
+            return False
+        return True
+    try:
+        os.link(long_path(tmp), long_path(final))
+    except FileExistsError:
+        return False
+    except OSError:
+        if os.path.lexists(long_path(final)):
+            return False
+        os.replace(long_path(tmp), long_path(final))
+        return True
+    os.remove(long_path(tmp))
+    return True
 
 
 # --- paths and the job's shape --------------------------------------------------------
@@ -509,7 +537,7 @@ class Importer:
                 "processed": 0, "stepped_over": 0, "total_files": 0, "total_bytes": 0,
                 "bytes_copied": 0, "started_at": time.time(), "ended_at": None,
                 "fresh_started": None, "unreadable": 0, "job_id": None, "plan_aside": {},
-                "library": [f for f in library if f], "packed": 0,
+                "library": [f for f in library if f], "packed": 0, "too_small": 0,
             }
             self._thread = threading.Thread(target=self._run, name="importer", daemon=True)
             self._thread.start()
@@ -842,6 +870,12 @@ class Importer:
             parts.append("{packed} zip or other packed files were left alone: unpack them (a "
                          "Google Takeout export, say) and import the folder.")
             values["packed"] = f"{j['packed']:,}"
+        if j.get("too_small"):
+            # Left out without a word, an import of an old phone's tiny photos
+            # said "0 files archived", and the card could be wiped believing
+            # everything was safe.
+            parts.append("{small} files under 24 KB were left out as icons or thumbnails.")
+            values["small"] = f"{j['too_small']:,}"
         said = [_say(part, **{k: v for k, v in values.items() if "{" + k + "}" in part})
                 for part in parts]
         return {"key": said[0]["key"], "vars": said[0]["vars"],
@@ -875,7 +909,7 @@ class Importer:
             if total % 500 == 0:
                 self._set(total_files=total, total_bytes=size)
         self._set(total_files=total, total_bytes=size, unreadable=counters.get("unreadable", 0),
-                  packed=counters.get("packed", 0))
+                  packed=counters.get("packed", 0), too_small=counters.get("too_small", 0))
         if not dry:
             # Only what this run's sources already put in this archive is
             # room not needed again: every earlier import, to anywhere, is not.
@@ -977,6 +1011,15 @@ class Importer:
                 return
             taken, source = capture_date(src, kind, st)
             folder = target_folder(j["destination"], taken)
+            # A Live Photo's short video goes where its still went, under the
+            # still's name: filed by its own date (kept in UTC) it can land a
+            # day away, and a still renamed IMG_0042_1.HEIC for a photograph
+            # of that name already there would leave IMG_0042.MOV beside that
+            # other photograph, which the gallery would then play it from.
+            beside = self._still_beside(conn, src, dry) if kind == "video" else None
+            if beside is not None:
+                folder = os.path.dirname(beside)
+                name = os.path.splitext(os.path.basename(beside))[0] + os.path.splitext(name)[1]
             when = taken.strftime("%Y-%m-%d %H:%M:%S") if taken else None
             src_hash = None
             # Hash up front only when it can settle a duplicate now; otherwise
@@ -1019,15 +1062,26 @@ class Importer:
                 # fresh copy takes its place rather than a _1 beside it.
                 prior = row["destination"]
                 final, identical = prior, self._same_bytes(conn, prior, digest, count)
+                repair = True
             else:
                 final, identical = self._unique_path(conn, folder, name, digest, count)
+                repair = False
             if not identical:
                 try:
                     shutil.copystat(long_path(src), long_path(tmp))
                 except OSError:
                     pass
-                os.replace(long_path(tmp), long_path(final))
+            while not identical:
+                if repair:
+                    os.replace(long_path(tmp), long_path(final))
+                elif not publish(tmp, final):
+                    # A file came to that name since it was found free (a
+                    # copy made by hand, another program): never over it.
+                    final, identical = self._unique_path(conn, folder, name, digest, count)
+                    continue
                 tmp = None
+                break
+            if not identical:
                 with self._lock:
                     self.job["bytes_copied"] += count
                 back = hash_file(final, self.gate)
@@ -1069,6 +1123,28 @@ class Importer:
                     os.remove(long_path(tmp))
                 except OSError:
                     pass
+
+    def _still_beside(self, conn: sqlite3.Connection, src: str, dry: bool) -> str | None:
+        """Where the still of a Live Photo whose short video is *src* was put
+        in this archive (or found already there), or None: IMG_0042.HEIC (or
+        .JPG) beside IMG_0042.MOV in the source folder, imported first (a
+        folder is walked in name order)."""
+        stem, ext = os.path.splitext(src)
+        if ext.lower() not in LIVE_CLIP_EXTS:
+            return None
+        statuses = ("planned", "plan-duplicate") if dry else ("verified", "duplicate")
+        for row in conn.execute(
+                "SELECT source, status, destination, duplicate_of FROM import_files "
+                "WHERE source > ? AND source < ? ORDER BY source", (stem + ".", stem + ".\uffff")):
+            other_stem, other_ext = os.path.splitext(row["source"])
+            if other_stem != stem or other_ext.lower() not in LIVE_STILL_EXTS \
+                    or row["status"] not in statuses:
+                continue
+            kept = row["destination"] if row["status"] in ("verified", "planned") \
+                else row["duplicate_of"]
+            if kept and is_within(kept, self.job["destination"]):
+                return kept
+        return None
 
     def _damaged_copy(self, row: sqlite3.Row | None, destination: str) -> bool:
         """Whether the archived copy an error row points at is one the audit
@@ -1211,9 +1287,8 @@ class Importer:
                 # never left under the real name to be skipped for good.
                 partial = target + ".partial"
                 shutil.copy2(long_path(companion), long_path(partial))
-                if os.path.lexists(long_path(target)):
+                if not publish(partial, target):
                     raise FileExistsError(target)
-                os.replace(long_path(partial), long_path(target))
             except OSError as exc:
                 log.info("import: sidecar not copied %s: %s", companion, exc)
                 try:

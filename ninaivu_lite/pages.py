@@ -135,7 +135,7 @@ def local_stop():
     token = current_app.config.get("STOP_TOKEN")
     given = str(body().get("token") or "")
     if not (stop and token and auth.is_local_request(request.remote_addr, request.headers)
-            and hmac.compare_digest(given, token)):
+            and hmac.compare_digest(given.encode("utf-8"), token.encode("utf-8"))):
         fail(403, "That isn't allowed.")
     threading.Thread(target=stop, name="stopping", daemon=True).start()
     return jsonify(ok=True)

@@ -237,6 +237,12 @@ export class Viewer extends EventTarget {
     });
 
     this.stage.addEventListener('wheel', (event) => this.onWheel(event), { passive: false });
+    // Pinch on the photograph zooms the photograph (onPointerMove), not the
+    // page. The page may be pinch-zoomed elsewhere; Safari on an iPhone asks
+    // through its own gesture events, which touch-action alone does not stop.
+    for (const type of ['gesturestart', 'gesturechange']) {
+      this.stage.addEventListener(type, (event) => event.preventDefault(), { passive: false });
+    }
     this.stage.addEventListener('pointerdown', (event) => this.onPointerDown(event));
     this.stage.addEventListener('pointermove', (event) => this.onPointerMove(event));
     this.stage.addEventListener('pointerup', (event) => this.onPointerUp(event));
@@ -309,6 +315,7 @@ export class Viewer extends EventTarget {
     this.thumbed = thumbed;
     this.root.hidden = false;
     document.body.style.overflow = 'hidden';
+    this.dispatchEvent(new CustomEvent('open'));
     await this.goTo(index);
     this.root.focus?.();
   }
@@ -552,7 +559,7 @@ export class Viewer extends EventTarget {
         video.onerror = () => {
           stop();
           badge.disabled = true;
-          this.toast?.(i18n.t('The motion of this Live Photo could not be played.'));
+          this.toast?.(i18n.t('This browser can’t play the motion of this Live Photo. The photo stays; try Safari or Edge to see it move.'));
         };
         badge.before(video);
         this.liveVideo = video;

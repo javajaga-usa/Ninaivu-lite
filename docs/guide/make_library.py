@@ -6,8 +6,12 @@ Every picture is drawn here with Pillow (no real people's photographs): hills,
 sunsets, the sea, flowers, a kolam, a city at night, a temple tower, a birthday
 cake. Each has EXIF dates and a camera, some a GPS position, across 2012-2025,
 filed in family-style folders. A few short videos are made with ffmpeg when it
-is installed. Also writes <out-dir>/../old-drive (photos for the Import page).
-The same seed always makes the same library.
+is installed. Then the extras for the newer pages (:func:`extras`): photos taken
+on today's day and month in earlier years (On this day), an iPhone Live Photo
+(a still and a two-second clip of the same name, with ffmpeg), and byte-for-byte
+copies of three photos in a phone-backup folder (Duplicates). Also writes
+<out-dir>/../old-drive (photos for the Import page). The same seed always makes
+the same library, but for the dates of the On this day photos.
 """
 from __future__ import annotations
 
@@ -252,6 +256,48 @@ def videos(out: Path):
                         str(p)], check=True)
 
 
+def extras(out: Path) -> int:
+    """The pictures the newer pages need; made last, so the rest of the
+    library (and the old drive) comes out as it always has."""
+    from datetime import date
+    today = date.today()
+    n = 0
+    # On this day: today's day and month, in four earlier years.
+    for folder, year, scene, hm in [("Family/2015", 2015, "kolam", (10, 5)), ("Family/2018", 2018, "cake", (17, 40)),
+                                    ("Family/2018", 2018, "cake", (17, 52)), ("Family/2021", 2021, "flowers", (8, 20)),
+                                    ("Family/2024", 2024, "sunset", (18, 10))]:
+        try:
+            when = datetime(year, today.month, today.day, *hm)
+        except ValueError:          # 29 February
+            when = datetime(year, today.month, 28, *hm)
+        name = out / folder / f"IMG_{when:%Y%m%d}_{when:%H%M%S}.jpg"
+        name.parent.mkdir(parents=True, exist_ok=True)
+        draw(scene, portrait=False).save(name, "JPEG", quality=84, exif=exif_for(when, CAMERAS[2], "Chennai"))
+        os.utime(name, (when.timestamp(), when.timestamp()))
+        n += 1
+    # A Live Photo, as an iPhone keeps it: IMG_7001.JPG and a short IMG_7001.MOV.
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg:
+        when = datetime(2023, 4, 14, 7, 30)
+        still = out / "Temples" / "IMG_7001.JPG"
+        draw("temple", portrait=False).save(still, "JPEG", quality=84, exif=exif_for(when, CAMERAS[3], "Madurai"))
+        subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-loop", "1", "-i", str(still), "-t", "2",
+                        "-vf", "scale=960:720,zoompan=z='1+0.0015*on':d=1:s=960x720:fps=30,format=yuv420p",
+                        "-metadata", "creation_time=2023-04-14T07:30:00Z", "-c:v", "libx264", "-f", "mov",
+                        str(still.with_suffix(".MOV"))], check=True)
+        for f in (still, still.with_suffix(".MOV")):
+            os.utime(f, (when.timestamp(), when.timestamp()))
+        n += 1
+    # The same three photos again, byte for byte, in a phone's backup folder.
+    trip = sorted((out / "Trips/Kanyakumari 2019").glob("*.jpg"))[:3]
+    backup = out / "Phone backup 2019"
+    backup.mkdir(parents=True, exist_ok=True)
+    for f in trip:
+        shutil.copy2(f, backup / f.name)
+        n += 1
+    return n
+
+
 def main():
     out = Path(sys.argv[1]).resolve()
     if out.exists():
@@ -265,6 +311,7 @@ def main():
         shutil.rmtree(old)
     make(old, "DCIM/100CANON", 6, (2010, 2011), ["hills", "flowers", "sea"], None, 500)
     make(old, "Backup 2011/Wedding", 4, (2011, 2011), ["temple", "kolam"], "Madurai", 600)
+    n += extras(out)
     print(f"{n} photos in {out}; old drive in {old}")
 
 

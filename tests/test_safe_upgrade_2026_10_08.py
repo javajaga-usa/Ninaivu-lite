@@ -111,7 +111,7 @@ def test_the_newest_copies_taken_before_a_change_are_kept_whatever_they_were_for
     folder.mkdir()
     # Five old copies from before an update, named after it ("u" sorts after "r").
     for day in range(1, 6):
-        (folder / f"before-update-from-index-8-2026-01-0{day}-120000.zip").write_bytes(b"")
+        (folder / f"before-update-from-index-8-2026-01-0{day}-120000.zip").write_bytes(b"old")
     data = tmp_path
     db.connect(data).close()
     newest = backups.before_change(data, "removing-person")

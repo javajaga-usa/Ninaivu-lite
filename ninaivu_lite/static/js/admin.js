@@ -12,6 +12,7 @@ import {
 import { onUnauthorized, reportUnauthorized, sessionRestored, thumbUrl, SCAN_COUNTS, timeLeft } from './api.js';
 import { renderActivity, subscribeActivity } from './activity.js';
 import { ArchivePanel } from './archive.js';
+import { wireDialogs } from './dialogs.js';
 import { DrivePrompt } from './drives.js';
 import { enterPressesTheButton } from './enter-key.js';
 import { FirstDay } from './first-day.js';
@@ -215,6 +216,11 @@ async function init() {
   await i18n.start();
   wireLanguage();
   initPalette({ commands: consoleCommands });
+  // The console's dialogs (the first-day steps, the folder picker, the
+  // sign-in screen, the profile sheet) behave like the family app's: the
+  // page behind is inert, so Tab no longer walks out of the first-day steps
+  // into the console underneath them.
+  wireDialogs();
 
   // No service worker is removed here: the console now shares its origin with
   // the family app, and that worker is the family app's.
@@ -1134,8 +1140,10 @@ async function renderPreview(key) {
   box.appendChild(summary);
 
   if (!data.total) {
-    box.appendChild(el('p', 'empty-note',
-      i18n.t('Nothing at all. Publish a folder on the Visibility tab to let them see something.')));
+    // Before any folder is chosen there is nothing to publish yet.
+    box.appendChild(el('p', 'empty-note', data.folders && !data.folders.length
+      ? `${i18n.t('No library folder yet')}. ${i18n.t('Choose a folder and Ninaivu will index it in the background.')}`
+      : i18n.t('Nothing at all. Publish a folder on the Visibility tab to let them see something.')));
     return;
   }
 

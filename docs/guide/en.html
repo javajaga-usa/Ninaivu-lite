@@ -18,7 +18,7 @@
   <div class="hero"><img src="img/en/g20-timeline.jpg" alt=""><span class="hero-phone"><img src="img/en/h32c-timeline.jpg" alt=""></span></div>
   <div class="bottom">
     <p class="kind">Complete user guide</p>
-    <p class="meta">Version 1.12.0 &nbsp;·&nbsp; 10 October 2026 &nbsp;·&nbsp; with screenshots</p>
+    <p class="meta">Version 1.13.0 &nbsp;·&nbsp; 11 October 2026 &nbsp;·&nbsp; with screenshots</p>
     <div class="features"><div><b>Private</b>Runs on one computer at home. Nothing leaves the house.</div><div><b>Tamil and English</b>Every screen, message and this guide, in both.</div><div><b>Any computer</b>Windows 10 and 11, Mac, Linux and Raspberry Pi.</div></div>
   </div>
 </section>
@@ -26,7 +26,7 @@
 <section class="contents">
   <h2 class="toc-title">Contents</h2>
   <ol id="toc"></ol>
-  <div class="about"><b>Version</b><span>1.12.0, released 10 October 2026</span><b>Screenshots</b><span>Taken from this version in English, with a sample library of 120 drawn pictures and 3 short videos</span><b>Repository</b><span>github.com/javajaga-usa/Ninaivu-lite</span><b>In Tamil</b><span>The same guide is available in Tamil.</span></div>
+  <div class="about"><b>Version</b><span>1.13.0, released 11 October 2026</span><b>Screenshots</b><span>Taken from this version in English, with a sample library of 129 drawn pictures (one of them a Live Photo) and 3 short videos</span><b>Repository</b><span>github.com/javajaga-usa/Ninaivu-lite</span><b>In Tamil</b><span>The same guide is available in Tamil.</span></div>
 </section>
 
 <!-- 1 ======================================================================= -->
@@ -113,8 +113,8 @@
 <div class="tip"><b class="lead">Tip:</b> A family member without a PIN can be opened from any phone or computer on your home network. Give a PIN to anyone whose photographs should stay theirs.</div>
 
 <h2>Step 4: what your family can do</h2>
-<figure class="w70"><img src="img/en/f08-tour.jpg"><figcaption>A short tour of what the family can do.</figcaption></figure>
-<p>Read it, then press <span class="ui btn">Open the console</span>.</p>
+<figure><div class="row"><img src="img/en/f08-tour.jpg" style="width:43%"><img src="img/en/f08b-tour-more.jpg" style="width:43%"></div><figcaption>A short tour of what the family can do, and the rest of it further down.</figcaption></figure>
+<p>Read it (it scrolls inside the box), then press <span class="ui btn">Open the console</span>.</p>
 
 <!-- 4 ======================================================================= -->
 <h1 class="chapter">4. The admin console</h1>
@@ -144,6 +144,10 @@
   <li>When it finishes, <span class="ui btn">Add to library</span> makes the archive part of the gallery (an archive inside the library folder, as here, already is). A Google Photos export (Takeout) comes across with its dates, places and descriptions, and <span class="ui btn">Make the albums</span> recreates its albums once the archive is indexed. <span class="ui btn">Export manifest</span> writes a list of every file with its hash.</li>
 </ol>
 <div class="tip"><b class="lead">Not finished?</b> If the drive is unplugged or the destination fills up part-way, the run ends as not finished and says so. Plug the drive back in (or make room) and press <span class="ui btn">Start consolidation</span> to finish; what was copied is kept.</div>
+
+<h2>Duplicates</h2>
+<p><span class="ui">Duplicates</span>, under Library, lists the photos and videos kept in more than one place in the library, byte for byte: a thumbnail, each copy's folder, size and date, and <span class="ui btn">Open in gallery</span>, under a total such as “3 photos and videos have copies elsewhere, 150.3 KB in the extra copies”. The scan finds them in its quiet pass after the thumbnails. The page only shows: Ninaivu Lite never moves or deletes a file. To tidy up, delete the copies you do not want in the folders themselves; the next scan updates the list.</p>
+<figure class="full short"><img src="img/en/c12b-duplicates.jpg"><figcaption>Duplicates: three photos kept again in a phone's backup folder, with where each copy is.</figcaption></figure>
 
 <h2>People</h2>
 <figure class="full short"><img src="img/en/c13-people.jpg"><figcaption>People: everyone who shares the library, with their role, folder and how they sign in.</figcaption></figure>
@@ -206,6 +210,9 @@
   <li><b>Top bar:</b> search, the view menu, the thumbnail-size slider, the language button (அ) and your profile.</li>
   <li><b>Date bar:</b> on the right edge, drag to jump to a month or year.</li>
 </ul>
+<h2>On this day</h2>
+<p>Above the timeline, <span class="ui">On this day</span> is a row of the photos taken on today's date in earlier years, each marked with its year. Click one to open it, or <span class="ui btn">See all</span> to show them all in the gallery; × (<span class="ui">Hide until tomorrow</span>) hides the row until tomorrow on that device. It shows only on the plain timeline (no search, folder, year or album chosen), and only what you may see.</p>
+<figure><img src="img/en/g20a-onthisday.jpg"><figcaption>On this day: photos taken on today's date in earlier years, each with its year.</figcaption></figure>
 <h2>Jump to a year or month</h2>
 <figure class="full short"><img src="img/en/g20b-jump.jpg"><figcaption>The button in the bottom corner names the month on screen; its list shows only the years and months that have photos.</figcaption></figure>
 <ol class="steps">
@@ -254,6 +261,10 @@
   <tr><td>⬇</td><td>Download the original (D).</td></tr>
 </table>
 <figure class="full short"><img src="img/en/v26-info.jpg"><figcaption>Details beside the photo.</figcaption></figure>
+<p><b>Photos taken nearby.</b> When a photo knows where it was taken, <span class="ui">Details</span> also has <span class="ui">Photos taken nearby</span>: the gallery then shows everything taken within about a kilometre of it, as a filter that × or <span class="ui btn">Clear all</span> removes. For the family and administrators only; guests are never shown places.</p>
+<figure><div class="row"><img src="img/en/v26b-nearby.jpg" style="width:26%"><img src="img/en/v26c-nearby-grid.jpg" style="width:70%"></div><figcaption>Photos taken nearby in Details, and the gallery showing what was taken around that place.</figcaption></figure>
+<p><b>Live Photos.</b> An iPhone keeps a Live Photo as two files side by side, <code>IMG_1234.HEIC</code> (or <code>.JPG</code>) and a short <code>IMG_1234.MOV</code>. Ninaivu Lite pairs them: the photo shows once, with a small ◎ mark on its tile, and the short video is not shown, counted or found on its own. In the viewer press <span class="ui">LIVE</span> at the top left to see it move once, or hold it to keep it moving; a share link plays it the same way, and a zip download of the photo carries its video. Both files stay where they are, untouched.</p>
+<figure class="w60"><img src="img/en/v26d-live.jpg"><figcaption>A Live Photo: press LIVE at the top left to see it move.</figcaption></figure>
 
 <!-- 8 ======================================================================= -->
 <h1 class="chapter">8. Sharing with someone outside the family</h1>
@@ -261,7 +272,7 @@
 <ol class="steps">
   <li>In the viewer press the share button (<span class="ui">Share link</span>), or <span class="ui btn">Share album</span> on an open album.</li>
   <li>Choose when it expires: 7 days, 30 days or never. Add a password or PIN if you like; whoever has the link can try it 60 times a day at most.</li>
-  <li>Press <span class="ui btn">Generate Link</span>, then <span class="ui btn">Copy</span>, and send the link to the person.</li>
+  <li>Press <span class="ui btn">Generate link</span>, then <span class="ui btn">Copy</span>, and send the link to the person.</li>
   <li>Your list of links is in your profile, where any link can be ended at any time.</li>
 </ol>
 <figure class="phone"><div class="row"><img src="img/en/s28a-visitor-pass.jpg" style="height:90mm"><img src="img/en/s28b-visitor-photo.jpg" style="height:90mm"></div><figcaption>What the visitor sees: the password, then the photo.</figcaption></figure>
@@ -314,13 +325,14 @@
   <li class="keep"><b>Forgot the admin password?</b> Stop Ninaivu Lite, then on that computer run the command for how it was installed:
     <ul>
       <li><b>Windows installer, or Linux without <code>sudo</code>:</b> <code>ninaivu-lite --reset-password &lt;username&gt;</code> (on Windows, in a new Command Prompt).</li>
+      <li><b>macOS app:</b> in Terminal, <code>"/Applications/Ninaivu Lite.app/Contents/MacOS/ninaivu-lite" --server --reset-password &lt;username&gt;</code>.</li>
       <li><b>Linux with <code>sudo</code>:</b> <code>sudo systemctl stop ninaivu-lite</code>, then <code>sudo -u ninaivu-lite /usr/local/bin/ninaivu-lite --reset-password &lt;username&gt;</code>, then <code>sudo systemctl start ninaivu-lite</code>.</li>
       <li><b>Portable zip:</b> in its <code>Ninaivu Lite</code> folder, <code>app\Python\python.exe -m ninaivu_lite --data "&lt;that folder&gt;\data" --reset-password &lt;username&gt;</code>.</li>
       <li><b>A copy of the source:</b> <code>python -m ninaivu_lite --reset-password &lt;username&gt;</code> (inside the folder, after <code>.venv\Scripts\activate</code> on Windows or <code>source .venv/bin/activate</code> elsewhere).</li>
       <li><b>Docker:</b> <code>docker compose -f installers/docker/docker-compose.yml run --rm ninaivu-lite python -m ninaivu_lite --data /data --reset-password &lt;username&gt;</code>.</li>
     </ul></li>
   <li><b>A drive unplugged?</b> Its photos show as unavailable and come back when it returns. Nothing is lost.</li>
-  <li><b>Updating:</b> Ninaivu Lite never checks for a newer version and asks nothing of GitHub; download one from the releases page when you choose to. <b>First stop Ninaivu Lite</b>: in the Control Panel press <b>Stop</b> and close it; on a Linux server, <code>sudo systemctl stop ninaivu-lite</code>. If you forget, the Windows and Linux installers offer to stop it and wait. Then, with an installer, run the new installer. On Linux, run the newer <code>.sh</code> the same way as the first. On a Mac, drag the new app over the old one in Applications; if Ninaivu Lite was still running, the Control Panel says so: press <b>Restart</b>. For the portable zip, press <b>Stop</b> and untick <b>Start Ninaivu Lite when I sign in</b> in the old copy's Control Panel, extract the new version to a new folder, copy the old <code>data</code> folder into it, and tick the box in the new copy's Control Panel. For a copy of the source, replace the program files and start it again. Your settings, people, index, backups and photos are untouched. The first start after an update brings the index forward by itself, after keeping a copy of it as it was (<code>backups/before-update-…zip</code>). The versions with <em>Flip</em> bring the index to version 10, which 1.11.1 and older cannot open (they say so and do not start): going back from one of them to 1.11.1 or older means installing the older version and restoring, with <code>--restore</code>, the copy the update kept, <code>backups/before-update-from-index-9-…zip</code> (see <em>Backups</em> above; what was changed since, a turn or a new album, is not in it). Going back from 1.11.1 to 1.11.0, 1.10.0, 1.9.0, 1.8.0 or 1.7.0 needs nothing special. Going back to 1.6.0 or older means restoring a backup made before the update (see <em>Backups</em> above): version 1.6.0 cannot open the index of 1.7.0 or later.</li>
+  <li><b>Updating:</b> Ninaivu Lite never checks for a newer version and asks nothing of GitHub; download one from the releases page when you choose to. <b>First stop Ninaivu Lite</b>: in the Control Panel press <b>Stop</b> and close it; on a Linux server, <code>sudo systemctl stop ninaivu-lite</code>. If you forget, the Windows and Linux installers offer to stop it and wait. Then, with an installer, run the new installer. On Linux, run the newer <code>.sh</code> the same way as the first. On a Mac, drag the new app over the old one in Applications; if Ninaivu Lite was still running, the Control Panel says so: press <b>Restart</b>. For the portable zip, press <b>Stop</b> and untick <b>Start Ninaivu Lite when I sign in</b> in the old copy's Control Panel, extract the new version to a new folder, copy the old <code>data</code> folder into it, and tick the box in the new copy's Control Panel. For a copy of the source, replace the program files and start it again. Your settings, people, index, backups and photos are untouched. The first start after an update brings the index forward by itself, after keeping a copy of it as it was (<code>backups/before-update-…zip</code>). The versions with <em>Flip</em> bring the index to version 10, which 1.11.1 and older cannot open (they say so and do not start): going back from one of them to 1.11.1 or older means installing the older version and restoring, with <code>--restore</code>, the copy the update kept, <code>backups/before-update-from-index-9-…zip</code> (see <em>Backups</em> above; what was changed since, a turn or a new album, is not in it). The versions with <em>Live Photos</em> and <em>Duplicates</em> bring the index to version 11, which 1.12.0 and older cannot open: going back to 1.12.0 means restoring <code>backups/before-update-from-index-10-…zip</code> the same way. Going back from 1.11.1 to 1.11.0, 1.10.0, 1.9.0, 1.8.0 or 1.7.0 needs nothing special. Going back to 1.6.0 or older means restoring a backup made before the update (see <em>Backups</em> above): version 1.6.0 cannot open the index of 1.7.0 or later.</li>
   <li class="keep"><b>Linux, installed with <code>sudo</code>:</b> Ninaivu Lite runs as a service under its own <code>ninaivu-lite</code> account, never as root, with its data in <code>/var/lib/ninaivu-lite</code>, and there is no Control Panel: use <code>sudo systemctl start|stop|restart ninaivu-lite</code>. That account must be able to read your photo folders and pass through every folder above them. The installer names any it cannot read; let it in with, for example:
     <div class="cmds"><code>sudo setfacl -R -m u:ninaivu-lite:rX /home/me/Pictures</code> (what is there now)<br>
     <code>sudo setfacl -R -d -m u:ninaivu-lite:rX /home/me/Pictures</code> (what is added later)<br>
@@ -347,7 +359,7 @@
 
 <section class="backcover"><div class="inner">
   <div class="logo"><svg viewBox="0 0 32 32"><path d="M4 15 16 5l12 10v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M12 28v-7a4 4 0 0 1 8 0v7"/></svg></div>
-  <h2>Ninaivu Lite 1.12.0</h2>
+  <h2>Ninaivu Lite 1.13.0</h2>
   <p>Your family's photographs, at home.</p>
   <p>github.com/javajaga-usa/Ninaivu-lite</p>
   <p class="fine">Free and open source under the MIT licence. © 2026 Jagadeesh Rajendran.</p>

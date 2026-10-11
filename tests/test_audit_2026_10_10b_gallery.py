@@ -54,11 +54,12 @@ def test_background_remakes_share_one_worker_and_make_each_once(app, monkeypatch
     chosen = [i["beach.jpg"], i["sunset.jpg"], i["IMG_20230115_091500.jpg"]]
     for asset_id in chosen:
         scanner.set_rotation(conn, asset_id, 90, "manual", remake=False)
-    gate = threading.Event()
+    gate, started = threading.Event(), threading.Event()
     rendered = []
     render = scanner._render
 
     def slow_render(row, sizes, threads=0):
+        started.set()
         gate.wait(10)
         rendered.append(row["id"])
         return render(row, sizes, threads)
@@ -66,7 +67,10 @@ def test_background_remakes_share_one_worker_and_make_each_once(app, monkeypatch
     monkeypatch.setattr(scanner, "_render", slow_render)
     before = {t.ident for t in threading.enumerate()}
     scanner.remake_later(chosen)
-    scanner.remake_later(chosen)          # a second piece, or a second click
+    # The worker is making the first one when the same pictures are asked for
+    # again (a second piece, or a second click): none is made twice.
+    assert started.wait(10)
+    scanner.remake_later(chosen)
     workers = [t for t in threading.enumerate()
                if t.name == "remake-thumbnails" and t.ident not in before]
     assert len(workers) == 1

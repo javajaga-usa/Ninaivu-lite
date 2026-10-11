@@ -73,6 +73,10 @@ LIVE_CLIPS = frozenset({"mov", "mp4"})
 #: An iPhone's Live Photo plays for about three seconds. A longer video
 #: beside a photograph of the same name is a video of its own.
 LIVE_MAX_SECONDS = 4.0
+#: A walk that changed files in at most this many folders pairs Live Photos
+#: in those folders only (a pair is always in one folder); more, and the
+#: whole library is paired again.
+PAIR_FOLDERS_AT_MOST = 200
 
 
 class _Stopped(Exception):
@@ -105,6 +109,11 @@ class Scanner:
         self._remaker = False
         #: Live Photos paired since this scanner started (see scan_once).
         self._paired = False
+        #: Folders whose files came, changed or went in the walk under way.
+        self._touched: set[tuple[int, str]] = set()
+        #: Library folders whose unreadable files were read again since this
+        #: scanner started (see _walk_folder).
+        self._reread: set[str] = set()
         #: Goes up whenever the index changes, so cached answers know they are stale.
         self.generation = 0
         self.status: dict[str, Any] = {
@@ -203,6 +212,7 @@ class Scanner:
         unreachable = []
         started = int(time.time()) - 1
         self._gone_now: list[int] = []
+        self._touched = set()
         for path, folder_id in ids.items():
             if self._stop.is_set():
                 return
@@ -219,12 +229,16 @@ class Scanner:
                 continue
             self._walk_folder(conn, folder_id, path, None if "" in (under or ()) else under)
         self._carry_over(conn, started)
-        # Live Photos are paired again when files came, changed or went (half
-        # a second on 100,000 photographs), and once after every start: the
-        # first start after the update pairs a library indexed before it.
-        if not self._paired or self.status["new"] or self.status["removed"]:
+        # Live Photos are paired again where files came, changed or went, and
+        # in the whole library once after every start: the first start after
+        # the update pairs a library indexed before it. The whole library is
+        # a second on 100,000 photographs (several on a Raspberry Pi), and an
+        # import asks for a walk of its folder once a minute.
+        if not self._paired or len(self._touched) > PAIR_FOLDERS_AT_MOST:
             self._pair_live(conn)
             self._paired = True
+        elif self._touched:
+            self._pair_live(conn, self._touched)
         if not within:
             self._set(unreachable=unreachable)
         self._make_thumbnails(conn)
@@ -237,10 +251,26 @@ class Scanner:
                      under: list[str] | None = None) -> None:
         """Index the files under *root*, or only under its folders *under*
         (paths relative to it): what is gone is looked for there only."""
-        known = {(r["dir"], r["name"]): (r["id"], r["size"], r["mtime"], r["missing"])
+        where, args = "folder_id = ?", [folder_id]
+        if under is not None and "" not in under:
+            # Only those folders' rows, read from the (folder_id, dir) index:
+            # an import's walk of its folder once a minute read every row of
+            # a library of 100,000. "/" + 1 is "0", so the range is the subtree.
+            where += " AND (" + " OR ".join(["dir = ? OR (dir >= ? AND dir < ?)"] * len(under)) + ")"
+            for u in under:
+                args += [u, u + "/", u + "0"]
+        # A photograph that could not be read for want of a reader this
+        # computer has now (pillow-heif installed since, so an iPhone's HEIC
+        # photographs were indexed as unreadable, under the day they were
+        # copied and without a thumbnail) is read again, once after every
+        # start, for its date, place and picture.
+        readable = {ext for ext in media.LATE_READERS if media.can_read(ext)} \
+            if root not in self._reread else set()
+        known = {(r["dir"], r["name"]): (r["id"], r["size"], r["mtime"], r["missing"],
+                                         r["error"] is not None and r["ext"] in readable)
                  for r in conn.execute(
-                     "SELECT id, dir, name, size, mtime, missing FROM assets WHERE folder_id = ?",
-                     (folder_id,))
+                     "SELECT id, dir, name, ext, size, mtime, missing, error FROM assets "
+                     f"WHERE {where}", args)
                  if under is None or any(r["dir"] == u or r["dir"].startswith(u + "/")
                                          for u in under)}
         seen: set[int] = set()
@@ -360,6 +390,7 @@ class Scanner:
             else:
                 self.status["added"] += 1
             self.status["new"] += 1
+            self._touched.add((folder_id, rel_dir))
             if len(pending) >= BATCH:
                 flush()
 
@@ -376,10 +407,11 @@ class Scanner:
                     continue
                 self.status["found"] += 1
                 row = known.get((rel_dir, name))
-                if row and row[1] == st.st_size and abs(row[2] - st.st_mtime) < 1:
+                if row and row[1] == st.st_size and abs(row[2] - st.st_mtime) < 1 \
+                        and not row[4]:
                     seen.add(row[0])
                     if row[3]:
-                        self._paired = False      # back: its Live Photo pair may be too
+                        self._touched.add((folder_id, rel_dir))  # back: its pair may be too
                         with conn:
                             # Back after being away: a thumbnail that failed while it
                             # was away is asked for again. Never in a folder taken
@@ -404,6 +436,8 @@ class Scanner:
         flush()
         if self._stop.is_set():
             return
+        if under is None:
+            self._reread.add(root)
         # A folder that could not be read this time (permissions, a flaky
         # disk) says nothing about the photographs in it: they keep their
         # place until a walk that can read it finds them really gone.
@@ -421,6 +455,9 @@ class Scanner:
                 if r[0] not in seen and not r[3] and not under_any(rel_dir, name, failed)]
         self.status["removed"] += len(gone)
         if gone:
+            gone_ids = set(gone)
+            self._touched.update((folder_id, rel_dir) for (rel_dir, _name), r in known.items()
+                                 if r[0] in gone_ids)
             with conn:
                 conn.executemany("UPDATE assets SET missing = 1 WHERE id = ?",
                                  [(i,) for i in gone])
@@ -505,7 +542,8 @@ class Scanner:
 
     # --- Live Photos -------------------------------------------------------------
 
-    def _pair_live(self, conn: sqlite3.Connection) -> int:
+    def _pair_live(self, conn: sqlite3.Connection,
+                   folders: set[tuple[int, str]] | None = None) -> int:
         """Pair each Live Photo's still with its short video: an iPhone keeps
         IMG_1234.HEIC (or .JPG) and IMG_1234.MOV side by side, and an export
         from Google Photos MVIMG_1234.jpg and MVIMG_1234.mp4. Same folder,
@@ -517,14 +555,22 @@ class Scanner:
 
         Motion kept inside the photograph itself (a Pixel's ``.MP.jpg``, a
         Samsung motion photo) is not taken out: it shows as the photograph.
+        *folders*, (library folder id, folder inside it) pairs: only there.
         Returns how many pairs changed."""
         exts = sorted(LIVE_STILLS | LIVE_CLIPS)
+        args: list[Any] = list(exts)
+        only = ""
+        if folders is not None:
+            only = " AND (" + " OR ".join(["(a.folder_id = ? AND a.dir = ?)"] * len(folders)) + ")"
+            for one in sorted(folders):
+                args += one
         rows = conn.execute(
             f"""SELECT a.id, a.folder_id, a.dir, a.name, a.ext, a.kind, a.duration, a.live_of,
                        a.live_id, a.size, a.mtime, f.path AS root
                 FROM assets a JOIN folders f ON f.id = a.folder_id
                 WHERE a.missing = 0 AND (a.ext IN ({','.join('?' * len(exts))})
-                      OR a.live_of IS NOT NULL OR a.live_id IS NOT NULL)""", exts).fetchall()
+                      OR a.live_of IS NOT NULL OR a.live_id IS NOT NULL){only}""",
+            args).fetchall() if folders != set() else []
         groups: dict[tuple[int, str, str], tuple[list, list]] = {}
         for row in rows:
             stem = os.path.splitext(row["name"])[0].casefold()
@@ -546,8 +592,11 @@ class Scanner:
             clip = min(clips, key=lambda r: (r["live_of"] is None, r["ext"] != "mov", r["id"]))
             still = min(stills, key=lambda r: (r["id"] != clip["live_of"],
                                                r["ext"] not in ("heic", "heif"), r["id"]))
+            # Read again for a clip already paired too: a duration of 0 is
+            # one forgotten when the file changed, and a long video saved
+            # over the clip is a video of its own.
             seconds = clip["duration"] or 0
-            if not seconds and clip["live_of"] != still["id"]:
+            if not seconds:
                 seconds = dates.container_duration(
                     full_path(clip["root"], clip["dir"], clip["name"])) or 0
                 if seconds:
@@ -557,11 +606,37 @@ class Scanner:
         clip_of = {still: clip for clip, still in still_of.items()}
         changes = [(still_of.get(r["id"]), clip_of.get(r["id"]), r["id"]) for r in rows
                    if (r["live_of"], r["live_id"]) != (still_of.get(r["id"]), clip_of.get(r["id"]))]
+        before = {r["id"]: r["live_of"] for r in rows}
+        joined = [(still, clip) for clip, still in still_of.items() if before.get(clip) != still]
+        if joined:
+            # Only the few clips somebody kept somewhere (each table read once).
+            kept = {r[0] for r in conn.execute(
+                "SELECT asset_id FROM album_items UNION SELECT cover_id FROM albums "
+                "UNION SELECT asset_id FROM user_assets WHERE favorite = 1 "
+                "UNION SELECT target_id FROM shares WHERE scope = 'asset'")}
+            joined = [(still, clip) for still, clip in joined if clip in kept]
         if changes or lengths:
             with conn:
                 conn.executemany("UPDATE assets SET duration = ? WHERE id = ? AND size = ? "
                                  "AND mtime = ?", lengths)
                 conn.executemany("UPDATE assets SET live_of = ?, live_id = ? WHERE id = ?", changes)
+                # A clip put in an album, made a favourite or shared while it
+                # was a video of its own (before index version 11, or before
+                # its still was there) goes on being found there: its still,
+                # which plays it, takes its place. The clip's own rows are
+                # kept, for when the pair is undone.
+                for still, clip in joined:
+                    conn.execute("INSERT OR IGNORE INTO album_items (album_id, asset_id, added_at) "
+                                 "SELECT album_id, ?, added_at FROM album_items WHERE asset_id = ?",
+                                 (still, clip))
+                    conn.execute("UPDATE albums SET cover_id = ? WHERE cover_id = ?", (still, clip))
+                    conn.execute("INSERT INTO user_assets (user_id, asset_id, favorite) "
+                                 "SELECT user_id, ?, 1 FROM user_assets "
+                                 "WHERE asset_id = ? AND favorite = 1 "
+                                 "ON CONFLICT (user_id, asset_id) DO UPDATE SET favorite = 1",
+                                 (still, clip))
+                    conn.execute("UPDATE shares SET target_id = ? WHERE scope = 'asset' "
+                                 "AND target_id = ?", (still, clip))
             self.generation += 1
         if changes:
             log.info("Live Photos: %d paired, %d changed", len(still_of), len(changes))
@@ -973,6 +1048,9 @@ class Scanner:
             conn = db.connect(self.data_dir)
             # Written down in batches, as in the thumbnail pass (see Batch).
             with Batch(conn, self._record_many) as batch:
+                # Made in this run but perhaps not written down yet (the batch):
+                # asked for again meanwhile, the same turn is not made twice.
+                made_as: dict[int, tuple] = {}
                 while not self._stop.is_set():
                     with self._remaking_lock:
                         if not self._remaking:
@@ -986,13 +1064,17 @@ class Scanner:
                     # the library meanwhile: nothing to do.
                     if row is None or row["thumb"] != 0 or row["missing"]:
                         continue
+                    if made_as.get(asset_id) == (row["rotation"], row["mirror"]):
+                        continue
                     try:
                         made = self._render(row, ("s", "l"))
                     except Exception:  # noqa: BLE001 — the thumbnail pass tries again
                         log.debug("could not remake thumbnails for %s", asset_id, exc_info=True)
                         continue
-                    if made is not None and batch.add((row, *made)):
-                        self.generation += 1
+                    if made is not None:
+                        made_as[asset_id] = (row["rotation"], row["mirror"])
+                        if batch.add((row, *made)):
+                            self.generation += 1
         finally:
             self.generation += 1
             if not finished:
@@ -1022,6 +1104,11 @@ class Scanner:
             return None
         if row["kind"] == "video":
             sizes = ("s", "l")   # one ffmpeg call makes both
+        elif sizes == ("s",) and not media.read_reduced(row["name"]):
+            # A HEIC, PNG or TIFF is read whole for the small one too: the big
+            # one from the same reading costs 5% more, where the finishing
+            # pass would read the file whole again (half the scan's time).
+            sizes = ("s", "l")
         ok, colour = media.make_thumbnails(full, row["kind"], self.thumbs_dir, row["id"], sizes,
                                            rotation=row["rotation"] or 0, threads=threads,
                                            mirror=bool(row["mirror"]))

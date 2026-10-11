@@ -25,6 +25,7 @@ from pathlib import Path
 
 from .config import DEFAULT_PORT, Config
 from .lock import held_elsewhere, known_instance
+from . import net
 
 STATE_FILE = "server.json"
 #: The port the last server on this data folder listened on, kept when it
@@ -183,8 +184,8 @@ class Controller:
     def _ask(self, timeout: float) -> tuple[dict | None, bool]:
         """(/api/health's answer or None, whether it timed out)."""
         try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/api/health",
-                                        timeout=timeout) as response:
+            with net.local_urlopen(f"http://127.0.0.1:{self.port}/api/health",
+                               timeout=timeout) as response:
                 data = json.load(response)
         except TimeoutError:
             return None, True
@@ -308,8 +309,10 @@ class Controller:
         # panel to show: it has no console of its own.
         said = self.data_dir / "logs" / "last-start.txt"
         try:
-            said.parent.mkdir(parents=True, exist_ok=True)
+            said.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             errors = open(said, "wb")       # noqa: SIM115 — handed to the child
+            if os.name != "nt":
+                os.chmod(said, 0o600)
         except OSError:
             # Nothing can be written there (a write-protected pendrive, a CD):
             # the server could not keep its index either, and there would be
@@ -366,7 +369,7 @@ class Controller:
             data=json.dumps({"token": token}).encode(), method="POST",
             headers={"Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(request, timeout=5):
+            with net.local_urlopen(request, timeout=5):
                 pass
         except (OSError, urllib.error.URLError) as exc:
             return f"Ninaivu Lite did not accept the request to stop: {exc}"

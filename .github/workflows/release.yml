@@ -515,7 +515,8 @@ jobs:
           path: installers/linux/build/*.sh
 
   # The Docker image is not published, but it is built and started here, so a
-  # change to the Dockerfile or the requirements cannot break it unseen.
+  # change to the Dockerfile or the requirements cannot break it unseen; a release
+  # waits for it too, as people build the image from the released tag.
   docker:
     name: Docker image
     runs-on: ubuntu-latest
@@ -541,7 +542,7 @@ jobs:
     permissions:
       contents: write
     name: Attach to the release
-    needs: [version, tests, windows, macos, linux]
+    needs: [version, tests, windows, macos, linux, docker]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Only a version tag or "Run workflow" on main publishes, and only when
@@ -608,7 +609,7 @@ jobs:
               echo
             fi
             echo "## What is in $version"
-            awk -v v="$version" '$0 ~ "^## "v" " {on=1; next} on && /^## / {exit} on' src/CHANGELOG.md
+            awk -v v="$version" 'index($0, "## " v) == 1 && (length($0) == length(v) + 3 || substr($0, length(v) + 4, 1) == " ") {on=1; next} on && /^## / {exit} on' src/CHANGELOG.md
           } > notes.md
           cat notes.md
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
