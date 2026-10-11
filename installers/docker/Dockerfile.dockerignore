@@ -1,6 +1,7 @@
-# The build needs only requirements.txt, ninaivu_lite/, README.md and LICENSE.
+# The build needs only the requirements files, ninaivu_lite/, README.md and LICENSE.
 *
 !requirements.txt
+!requirements-installer.txt
 !README.md
 !LICENSE
 !ninaivu_lite

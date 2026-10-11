@@ -180,6 +180,8 @@ export function buildQuery(filters) {
   if (filters.from) params.set('from', filters.from);
   if (filters.to) params.set('to', filters.to);
   if (filters.visibility) params.set('visibility', filters.visibility);
+  if (filters.onThisDay) params.set('on_this_day', filters.onThisDay);
+  if (filters.near) params.set('near', String(filters.near));
   if (filters.sort) params.set('sort', filters.sort);
   return params;
 }

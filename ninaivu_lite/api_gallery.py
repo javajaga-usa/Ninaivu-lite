@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import io
 import logging
+import math
 import mimetypes
 import os
 import re
@@ -126,6 +127,10 @@ SEARCH_WORDS = 32
 SEARCH_WORD_CHARS = 200
 
 YEAR_RE = re.compile(r"^\d{4}(-\d{2})?$")
+#: "On this day": a day as the browser sees today, YYYY-MM-DD.
+DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+#: "Taken nearby": within about this many kilometres of the photograph asked about.
+NEAR_KM = 1.0
 #: A date_key's month, as /api/months lists them.
 MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
 
@@ -423,7 +428,39 @@ def grid_filters(who: auth.User) -> tuple[str, list[Any]]:
         clauses.append("a.camera = ?")
         args.append(query["camera"])
 
+    # The same day of the year in the years before (the "On this day" row).
+    day = query.get("on_this_day") or ""
+    if DAY_RE.match(day):
+        clauses.append("substr(a.date_key, 6, 5) = ? AND a.date_key < ?")
+        args += [day[5:], day[:4]]
+
+    # Taken within a kilometre of a photograph this person may see. Where a
+    # photograph was taken is for the family, as in its details.
+    near = as_id(query.get("near"))
+    if near is not None and who.family_or_more:
+        box = near_box(near, who)
+        if box is None:
+            clauses.append("0")
+        else:
+            clauses.append("a.gps_lat BETWEEN ? AND ? AND a.gps_lon BETWEEN ? AND ?")
+            args += box
+
     return " AND ".join(clauses), args
+
+
+def near_box(asset_id: int, who: auth.User) -> list[float] | None:
+    """South, north, west and east edges of the square around where *asset_id*
+    was taken, or None when it has no place or this person cannot see it."""
+    where, params = visible(who)
+    row = conn().execute(
+        f"SELECT a.gps_lat, a.gps_lon FROM assets a WHERE a.id = ? AND {where}",
+        [asset_id, *params]).fetchone()
+    if row is None or row[0] is None or row[1] is None:
+        return None
+    lat, lon = float(row[0]), float(row[1])
+    dlat = NEAR_KM / 111.32
+    dlon = NEAR_KM / (111.32 * max(math.cos(math.radians(lat)), 0.01))
+    return [lat - dlat, lat + dlat, lon - dlon, lon + dlon]
 
 
 @bp.get("/api/segments")
