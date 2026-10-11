@@ -138,6 +138,7 @@ def test_the_role_preview_says_as_whom_before_a_folder_is_chosen(empty_admin):
     guest = client.get("/api/admin/preview?role=guest").json
     assert guest["total"] == 0 and guest["items"] == []
     assert guest["as"] == "Guest" and guest["role_label"] == "Guest"
+    assert guest["folders"] == []          # the page then says to choose a folder
     family = client.get("/api/admin/preview?role=family").json
     assert family["role_label"] == "Family member"
     amma = conn.execute("SELECT id FROM users WHERE username = 'amma'").fetchone()[0]

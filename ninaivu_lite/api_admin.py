@@ -242,7 +242,7 @@ def preview():
         # No library yet: nothing to count, but still said as whom.
         return jsonify({"as": label, "role": viewer.role,
                         "role_label": auth.ROLE_LABELS[viewer.role], "scope": None,
-                        "total": 0, "items": []})
+                        "folders": [], "total": 0, "items": []})
     where, params = visible(viewer)
     total = conn().execute(f"SELECT COUNT(*) FROM assets a WHERE {where}", params).fetchone()[0]
     rows = conn().execute(
