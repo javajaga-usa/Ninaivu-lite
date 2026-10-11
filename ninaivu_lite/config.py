@@ -113,7 +113,7 @@ class Config:
     def load(cls, data_dir: str | os.PathLike | None = None) -> Config:
         cfg = cls() if data_dir is None else cls(data_dir=str(data_dir))
         try:
-            raw = json.loads(cfg.settings_path.read_text(encoding="utf-8"))
+            raw = json.loads(_read_settings(cfg.settings_path))
         except FileNotFoundError:
             return cfg._recover("missing")
         except (OSError, ValueError):
@@ -238,6 +238,28 @@ def index_folders(data_dir: str | os.PathLike) -> list[str]:
     except sqlite3.Error as exc:
         raise IndexUnreadable(str(exc)) from exc
     return [str(r[0]) for r in rows if isinstance(r[0], str) and r[0].strip()]
+
+
+#: Tries at reading the settings before a read error is taken for damage.
+READ_TRIES = 5
+
+
+def _read_settings(path: Path) -> str:
+    """The settings file's text. A file another program has open for a
+    moment (an antivirus or a backup on Windows, a save under way) cannot be
+    read for that moment, which says nothing about what is in it: taken for
+    damage, the household's settings were set aside and written over with
+    the defaults (DATA3). Tried again a few times first."""
+    for attempt in range(READ_TRIES):
+        try:
+            return path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            raise
+        except OSError:
+            if attempt == READ_TRIES - 1:
+                raise
+            time.sleep(0.2 * (attempt + 1))
+    raise AssertionError("unreachable")
 
 
 def _set_aside(path: Path) -> None:
