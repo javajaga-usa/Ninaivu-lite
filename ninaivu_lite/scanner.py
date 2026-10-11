@@ -42,6 +42,7 @@ from typing import Any
 from PIL import Image, ImageOps
 
 from . import copies, dates, db, media, parallel
+from .backups import AVATARS_DIR
 from .dates import from_timestamp, long_path
 
 log = logging.getLogger(__name__)
@@ -567,8 +568,29 @@ class Scanner:
             if old["rot_source"] == "manual":
                 self.set_rotation(conn, row["id"], old["rotation"], "manual", remake=False,
                                   mirror=bool(old["mirror"]))
+        self._carry_avatars({old["id"]: row["id"] for old, row in moves})
         log.info("%d moved or renamed photographs kept what was set for them", len(moves))
         self.generation += 1
+
+    def _carry_avatars(self, moved: dict[int, int]) -> None:
+        """A profile picture is shown on the sign-in screen only while the
+        photograph it was made from is in the library (A146), named by its
+        id beside the picture (api_auth.avatar_source_file). Moved in
+        Explorer, the photograph has a new id: the record follows it, or the
+        picture went from the sign-in screen for good (DATA2)."""
+        try:
+            records = list((self.data_dir / AVATARS_DIR).glob("*.jpg.source"))
+        except OSError:
+            return
+        for record in records:
+            try:
+                was = int(record.read_text(encoding="ascii").strip())
+                if was in moved:
+                    tmp = record.with_name(record.name + ".tmp")
+                    tmp.write_text(str(moved[was]), encoding="ascii")
+                    os.replace(tmp, record)
+            except (OSError, ValueError):
+                continue
 
     # --- Live Photos -------------------------------------------------------------
 

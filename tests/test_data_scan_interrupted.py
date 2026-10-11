@@ -1,11 +1,12 @@
 """Data safety (2026-10-11-b audit): what was decided about a photograph
-moved in Explorer survives a scan cut short."""
+moved in Explorer survives the move, a scan cut short included."""
 
 from __future__ import annotations
 
+import os
 import time
 
-from conftest import make_jpeg
+from conftest import ids, make_jpeg
 
 from ninaivu_lite import auth, db, media
 from ninaivu_lite.scanner import Scanner
@@ -58,3 +59,15 @@ def test_data1_a_move_seen_by_a_scan_cut_short_keeps_albums_and_hidden(tmp_path,
     assert all(r["visibility"] == db.VIS_HIDDEN for r in rows)
     # A walk that reached the end leaves no mark: the next one counts from itself.
     assert not (data / "scan-unfinished").exists()
+
+
+def test_data2_a_profile_picture_stays_when_its_photo_is_moved_in_explorer(app, family, library):
+    root, _data = library
+    me = family.post("/api/me/avatar", json={"asset_id": ids(app)["beach.jpg"]}).get_json()
+    assert me["avatar"]
+    os.replace(root / "2019" / "beach.jpg", root / "family" / "beach.jpg")
+    app.config["SCANNER"].scan_once(db.connect(app.config["LITE"].data_dir))
+    assert family.get("/api/me").get_json()["avatar"]
+    # The sign-in screen, which anyone who reaches it sees, still shows it.
+    profiles = app.test_client().get("/api/auth/profiles").get_json()["profiles"]
+    assert [p["avatar"] for p in profiles if p["name"] == me["name"]][0]
