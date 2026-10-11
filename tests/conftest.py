@@ -43,6 +43,15 @@ def make_mp4(path: Path, when: datetime) -> Path:
     return path
 
 
+@pytest.fixture(autouse=True)
+def fresh_address_limit():
+    """The per-address sign-in limit is module-wide: each test starts with none used."""
+    from ninaivu_lite import api_auth
+    api_auth.throttle_address._fails.clear()
+    yield
+    api_auth.throttle_address._fails.clear()
+
+
 @pytest.fixture()
 def library(tmp_path):
     """Photos/ with a few dated files in subfolders, and a data folder.

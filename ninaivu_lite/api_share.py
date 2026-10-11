@@ -34,6 +34,7 @@ from .api_gallery import (
     thumb_response,
     viewing_response,
 )
+from .api_auth import password_check
 from .common import (body, conn, fail, json_sent, motion_of, motion_playable, playable,
                      require_family, turn_query, visible, visible_asset)
 
@@ -184,7 +185,9 @@ def _password_attempt(token: str, supplied: str, stored: str) -> bool | None:
     if throttle_short.blocked(near) or throttle_long.blocked(anywhere) \
             or throttle_day.blocked(anywhere):
         return None
-    if supplied and auth.verify_password(supplied, stored):
+    with password_check():
+        right = bool(supplied) and auth.verify_password(supplied, stored)
+    if right:
         throttle_short.forget(near)
         return True
     throttle_short.fail(near)

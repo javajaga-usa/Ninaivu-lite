@@ -170,3 +170,143 @@ def test_a_huge_host_name_is_not_kept_or_logged_whole(app, caplog):
     assert r.status_code == 400
     assert all(len(name) <= app_module.LOGGED_CHARS for name in app_module._hosts_refused)
     assert sum(len(r.getMessage()) for r in caplog.records) < 2_000
+
+
+# --- sign-ins limited per address, whatever the username ------------------------------
+
+
+def from_address(address):
+    return {"environ_base": {"REMOTE_ADDR": address}, "headers": {"Origin": "http://localhost"}}
+
+
+def test_one_address_trying_many_usernames_is_stopped(app, monkeypatch):
+    checks = []
+    real = auth.authenticate
+    monkeypatch.setattr(auth, "authenticate", lambda *a: checks.append(1) or real(*a))
+    client = app.test_client()
+    limit = api_auth.throttle_address.limit
+    for n in range(limit):
+        r = client.post("/api/auth/login", json={"username": f"made-up-{n}", "password": "x"},
+                        **from_address("192.168.1.50"))
+        assert r.status_code == 401
+    r = client.post("/api/auth/login", json={"username": "another", "password": "x"},
+                    **from_address("192.168.1.50"))
+    assert r.status_code == 429 and len(checks) == limit      # no password check spent
+    # The PIN tiles count too.
+    r = client.post("/api/auth/enter", json={"id": 1, "secret": "wrong"},
+                    **from_address("192.168.1.50"))
+    assert r.status_code == 429
+    # Another device in the house is not shut out, and the right password
+    # from a device that got a few wrong still works.
+    r = client.post("/api/auth/login", json={"username": "appa", "password": "admin passphrase"},
+                    **from_address("192.168.1.51"))
+    assert r.status_code == 200
+
+
+def test_a_household_getting_a_password_wrong_is_not_locked_out(app):
+    client = app.test_client()
+    for _ in range(5):
+        client.post("/api/auth/login", json={"username": "appa", "password": "nope"},
+                    **from_address("192.168.1.50"))
+    r = client.post("/api/auth/login", json={"username": "appa", "password": "admin passphrase"},
+                    **from_address("192.168.1.50"))
+    assert r.status_code == 200
+
+
+def test_an_ipv6_device_cannot_dodge_the_limit_by_changing_address(app):
+    client = app.test_client()
+    limit = api_auth.throttle_address.limit
+    for n in range(limit):
+        client.post("/api/auth/login", json={"username": f"u{n}", "password": "x"},
+                    **from_address(f"fd12:3456:789a:1::{n + 1:x}"))
+    r = client.post("/api/auth/login", json={"username": "u", "password": "x"},
+                    **from_address("fd12:3456:789a:1::ffff"))
+    assert r.status_code == 429
+
+
+def test_password_checks_wait_their_turn(app, monkeypatch):
+    monkeypatch.setattr(api_auth, "CHECK_WAIT", 0.1)
+    held = [api_auth._checks.acquire(timeout=1) for _ in range(api_auth.CHECKS_AT_ONCE)]
+    try:
+        r = app.test_client().post("/api/auth/login", json={"username": "appa", "password": "x"},
+                                   **from_address("192.168.1.50"))
+        assert r.status_code == 503
+    finally:
+        for got in held:
+            if got:
+                api_auth._checks.release()
+    r = app.test_client().post("/api/auth/login",
+                               json={"username": "appa", "password": "admin passphrase"},
+                               **from_address("192.168.1.50"))
+    assert r.status_code == 200
+
+
+# --- large bodies refused before they are read -----------------------------------------
+
+
+def test_who_may_send_a_large_body(app):
+    from conftest import sign_in
+
+    from ninaivu_lite import early
+    data = app.config["LITE"].data_dir
+    admin, family, guest = app.test_client(), app.test_client(), app.test_client()
+    sign_in(app, admin, "admin")
+    sign_in(app, family, "family", username="amma")
+    sign_in(app, guest, "guest", username="paati")
+
+    def cookie(client):
+        return f"{auth.SESSION_COOKIE}={client.get_cookie(auth.SESSION_COOKIE).value}"
+
+    small = early.SMALL_BODY
+    assert early.body_limit(data, "POST", "/api/auth/login", "") == small
+    assert early.body_limit(data, "POST", "/api/asset/3/poster", "") == small
+    assert early.body_limit(data, "POST", "/api/asset/3/poster", cookie(guest)) == small
+    assert early.body_limit(data, "POST", "/api/asset/3/poster", cookie(family)) > 4 * 2 ** 20
+    assert early.body_limit(data, "POST", "/api/asset/3/edited-copy", cookie(family)) == small
+    assert early.body_limit(data, "POST", "/api/asset/3/edited-copy", cookie(admin)) == 100 * 2 ** 20
+    assert early.body_limit(data, "POST", "/api/asset/3/edited-copy",
+                            f"{auth.SESSION_COOKIE}=made-up") == small
+
+
+def _raw(port: int, head: bytes, body: bytes = b"", wait: float = 5.0) -> bytes:
+    import socket
+    with socket.create_connection(("127.0.0.1", port), timeout=wait) as s:
+        s.sendall(head + body)
+        try:
+            return s.recv(4096)
+        except TimeoutError:
+            return b""
+
+
+def test_waitress_refuses_a_large_body_before_reading_it(app):
+    pytest.importorskip("waitress")
+    from conftest import sign_in
+
+    from ninaivu_lite import __main__ as entry
+    server = entry.make_server(app, "127.0.0.1", 0)
+    port = server.socket.getsockname()[1]
+    threading.Thread(target=server.run, daemon=True).start()
+    try:
+        # 50 MB promised to the sign-in, nothing sent: answered at once.
+        answer = _raw(port, b"POST /api/auth/login HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+                            b"Content-Type: application/json\r\nContent-Length: 52428800\r\n\r\n")
+        assert answer.startswith(b"HTTP/1.1 413"), answer[:80]
+        # Chunked, past the small limit: stopped as it goes.
+        chunk = b"x" * 65536
+        piece = f"{len(chunk):x}\r\n".encode() + chunk + b"\r\n"
+        answer = _raw(port, b"POST /api/auth/login HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+                            b"Transfer-Encoding: chunked\r\n\r\n", piece * 40)
+        assert answer.startswith(b"HTTP/1.1 413"), answer[:80]
+        # An administrator's edited copy of 3 MB is read and reaches the route.
+        admin = app.test_client()
+        sign_in(app, admin, "admin")
+        token = admin.get_cookie(auth.SESSION_COOKIE).value
+        asset = ids(app)["beach.jpg"]
+        body = b"\0" * (3 * 2 ** 20)
+        head = (f"POST /api/asset/{asset}/edited-copy HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n"
+                f"Origin: http://127.0.0.1:{port}\r\nCookie: {auth.SESSION_COOKIE}={token}\r\n"
+                f"Content-Type: image/jpeg\r\nContent-Length: {len(body)}\r\n\r\n").encode()
+        answer = _raw(port, head, body, wait=20)
+        assert answer.startswith(b"HTTP/1.1 400"), answer[:80]     # not a picture: the route said so
+    finally:
+        server.close()

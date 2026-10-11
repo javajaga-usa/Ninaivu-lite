@@ -54,9 +54,24 @@ def test_a130_the_web_server_gets_the_threads(monkeypatch):
 
     from ninaivu_lite import __main__ as entry
     asked = {}
-    monkeypatch.setattr(waitress, "serve", lambda app, **kw: asked.update(kw))
-    entry.serve(object(), "127.0.0.1", 8080)
-    assert asked["threads"] == parallel.SERVER_THREADS
+
+    class Server:
+        def print_listen(self, _format):
+            pass
+
+        def run(self):
+            asked["ran"] = True
+
+    def create_server(app, **kw):
+        asked.update(kw)
+        return Server()
+
+    class App:
+        config = {"LITE": type("Lite", (), {"data_dir": "."})()}
+
+    monkeypatch.setattr(waitress, "create_server", create_server)
+    entry.serve(App(), "127.0.0.1", 8080)
+    assert asked["threads"] == parallel.SERVER_THREADS and asked["ran"]
 
 
 def test_a130_slots_limit_the_work_and_the_waiting():

@@ -218,20 +218,37 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def serve(app, host: str, port: int) -> None:
     try:
-        from waitress import serve as waitress_serve
+        server = make_server(app, host, port)
     except ImportError:
         logging.getLogger(__name__).warning(
             "waitress is not installed; using Flask's built-in server")
         app.run(host=host, port=port, threaded=True, use_reloader=False)
         return
-    from . import parallel
+    server.print_listen("Serving on http://{}:{}")
+    server.run()
+
+
+def make_server(app, host: str, port: int):
+    """The waitress server for *app* (ImportError without waitress)."""
+    from waitress import create_server
+    from waitress.server import BaseWSGIServer
+
+    from . import early, parallel
     from .app import MAX_REQUEST_BYTES
     # Sixteen threads for a household, the heavy work on them limited
     # (parallel.Slots) so a few are always free; a body larger than any route
     # takes is refused by waitress before Flask sees it; a connection that
     # sends nothing for a minute is dropped rather than holding a thread.
-    waitress_serve(app, host=host, port=port, threads=parallel.SERVER_THREADS, ident=APP_NAME,
-                   max_request_body_size=MAX_REQUEST_BYTES, channel_timeout=60)
+    server = create_server(app, host=host, port=port, threads=parallel.SERVER_THREADS,
+                           ident=APP_NAME, max_request_body_size=MAX_REQUEST_BYTES,
+                           channel_timeout=60)
+    # And a body larger than a JSON call is read only for a route that takes
+    # a picture, from someone signed in who may send one (see early).
+    channel = early.channel_class(app.config["LITE"].data_dir)
+    for listener in [server, *getattr(server, "map", {}).values()]:
+        if isinstance(listener, BaseWSGIServer):
+            listener.channel_class = channel
+    return server
 
 
 def main(argv: list[str] | None = None) -> int:
