@@ -17,6 +17,17 @@ ruff check .
 python -m pytest
 ```
 
+The screens in a browser, and the stylesheet and script checks (Node 20 or newer), as CI
+runs them:
+
+```sh
+python -m pip install -r requirements-browser.txt
+python -m playwright install chromium
+python -m pytest tests/test_smoke_browser.py
+npm ci
+npm run lint
+```
+
 Start a development instance with a separate data folder and copies of sample photos:
 
 ```sh
