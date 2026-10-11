@@ -31,6 +31,10 @@ internet** (no port forwarding, no public tunnels). HTTPS is planned for a later
   share link. Files are served by id, never by a path from the request. A link in a
   photo folder that leads into Ninaivu Lite's data folder, or to a file that is not a
   photograph or video, is never indexed or served.
+- **Where a photograph was taken** (its details, and *Photos taken nearby*) is shown to the
+  family and administrators only; a guest is never shown places. A Live Photo's short video
+  is sent only to someone who may see its photo, and to a guest or a share link without its
+  location, as any video.
 - **Share links** show only their photo or album, as copies without location or camera data;
   their addresses carry 128 random bits; passwords on links are hashed and can be tried 60
   times a day at most; links can expire or be turned off.

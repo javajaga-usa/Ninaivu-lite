@@ -124,7 +124,8 @@ failed_upgrade() {
 trap failed_upgrade EXIT
 cp -R "$payload/python" "$prefix/python.new"
 "$prefix/python.new/bin/python3" -m pip install --quiet --no-index --no-deps \
-    --no-warn-script-location --disable-pip-version-check "$payload"/wheels/*.whl
+    --no-warn-script-location --disable-pip-version-check --root-user-action=ignore \
+    "$payload"/wheels/*.whl
 trap - EXIT
 # Only now is the old one replaced, so a failure above leaves a working install.
 rm -rf "$prefix/python"

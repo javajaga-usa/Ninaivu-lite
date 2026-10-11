@@ -468,7 +468,7 @@ function setServerOffline(reason = i18n.t('Cannot reach the Ninaivu server.')) {
     const action = $('#empty-action');
     if (action) {
       action.hidden = false;
-      action.textContent = i18n.t('Retry Connection');
+      action.textContent = i18n.t('Retry connection');
       action.onclick = () => checkConnection(true);
     }
   }
@@ -531,7 +531,7 @@ async function checkConnection(manual = false) {
     isCheckingConnection = false;
     if (retryBtn) retryBtn.textContent = i18n.t('Retry now');
     if (emptyAction && $('#empty')?.classList.contains('offline')) {
-      emptyAction.textContent = i18n.t('Retry Connection');
+      emptyAction.textContent = i18n.t('Retry connection');
     }
   }
 }
@@ -1646,7 +1646,7 @@ function renderFilterBar() {
       const delBtn = document.createElement('button');
       delBtn.className = 'btn ghost small';
       delBtn.style.color = 'var(--danger)';
-      delBtn.textContent = i18n.t('Delete Album');
+      delBtn.textContent = i18n.t('Delete album');
       delBtn.onclick = async () => {
         if (!confirm(i18n.t('Delete album “{name}”? Photographs inside will not be deleted.', { name: album.name }))) return;
         try {
@@ -1799,7 +1799,7 @@ function openAlbumModal(ids = []) {
     title.textContent = ids.length === 1 ? i18n.t('Add 1 photo to album') : i18n.t('Add {count} photos to album', { count: ids.length });
     subtitle.textContent = i18n.t('Choose an album or enter a name to create a new one:');
   } else {
-    title.textContent = i18n.t('Create New Album');
+    title.textContent = i18n.t('Create new album');
     subtitle.textContent = i18n.t('Enter a name for the new album:');
   }
 
@@ -2564,7 +2564,7 @@ function openShareModal(item) {
   if (item?.type === 'album') {
     $('#share-title').textContent = i18n.t('Share album: {name}', { name: item.name });
   } else {
-    $('#share-title').textContent = i18n.t('Share with Family & Friends');
+    $('#share-title').textContent = i18n.t('Share with family & friends');
   }
   $('#share-modal').hidden = false;
 }

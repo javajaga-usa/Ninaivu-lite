@@ -1134,8 +1134,10 @@ async function renderPreview(key) {
   box.appendChild(summary);
 
   if (!data.total) {
-    box.appendChild(el('p', 'empty-note',
-      i18n.t('Nothing at all. Publish a folder on the Visibility tab to let them see something.')));
+    // Before any folder is chosen there is nothing to publish yet.
+    box.appendChild(el('p', 'empty-note', data.folders && !data.folders.length
+      ? `${i18n.t('No library folder yet')}. ${i18n.t('Choose a folder and Ninaivu will index it in the background.')}`
+      : i18n.t('Nothing at all. Publish a folder on the Visibility tab to let them see something.')));
     return;
   }
 

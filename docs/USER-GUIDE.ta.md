@@ -281,6 +281,8 @@ Control Panel-ஐ மூடினாலும் நினைவு லைட்
   விதத்துக்கு ஏற்ற கட்டளையை இயக்கவும் (`--restore <zip>` உம் இதே இடத்தில்தான்):
   - **Windows நிறுவி, அல்லது `sudo` இல்லாத Linux:** `ninaivu-lite --reset-password <பயனர்பெயர்>`
     (Windows-இல் புதிய Command Prompt-இல்).
+  - **macOS செயலி:** Terminal-இல்,
+    `"/Applications/Ninaivu Lite.app/Contents/MacOS/ninaivu-lite" --server --reset-password <பயனர்பெயர்>`.
   - **`sudo` உடன் Linux:** `sudo systemctl stop ninaivu-lite`, பிறகு
     `sudo -u ninaivu-lite /usr/local/bin/ninaivu-lite --reset-password <பயனர்பெயர்>`, பிறகு
     `sudo systemctl start ninaivu-lite`.
