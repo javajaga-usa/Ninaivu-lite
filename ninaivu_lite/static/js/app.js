@@ -733,7 +733,15 @@ function wireViewerBack() {
       }
       return;
     }
-    if (viewer.isOpen && !history.state?.viewer) viewer.close();
+    if (!viewer.isOpen || history.state?.viewer) return;
+    // A dialog over the photograph (Sudar with its edits, Share, Add to
+    // album) has it under it still: the photograph stays, and so does its
+    // entry. Chrome on Android gives Back to the dialog itself first.
+    if (document.querySelector('dialog[open], .modal:not([hidden])')) {
+      history.pushState({ ...(history.state || {}), viewer: true }, '');
+      return;
+    }
+    viewer.close();
   });
 }
 

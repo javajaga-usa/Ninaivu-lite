@@ -58,6 +58,17 @@ def test_back_closes_the_photograph_not_the_gallery(browser, server):  # noqa: F
         page.wait_for_timeout(400)
         assert page.is_hidden("#viewer")
         assert page.url == server["base"] + "/", page.url
+        # A dialog over the photograph keeps it: Back leaves both in place.
+        page.locator("#grid .cell").nth(1).tap()
+        page.wait_for_selector("#viewer:not([hidden])")
+        page.tap("#v-share")
+        page.wait_for_selector("#share-modal:not([hidden])")
+        page.go_back()
+        page.wait_for_timeout(400)
+        assert page.is_visible("#viewer") and page.is_visible("#share-modal")
+        page.tap("#share-close")
+        page.tap("#v-close")
+        page.wait_for_timeout(400)
         page.go_back()
         page.wait_for_timeout(400)
         assert page.url.endswith("/healthz"), page.url
