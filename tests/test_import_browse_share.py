@@ -1,7 +1,7 @@
 """Regression tests for the browse/share findings (A78-A86) and the
 import/wizard/drives findings (A87-A102) of the 2026-10-07 audit. Each test
 checks the fixed behaviour; a fix that lives only in a page's script is
-checked on the script the server sends, as tests/test_audit_fixes_p4_ui.py
+checked on the script the server sends, as tests/test_screens_pages.py
 does."""
 
 from __future__ import annotations

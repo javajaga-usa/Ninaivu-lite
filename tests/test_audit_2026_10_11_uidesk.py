@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from test_audit_2026_10_10b_screens import blocks, contrast, mix, tokens
+from test_screens_phones_contrast import blocks, contrast, mix, tokens
 
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = ROOT / "ninaivu_lite"

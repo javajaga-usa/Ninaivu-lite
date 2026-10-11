@@ -13,7 +13,7 @@ import json
 import re
 from pathlib import Path
 
-from test_audit_2026_10_10b_screens import blocks, read, without_comments
+from test_screens_phones_contrast import blocks, read, without_comments
 
 PACKAGE = Path(__file__).resolve().parent.parent / "ninaivu_lite"
 STATIC = PACKAGE / "static"

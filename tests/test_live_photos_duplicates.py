@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 from conftest import ids, make_jpeg, sign_in
 from test_gallery_api import all_items, rescan, set_vis
-from test_safe_upgrade_2026_10_08 import older_index
+from test_install_safe_upgrade import older_index
 from test_share_api import share
 
 from ninaivu_lite import api_admin, copies, db, export, scanner

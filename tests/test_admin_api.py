@@ -214,7 +214,7 @@ def test_remove_library_with_assigned_people(app, admin, library, tmp_path):
     saved = Config.load(data_dir)
     assert saved.folders == [str(root)] and saved.active_folder == str(root)
     # Its photographs left the gallery at once (set aside, not deleted: see
-    # test_audit_fixes_2026_10_07); the assignment stays (and now sees nothing).
+    # test_install_backup_restore.py); the assignment stays (and now sees nothing).
     c = conn_of(app)
     assert c.execute("SELECT COUNT(*) FROM assets WHERE missing = 0").fetchone()[0] == 6
     assert auth.get_user_by_name(c, "kutti").library == str(more)
