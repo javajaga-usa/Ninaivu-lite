@@ -1151,7 +1151,11 @@ function wireChrome() {
   document.querySelector('.shell')?.addEventListener('click', (event) => {
     const shell = document.querySelector('.shell');
     if (!shell?.classList.contains('mobile-open')) return;
-    if (event.target.closest('.sidebar') || event.target.closest('#sidebar-toggle')) return;
+    // A view picked in the drawer (a filter, an album, a year, a folder) is
+    // what the person wants to see: the drawer gets out of its way, as a
+    // tap beside it does. Other controls in it (+ album, sort) keep it open.
+    const picked = event.target.closest('.side-item, .album-card, #year-list .chip, #folder-list button');
+    if (!picked && (event.target.closest('.sidebar') || event.target.closest('#sidebar-toggle'))) return;
     shell.classList.remove('mobile-open');
     $('#sidebar-toggle')?.setAttribute('aria-expanded', 'false');
   });
@@ -1514,6 +1518,14 @@ function wireSearch() {
       options.forEach((li, i) => li.setAttribute('aria-selected', String(i === next)));
     } else if (event.key === 'Enter' && active) {
       active.click();
+    } else if (event.key === 'Enter') {
+      // A phone's Search key: search now, and take the suggestions and the
+      // keyboard off the results (they covered most of a phone's screen).
+      clearTimeout(searchTimer);
+      list.hidden = true;
+      state.filters.q = input.value.trim();
+      reload({ resetScroll: true });
+      if (window.matchMedia('(hover: none) and (pointer: coarse)').matches) input.blur();
     } else if (event.key === 'Escape') {
       list.hidden = true;
       input.blur();
@@ -1530,6 +1542,13 @@ function wireSearch() {
     reload({ resetScroll: true });
   };
 }
+
+/** What a suggestion is, in the page's language (it was the raw "folder"). */
+const SUGGESTION_KINDS = {
+  folder: i18n.key('Folder'),
+  camera: i18n.key('Camera'),
+  concept: i18n.key('Search'),
+};
 
 async function updateSuggestions(value) {
   const list = $('#suggestions');
@@ -1559,7 +1578,7 @@ async function updateSuggestions(value) {
     li.setAttribute('role', 'option');
     const kind = document.createElement('span');
     kind.className = 'kind';
-    kind.textContent = entry.type;
+    kind.textContent = i18n.t(SUGGESTION_KINDS[entry.type] || entry.type);
     const label = document.createElement('span');
     label.textContent = entry.value;
     li.append(kind, label);
@@ -2183,8 +2202,15 @@ function wireGrid() {
 
   grid.addEventListener('selection', (event) => {
     const count = event.detail.ids.length;
+    // The bar comes and goes above the grid. On a phone it is two lines tall,
+    // and the long press that brings it would otherwise slide the photograph
+    // out from under the finger: the grid scrolls by what the bar took.
+    const scroller = $('#scroller');
+    const before = scroller.getBoundingClientRect().top;
     $('#selection-bar').hidden = count === 0;
     $('#sel-count').textContent = i18n.t('{count} selected', { count });
+    const moved = scroller.getBoundingClientRect().top - before;
+    if (moved) scroller.scrollTop += moved;
   });
 
   grid.addEventListener('scroll', (event) => {

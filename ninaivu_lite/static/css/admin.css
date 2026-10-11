@@ -12,6 +12,9 @@ body.admin {
 .pending-upload { display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; min-width: 0; }
 .pending-upload img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 8px; }
 .pending-upload strong, .pending-upload .hint { overflow-wrap: anywhere; }
+/* The backup folder's path is one long word: it ran past the card and the
+   whole Settings page scrolled sideways on a phone. */
+#backup-kept { overflow-wrap: anywhere; }
 .pending-upload .hint { margin: 0; }
 .pending-upload input { width: 100%; min-width: 0; box-sizing: border-box; }
 /* An edit saved from the Playground is a different thing to review than a
@@ -1822,6 +1825,16 @@ button.drive-notice-main:focus-visible { outline: 2px solid var(--accent); outli
 @media (max-height: 520px) {
   .fd-body { min-height: 0; margin: 4px 0 8px; }
 }
+/* First day on a phone: the note beside Back and Next was squeezed into a
+   column four or five lines tall (Tamil, 320-360 px) and pushed the buttons
+   past the bottom of the card. The note takes its own line above them, and
+   the step's text gives up height (it scrolls) before the buttons do. */
+@media (max-width: 560px) {
+  #first-day .modal-foot { flex-wrap: wrap; row-gap: 8px; }
+  #fd-note { flex: 1 1 100%; margin: 0; }
+  #fd-note:empty { display: none; }
+  .fd-body { flex: 1 1 auto; min-height: 96px; }
+}
 
 /* ==========================================================================
    Phones: a sharp top bar (M15, 2026-10-08)
@@ -1899,3 +1912,13 @@ button.drive-notice-main:hover .drive-notice-go { background: var(--bg-elev); }
 .drive-notice .btn.ghost { border-color: transparent; }
 .drive-notice-close { color: var(--text); }
 .drive-notice-close svg { width: 16px; height: 16px; }
+
+/* Touch: the drive notice's × is drawn small at the end of its row; a finger
+   gets a 44 px target around it without moving it. */
+@media (hover: none) and (pointer: coarse) {
+  .drive-notice-close { position: relative; }
+  .drive-notice-close::after {
+    content: ""; position: absolute; left: 50%; top: 50%;
+    width: 44px; height: 44px; transform: translate(-50%, -50%);
+  }
+}

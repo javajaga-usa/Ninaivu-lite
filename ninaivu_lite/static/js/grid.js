@@ -213,10 +213,23 @@ export class Grid extends EventTarget {
     // press on a tile starts selecting, as it does in every photo app.
     this.container.addEventListener('pointerdown', (event) => this.onPressStart(event));
     this.container.addEventListener('pointermove', (event) => this.onPressMove(event));
-    this.container.addEventListener('pointerup', () => this.onPressEnd());
-    this.container.addEventListener('pointercancel', () => this.onPressEnd());
+    // On the window: the tile under the finger may have been redrawn (and
+    // its node moved) by the time the finger lifts.
+    this.onLift = () => this.onPressEnd(true);
+    window.addEventListener('pointerup', this.onLift);
+    window.addEventListener('pointercancel', this.onLift);
+    // That click lands wherever the finger is when it lifts, and the selection
+    // bar that has just appeared moves what is above the grid (On this day)
+    // under it: it is stopped anywhere on the page, not only on a tile.
+    this.onAnyClick = (event) => {
+      if (!this.swallowing()) return;
+      this.swallowUntil = 0;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    window.addEventListener('click', this.onAnyClick, true);
     this.container.addEventListener('contextmenu', (event) => {
-      if (this.press || this.swallowClick) event.preventDefault();
+      if (this.press || this.swallowing()) event.preventDefault();
     });
   }
 
@@ -655,8 +668,13 @@ export class Grid extends EventTarget {
     const node = document.createElement('div');
     node.className = 'section-head';
     node.innerHTML = '<span class="title"></span><span class="sub"></span>'
-      + '<button type="button" data-select-section></button>';
-    node.querySelector('[data-select-section]').textContent = i18n.t('Select all');
+      + `<button type="button" data-select-section>${ICON.check}<span class="label"></span></button>`;
+    // A narrow day shows only the tick (style.css), so the button carries its
+    // name for a screen reader and a pointer either way.
+    const button = node.querySelector('[data-select-section]');
+    button.querySelector('.label').textContent = i18n.t('Select all');
+    button.setAttribute('aria-label', i18n.t('Select all'));
+    button.title = i18n.t('Select all');
     return node;
   }
 
@@ -904,7 +922,10 @@ export class Grid extends EventTarget {
       x: event.clientX, y: event.clientY,
       timer: setTimeout(() => {
         this.press = null;
-        this.swallowClick = true;           // the click that follows the press
+        // The click some browsers send when the finger lifts. Chrome on
+        // Android sends none after a long press, so the swallow ends shortly
+        // after the lift (onPressEnd) instead of eating the next real tap.
+        this.swallowUntil = Infinity;
         if (this.selection.has(id)) this.selection.delete(id);
         else this.selection.add(id);
         this.lastAnchor = index;
@@ -923,15 +944,21 @@ export class Grid extends EventTarget {
     }
   }
 
-  onPressEnd() {
+  /** A click now is the one that ends a long press. */
+  swallowing() {
+    return performance.now() < (this.swallowUntil || 0);
+  }
+
+  onPressEnd(lifted = false) {
+    if (lifted && this.swallowUntil === Infinity) this.swallowUntil = performance.now() + 400;
     if (!this.press) return;
     clearTimeout(this.press.timer);
     this.press = null;
   }
 
   onClick(event, isDouble = false) {
-    if (this.swallowClick) {
-      this.swallowClick = false;
+    if (this.swallowing()) {
+      this.swallowUntil = 0;
       return;
     }
     const sectionButton = event.target.closest('[data-select-section]');
@@ -1115,6 +1142,9 @@ export class Grid extends EventTarget {
 
   destroy() {
     this.scroller.removeEventListener('scroll', this.onScroll);
+    window.removeEventListener('pointerup', this.onLift);
+    window.removeEventListener('pointercancel', this.onLift);
+    window.removeEventListener('click', this.onAnyClick, true);
     this.resizeObserver.disconnect();
     clearTimeout(this.settleTimer);
     if (this.topUp) cancelAnimationFrame(this.topUp);
