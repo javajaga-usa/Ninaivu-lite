@@ -608,9 +608,22 @@ export class Grid extends EventTarget {
       this.holds.add(reason);
       this.lookahead = 0;
       this.prefetcher.want([], this.shownUrls());
+      // PERF2: and the sharp pictures being fetched for tiles that have a
+      // small one (see swapIn). A photo opened just after a scroll stopped
+      // waited behind a screenful of them (850 KB on a phone, measured);
+      // they are fetched again when the grid is back.
+      for (const node of this.mounted.values()) {
+        if (node.side) {
+          this.dropSide(node);
+          node.blurry = true;
+        }
+      }
     } else {
       this.holds.delete(reason);
-      if (!this.holds.size) this.preload(true);
+      if (!this.holds.size) {
+        this.render();
+        this.preload(true);
+      }
     }
   }
 
@@ -670,7 +683,7 @@ export class Grid extends EventTarget {
    * picture already decoded is drawn in the same frame, in every browser.
    */
   sharpen(node, cell) {
-    if (this.scrolling || !node.blurry) return;
+    if (this.scrolling || this.holds.size || !node.blurry) return;
     const img = node.img;
     const full = this.cellThumbUrl(cell);
     if (!full || !img || img.hidden || img.getAttribute('src') === full) {
@@ -699,11 +712,29 @@ export class Grid extends EventTarget {
       img.src = url;
     };
     sharp.onload = () => {
+      if (node.side === sharp) node.side = null;
       const decoded = sharp.decode ? sharp.decode() : Promise.resolve();
       decoded.then(swap, swap);
     };
-    sharp.onerror = () => { if (node.pendingSrc === url) node.pendingSrc = null; };
+    sharp.onerror = () => {
+      if (node.side === sharp) node.side = null;
+      if (node.pendingSrc === url) node.pendingSrc = null;
+    };
+    // Kept, so a tile that leaves the page, or a photo opened over the grid,
+    // can stop the download (see dropSide).
+    node.side = sharp;
     sharp.src = url;
+  }
+
+  /** Stop the sharp picture being fetched for *node* on the side, if any. */
+  dropSide(node) {
+    node.pendingSrc = null;
+    const side = node.side;
+    if (!side) return;
+    node.side = null;
+    side.onload = null;
+    side.onerror = null;
+    side.removeAttribute('src');                   // stops the download
   }
 
   render() {
@@ -904,7 +935,8 @@ export class Grid extends EventTarget {
   releaseCell(node, keep = this.pool.length < POOL_LIMIT) {
     node.remove();
     clearTimeout(node.shimmerTimer);
-    node.pendingSrc = null;
+    // PERF2: its sharp picture too, still coming for a tile now gone past.
+    this.dropSide(node);
     if (keep) {
       node.className = 'cell';
       const img = node.querySelector('img');

@@ -9,6 +9,7 @@ import ipaddress
 import json
 import logging
 import os
+import posixpath
 import re
 import socket
 import threading
@@ -310,6 +311,50 @@ def module_map(static: str, asset: Callable[[str], str]) -> str:
     return json.dumps({"imports": imports}, separators=(",", ":"))
 
 
+#: A static import or re-export: `import x from './a.js'`, `import './a.js'`,
+#: `export { x } from './a.js'`. Not `import('./a.js')`, which loads later
+#: and only when used (Sudar), so is never fetched with the page.
+_STATIC_IMPORT = re.compile(
+    r"""^[ \t]*(?:import|export)\b[^'"`;()]*?\bfrom\s*['"]([^'"]+)['"]"""
+    r"""|^[ \t]*import\s*['"]([^'"]+)['"]""", re.M)
+
+
+def module_closure(static: str, entry: str) -> list[str]:
+    """Every module *entry* (a /static/ address) imports, however deep, in
+    the order a browser meets them; the entry itself is not included.
+
+    PERF1: a browser finds a page's modules a level at a time, one round trip
+    a level. Split into gallery/ and console/ (1.13), the gallery's took four
+    levels where it took three (activity.js is reached only through
+    gallery/data.js and gallery/progress.js), and twice the files queue
+    behind each other for the browser's six connections. Named in the page
+    as modulepreload links, they are all asked for with the page itself."""
+    root = Path(static)
+    found: list[str] = []
+    seen = {entry}
+    todo = [entry]
+    while todo:
+        url = todo.pop(0)
+        try:
+            text = (root / url.removeprefix("/static/")).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        base = url.rsplit("/", 1)[0] + "/"
+        for match in _STATIC_IMPORT.finditer(text):
+            spec = match.group(1) or match.group(2)
+            if spec.startswith("/"):
+                target = spec
+            elif spec.startswith("."):
+                target = posixpath.normpath(base + spec)
+            else:
+                continue
+            if target not in seen:
+                seen.add(target)
+                found.append(target)
+                todo.append(target)
+    return found
+
+
 def inline_hash(text: str) -> str:
     """The Content-Security-Policy source that allows this one inline script."""
     digest = hashlib.sha256(text.encode("utf-8")).digest()
@@ -367,11 +412,23 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
     import_map = module_map(app.static_folder or "", asset)
     csp = CSP.replace("script-src 'self'", f"script-src 'self' '{inline_hash(import_map)}'", 1)
 
+    preloads: dict[str, Markup] = {}
+
+    def module_preloads(entry: str) -> Markup:
+        """modulepreload links for *entry* and every module it imports (see
+        module_closure), at the addresses the import map gives them."""
+        if entry not in preloads:
+            preloads[entry] = Markup("".join(
+                f'<link rel="modulepreload" href="{html.escape(asset(url))}">'
+                for url in [entry, *module_closure(app.static_folder or "", entry)]))
+        return preloads[entry]
+
     @app.context_processor
     def template_helpers() -> dict[str, Any]:
         tamil_font = (Path(app.static_folder or "") / "fonts" / "NotoSansTamil.ttf").is_file()
         from .version import about
-        return {"asset": asset, "tamil_font": tamil_font, "map_tiles": False,
+        return {"asset": asset, "module_preloads": module_preloads,
+                "tamil_font": tamil_font, "map_tiles": False,
                 "version": __version__, "about": about(),
                 "import_map": Markup(f'<script type="importmap">{import_map}</script>')}
 

@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 {# Before any script: every module the page imports, at the address that can be kept. #}
 {{ import_map }}
+{{ module_preloads('/static/js/share.js') }}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Shared photographs · {{ app_name }}</title>
 <meta name="robots" content="noindex, nofollow">
