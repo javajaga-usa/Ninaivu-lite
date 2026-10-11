@@ -25,11 +25,15 @@ const LOOKAHEAD_MS = 450;
 const MAX_AHEAD_SCREENS = 3;
 /** The band left behind a fast scroll. */
 const TRAILING = 300;
-/** Faster than this (px/ms: 2,500 px a second) is flying past rather than
- *  looking, and tiles take the small thumbnail — a quarter of the bytes. */
-const FLING = 2.5;
+/** Faster than this (px/ms: 5,000 px a second) is flying past rather than
+ *  looking: the band behind it shrinks and less is kept ready that way. */
+const FLING = 5;
 /** No scroll for this long and it has stopped: sharpen, and look ahead. */
 const SETTLE_MS = 140;
+/** A picture arriving within this of its tile being made is shown at once,
+ *  with no fade: it was already here, or as good as. Only a tile that waited
+ *  fades its picture in. */
+const INSTANT_MS = 90;
 /** Screens fetched ahead of where a scroll stopped, in its direction. */
 const PREFETCH_SCREENS = 1.5;
 
@@ -83,8 +87,10 @@ const ICON = {
  * for. Changing what is wanted cancels what no longer is.
  */
 class Prefetcher {
-  constructor(limit = 4) {
+  /** `idle`: whether the page is ready for more; asked before each start. */
+  constructor(limit = 4, idle = () => true) {
     this.limit = limit;
+    this.idle = idle;
     this.queue = [];
     this.active = new Map();     // url -> Image in flight
     this.done = new Set();
@@ -106,7 +112,7 @@ class Prefetcher {
   }
 
   pump() {
-    while (this.active.size < this.limit && this.queue.length) {
+    while (this.active.size < this.limit && this.queue.length && this.idle()) {
       const url = this.queue.shift();
       const image = new Image();
       image.decoding = 'async';
@@ -193,8 +199,11 @@ export class Grid extends EventTarget {
     this.lastTime = 0;
     this.fast = false;
     this.settleTimer = null;
-    this.prefetcher = new Prefetcher();
+    this.prefetcher = new Prefetcher(4, () => !this.tilesLoading());
     this.scrolling = false;
+    // The pointer, for telling a real move of the mouse from the one a
+    // browser makes up when the page scrolls under it.
+    this.pointerAt = null;
     this.lastPreload = 0;
     // Frames running the scroll has gone faster than JUMP; a jump asked for.
     this.overJump = 0;
@@ -203,8 +212,10 @@ export class Grid extends EventTarget {
     // asks for the next piece of the gallery before the scroll reaches it).
     this.lookahead = 0;
     this.topUp = null;
-    // The scroll position and screen height, while a frame's work is done.
+    // The scroll position and screen height, while a frame's work is done,
+    // and as the last frame left them.
     this.frameViewport = null;
+    this.lastViewport = null;
     // Why nothing is being fetched ahead right now (the viewer covers the
     // grid, the page is in the background): while any holds, nothing is.
     this.holds = new Set();
@@ -221,8 +232,23 @@ export class Grid extends EventTarget {
     this.container.addEventListener('dblclick', (event) => this.onClick(event, true));
     // A phone has no hover to show the pick mark and no Ctrl to hold: a long
     // press on a tile starts selecting, as it does in every photo app.
-    this.container.addEventListener('pointerdown', (event) => this.onPressStart(event));
-    this.container.addEventListener('pointermove', (event) => this.onPressMove(event));
+    this.container.addEventListener('pointerdown', (event) => {
+      this.onPressStart(event);
+      if (event.pointerType === 'mouse') this.hoverBack();
+    });
+    // The hover look comes back when the mouse moves, not when the scroll
+    // stops. Brought back at the stop, it came and went between every notch
+    // of a mouse wheel: the tile under the pointer lit up, zoomed and showed
+    // its tick, then dropped it again as the next notch scrolled — a flicker.
+    this.container.addEventListener('pointermove', (event) => {
+      this.onPressMove(event);
+      if (event.pointerType !== 'mouse') return;
+      const was = this.pointerAt;
+      this.pointerAt = { x: event.clientX, y: event.clientY };
+      if (!this.container.classList.contains('no-hover') || !was) return;
+      if (Math.abs(event.clientX - was.x) + Math.abs(event.clientY - was.y) < 2) return;
+      this.hoverBack();
+    });
     // On the window: the tile under the finger may have been redrawn (and
     // its node moved) by the time the finger lifts.
     this.onLift = () => this.onPressEnd(true);
@@ -241,6 +267,28 @@ export class Grid extends EventTarget {
     this.container.addEventListener('contextmenu', (event) => {
       if (this.press || this.swallowing()) event.preventDefault();
     });
+  }
+
+  /** The mouse moved: tiles answer it again. */
+  hoverBack() {
+    if (this.scrolling) return;
+    this.container.classList.remove('no-hover');
+  }
+
+  /** Whether any tile on the screen is still waiting for its picture. While
+   *  one is, nothing is fetched ahead of it: the browser has only so many
+   *  connections, and the pictures being looked at come first. */
+  tilesLoading() {
+    // Asked from a picture's load event, between frames: the screen as the
+    // last frame saw it will do, rather than a layout of the page per load.
+    const { top, height } = this.frameViewport || this.lastViewport || { top: 0, height: 0 };
+    for (const node of this.mounted.values()) {
+      const img = node.img;
+      if (!img || img.hidden || !img.getAttribute('src') || img.complete) continue;
+      const cell = this.layout.cells[Number(node.dataset.n)];
+      if (cell && cell.y + cell.h > top && cell.y < top + height) return true;
+    }
+    return false;
   }
 
   /* ---------------------------------------------------------------- */
@@ -385,7 +433,15 @@ export class Grid extends EventTarget {
       if (target) this.scroller.scrollTop = Math.max(0, target.y - anchorOffset);
     }
     this.render();
+    this.trimPool();
     this.dispatchEvent(new CustomEvent('layout', { detail: this.layout }));
+  }
+
+  /** Back to the pool's size, letting the longest-parked nodes go. */
+  trimPool() {
+    if (this.pool.length <= POOL_LIMIT) return;
+    const dropped = new Set(this.pool.splice(0, this.pool.length - POOL_LIMIT));
+    for (const [url, node] of this.parked) if (dropped.has(node)) this.parked.delete(url);
   }
 
   onScroll() {
@@ -442,7 +498,7 @@ export class Grid extends EventTarget {
     this.fast = Math.abs(this.velocity) > FLING;
     if (!this.scrolling) {
       this.scrolling = true;
-      this.container.classList.add('is-scrolling');
+      this.container.classList.add('is-scrolling', 'no-hover');
     }
     clearTimeout(this.settleTimer);
     this.settleTimer = setTimeout(() => this.settle(), SETTLE_MS);
@@ -460,10 +516,11 @@ export class Grid extends EventTarget {
   }
 
   /**
-   * The scroll has stopped. Tiles that took the small thumbnail while flying
-   * past get the sharp one — drawn over the small one when it arrives, so
-   * nothing flickers — and the next screen and a half in the direction it was
-   * going is fetched, so carrying on finds it ready.
+   * The scroll has stopped. Tiles that took the small thumbnail while it went
+   * on get the sharp one — fetched on the side and put in only once decoded,
+   * so nothing blinks (see sharpen) — and the next screen and a half in the
+   * direction it was going is fetched, so carrying on finds it ready. The
+   * hover look stays off until the mouse itself moves (see hoverBack).
    */
   settle() {
     this.velocity = 0;
@@ -523,7 +580,7 @@ export class Grid extends EventTarget {
       if (to <= from) continue;
       for (const cell of visibleRange(this.layout, from, to).cells) {
         if (this.mounted.has(cell.n)) continue;
-        const url = this.cellThumbUrl(cell, this.fast);
+        const url = this.cellThumbUrl(cell, this.scrolling);
         // The far side of the band ahead, or the near side behind: the
         // distance the scroll has to travel to reach it. Behind counts for
         // more, since the scroll is going the other way.
@@ -533,16 +590,8 @@ export class Grid extends EventTarget {
     picks.sort((a, b) => a[0] - b[0]);
     const urls = picks.slice(0, PRELOAD_MAX).map((pick) => pick[1]);
     // Tiles on screen still waiting for their picture come first: while any
-    // is, only one picture ahead is fetched at a time.
-    let waiting = false;
-    for (const node of this.mounted.values()) {
-      const img = node.img;
-      if (img && !img.hidden && !img.complete && this.onScreenNode(node)) {
-        waiting = true;
-        break;
-      }
-    }
-    this.prefetcher.limit = waiting ? 1 : 4;
+    // is, nothing ahead is started (the prefetcher asks tilesLoading), and
+    // the tiles' own load events start it again.
     this.prefetcher.want(urls, this.shownUrls());
   }
 
@@ -600,6 +649,7 @@ export class Grid extends EventTarget {
   withViewport(work) {
     if (this.frameViewport) return work();
     this.frameViewport = { top: this.scroller.scrollTop, height: this.scroller.clientHeight };
+    this.lastViewport = this.frameViewport;
     try {
       return work();
     } finally {
@@ -608,12 +658,19 @@ export class Grid extends EventTarget {
   }
 
   /**
-   * The sharp picture for a tile that took the small one flying past — once
-   * the scroll is not flying, and only as it comes near the screen, so the ones
-   * about to be looked at are not queued behind ones a screen further on.
+   * The sharp picture for a tile that took the small one while the scroll
+   * went on — once it has stopped, and only for tiles near the screen, so the
+   * ones being looked at are not queued behind ones a screen further on.
+   *
+   * Fetched and decoded on the side first, and only then put in the tile.
+   * Pointing a tile's <img> at a picture the browser does not have yet blanks
+   * it in Safari — WebKit drops the old picture the moment the address
+   * changes, where Chrome keeps it until the new one is ready — so after
+   * every brisk scroll the whole screen blinked and came back sharp. A
+   * picture already decoded is drawn in the same frame, in every browser.
    */
   sharpen(node, cell) {
-    if (this.fast || !node.blurry) return;
+    if (this.scrolling || !node.blurry) return;
     const img = node.img;
     const full = this.cellThumbUrl(cell);
     if (!full || !img || img.hidden || img.getAttribute('src') === full) {
@@ -622,9 +679,31 @@ export class Grid extends EventTarget {
     }
     const { top, height: view } = this.viewport();
     if (cell.y + cell.h < top - view / 2 || cell.y > top + view * 1.5) return;
-    img.fetchPriority = this.onScreen(cell) ? 'high' : 'auto';
-    img.src = full;
+    this.swapIn(node, cell, full);
     node.blurry = false;
+  }
+
+  /** Fetch and decode `url` on the side, then show it in the tile — which
+   *  keeps the picture it has until then. See sharpen. */
+  swapIn(node, cell, url) {
+    if (node.pendingSrc === url) return;
+    node.pendingSrc = url;
+    const img = node.img;
+    const sharp = new Image();
+    sharp.decoding = 'async';
+    if ('fetchPriority' in sharp) sharp.fetchPriority = this.onScreen(cell) ? 'high' : 'auto';
+    const swap = () => {
+      if (node.pendingSrc !== url) return;            // recycled, or wanted elsewhere
+      node.pendingSrc = null;
+      if (img.hidden || node.dataset.id !== String(cell.id) || !this.mounted.has(cell.n)) return;
+      img.src = url;
+    };
+    sharp.onload = () => {
+      const decoded = sharp.decode ? sharp.decode() : Promise.resolve();
+      decoded.then(swap, swap);
+    };
+    sharp.onerror = () => { if (node.pendingSrc === url) node.pendingSrc = null; };
+    sharp.src = url;
   }
 
   render() {
@@ -699,7 +778,7 @@ export class Grid extends EventTarget {
         node.classList.toggle('packed', packed);
         node.style.width = packed ? `${head.w}px` : '';
         node.querySelector('.title').title = packed ? title : '';
-        node.style.transform = `translate3d(${head.x || 0}px,${head.y}px,0)`;
+        node.style.transform = `translate(${head.x || 0}px,${head.y}px)`;
       }
     }
     for (const [key, node] of this.mountedHeads) {
@@ -726,12 +805,17 @@ export class Grid extends EventTarget {
     img.addEventListener('load', () => {
       clearTimeout(node.shimmerTimer);
       delete img.dataset.retried;
+      // Arrived almost at once: no fade (see INSTANT_MS).
+      img.classList.toggle('instant',
+        !!node.paintedAt && performance.now() - node.paintedAt < INSTANT_MS);
       img.classList.add('ready');
       node.classList.remove('loading');
+      this.prefetcher.pump();
     });
     img.addEventListener('error', () => {
       clearTimeout(node.shimmerTimer);
       node.classList.remove('loading');
+      this.prefetcher.pump();
       const src = img.getAttribute('src');
       if (!src || node.querySelector('.glyph')) return;
       // A server busy making other tiles says so rather than keep this one
@@ -797,10 +881,10 @@ export class Grid extends EventTarget {
    * picture has nothing to decode and nothing to wait for.
    */
   takeCell(cell) {
-    // The sharp picture if a parked node holds it; while flying past, the
-    // small one will do just as well.
-    const urls = [this.cellThumbUrl(cell)];
-    if (this.fast) urls.push(this.cellThumbUrl(cell, true));
+    // The sharp picture if a parked node holds it, else the small one: a
+    // tile holding either shows it at once and is sharpened on the side
+    // (paintCell), where a fresh node would show its colour first.
+    const urls = [this.cellThumbUrl(cell), this.cellThumbUrl(cell, true)];
     for (const url of urls) {
       const kept = url && this.parked.get(url);
       if (kept) {
@@ -817,10 +901,11 @@ export class Grid extends EventTarget {
     return node;
   }
 
-  releaseCell(node) {
+  releaseCell(node, keep = this.pool.length < POOL_LIMIT) {
     node.remove();
     clearTimeout(node.shimmerTimer);
-    if (this.pool.length < POOL_LIMIT) {
+    node.pendingSrc = null;
+    if (keep) {
       node.className = 'cell';
       const img = node.querySelector('img');
       if (img) {
@@ -840,7 +925,11 @@ export class Grid extends EventTarget {
   }
 
   unmountAll() {
-    for (const node of this.mounted.values()) this.releaseCell(node);
+    // Every node is kept, whatever the pool's size: a relayout mounts most
+    // of them again at once, each with the picture it already holds, and a
+    // node dropped here came back as a tile on its colour, fading its own
+    // picture in again. The pool is trimmed after the render (trimPool).
+    for (const node of this.mounted.values()) this.releaseCell(node, true);
     // Anything not parked above is gone; the map must not outlive the pool.
     for (const [url, node] of this.parked) {
       if (!this.pool.includes(node)) this.parked.delete(url);
@@ -865,7 +954,11 @@ export class Grid extends EventTarget {
   }
 
   positionCell(node, cell) {
-    node.style.transform = `translate3d(${cell.x}px,${cell.y}px,0)`;
+    // A plain translate, not translate3d: a tile does not move while the
+    // grid scrolls (the scroller moves it), so a layer of its own bought
+    // nothing, and hundreds of them — one GPU texture per tile — had an
+    // iPhone dropping and redrawing tiles as it ran short of memory.
+    node.style.transform = `translate(${cell.x}px,${cell.y}px)`;
     node.style.width = `${cell.w}px`;
     node.style.height = `${cell.h}px`;
   }
@@ -897,12 +990,24 @@ export class Grid extends EventTarget {
     node.style.backgroundColor = hasThumb && cell.swatch ? `#${cell.swatch}` : '';
     if (hasThumb) {
       img.hidden = false;
-      // Already holding the sharp one: keep it. Flying past: the small one,
-      // sharpened when the scroll stops (see settle).
+      // Already holding the sharp one: keep it. Made while the scroll goes
+      // on: the small one, a quarter of the bytes and usually fetched ahead
+      // already, sharpened once the scroll stops (see settle) — the way
+      // Photos shows its small pictures while the finger is moving. On a
+      // phone every tile wants the sharp one (a Retina screen makes a small
+      // tile a large picture), so a scroll fetching sharp ones outran the
+      // network at any pace and met its tiles still empty.
       const full = this.cellThumbUrl(cell);
-      const url = img.getAttribute('src') === full || !this.fast
-        ? full : this.cellThumbUrl(cell, true);
-      node.blurry = url !== full;
+      const current = img.getAttribute('src');
+      const url = current === full || !this.scrolling ? full : this.cellThumbUrl(cell, true);
+      // Holding this very picture, sharp or small, and decoded: it stays on
+      // screen, and a sharper one comes in on the side (swapIn). Pointing the
+      // tile straight at the new address dropped the tile to its colour and
+      // faded the picture back in — in Safari, which blanks an image the
+      // moment its address changes, even when the browser had it already.
+      const holds = (current === full || current === this.cellThumbUrl(cell, true))
+        && img.complete && img.naturalWidth > 0;
+      node.blurry = (holds ? current : url) !== full;
       // On screen first. Not "low" for the rest: the band ahead is where the
       // scroll is going, and a low hint let the browser hold those back until
       // they arrived on screen still empty.
@@ -919,12 +1024,16 @@ export class Grid extends EventTarget {
       // change, so an image that is already here and decoded is by definition
       // the right one. Only a different picture, or one that failed, is worth
       // fetching again.
-      if (img.getAttribute('src') !== url || (img.complete && !img.naturalWidth)) {
+      if (holds) {
+        if (current !== url) this.sharpen(node, cell);
+      } else if (current !== url || (img.complete && !img.naturalWidth)) {
         img.src = url;
       }
       // A picture that is already here and decoded is shown at once.
-      const shown = img.complete && img.naturalWidth > 0;
+      const shown = holds || (img.complete && img.naturalWidth > 0);
       img.classList.toggle('ready', shown);
+      img.classList.remove('instant');
+      node.paintedAt = shown ? 0 : performance.now();
       node.classList.remove('loading');
       clearTimeout(node.shimmerTimer);
 

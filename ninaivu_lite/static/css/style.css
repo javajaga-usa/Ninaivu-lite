@@ -812,13 +812,15 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 }
 .load-more-failed[hidden] { display: none; }
 
-/* Cells — positioned by transform for cheap compositing. */
+/* Cells — positioned by transform, which is cheap to apply, but not promoted
+   to layers of their own: a tile never moves while the grid scrolls, and a
+   layer per tile (will-change, translate3d) was hundreds of GPU textures that
+   an iPhone dropped and redrew while scrolling. */
 .cell {
   position: absolute; top: 0; left: 0;
   overflow: hidden; border-radius: var(--r-sm);
   background: var(--surface-2);
   cursor: pointer; contain: strict;
-  will-change: transform;
 }
 .cell img {
   width: 100%; height: 100%; object-fit: cover; display: block;
@@ -826,6 +828,9 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
   background: var(--surface-2);
 }
 .cell img.ready { opacity: 1; }
+/* A picture that arrived within a frame or two of its tile (grid.js,
+   INSTANT_MS) is simply there, as in Photos; only a tile that waited fades. */
+.cell img.instant, .grid.no-hover .cell img.instant { transition: none; }
 .cell.loading::after {
   content: ""; position: absolute; inset: 0;
   background: var(--shimmer); background-size: 200% 100%;
@@ -840,11 +845,19 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 }
 .cell:hover img { transform: scale(1.035); }
 .cell img { transition: opacity .22s var(--ease), transform .35s var(--ease); }
-/* While the grid scrolls under a still mouse, the tiles passing the pointer
-   do not each start the hover zoom: that was a repaint per tile per frame. */
-@media (hover: hover) {
-  .grid.is-scrolling .cell { pointer-events: none; }
-}
+/* While the grid scrolls, tiles slide under a resting pointer: no hover look
+   (grid.js sets .no-hover), or each tile passing underneath zooms its picture
+   in and back out and the scroll looks like pictures being fitted into place.
+   The look comes back when the mouse moves, not when the scroll stops: back at
+   the stop, it lit up and dropped again between every notch of a wheel. The
+   tiles keep answering the pointer, so a click during a glide opens the
+   photograph under it: with pointer-events off, clicks went through to the
+   grid behind them and opened nothing. */
+.grid.no-hover .cell img { transition: opacity .22s var(--ease); }
+.grid.no-hover .cell::before, .grid.no-hover .cell .badge { transition: none; }
+.grid.no-hover .cell:not(.selected):hover img { transform: none; }
+.grid.no-hover .cell:not(.cursor):hover::before { background: none; }
+.grid.no-hover:not(.selecting) .cell:hover .pick { display: none; }
 
 .cell .badge {
   position: absolute; z-index: 3; display: flex; align-items: center; gap: 3px;
@@ -900,7 +913,6 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
   padding: 0 52px 0 2px;
   font-size: 15px; font-weight: 640; letter-spacing: -.015em;
   color: var(--text);
-  will-change: transform;
 }
 .section-head .sub { font-size: 12px; font-weight: 450; color: var(--text-3); }
 /* One line, whatever the language: the header has a fixed height in the
