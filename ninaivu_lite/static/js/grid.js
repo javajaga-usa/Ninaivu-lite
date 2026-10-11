@@ -66,9 +66,10 @@ const MOUNT_BUDGET = 24;
 const KIND_NAMES = ['picture', 'video', 'audio'];
 
 const LONG_PRESS_MS = 450;
-/** PHONE2: a finger put down within this of the grid's last scroll event
- *  lands on a glide still running (a fling's scroll moves every frame), and
- *  the tap only stops it, as in every photo app. */
+/** PHONE2: a finger put down within this of the grid's last scroll event,
+ *  itself as close to the one before, lands on a glide still running (a
+ *  fling's scroll moves every frame; a jump to a place is one event), and the
+ *  tap only stops it, as in every photo app. */
 const GLIDE_MS = 100;
 
 const ICON = {
@@ -449,6 +450,7 @@ export class Grid extends EventTarget {
   }
 
   onScroll() {
+    this.prevScrollAt = this.lastScrollAt || 0;
     this.lastScrollAt = performance.now();
     if (this.frame) return;
     this.frame = requestAnimationFrame((frameTime) => {
@@ -1131,8 +1133,9 @@ export class Grid extends EventTarget {
     // PHONE2: the finger that stops a glide is not choosing the photograph
     // that happened to slide under it. Its tap opened (or, while selecting,
     // ticked) whatever photograph the glide had brought there.
-    const now = performance.now();
-    this.glideStoppedAt = now - (this.lastScrollAt || -Infinity) < GLIDE_MS ? now : 0;
+    const now = performance.now(), last = this.lastScrollAt || -Infinity;
+    const gliding = now - last < GLIDE_MS && last - (this.prevScrollAt || -Infinity) < GLIDE_MS;
+    this.glideStoppedAt = gliding ? now : 0;
     const node = event.target.closest('.cell');
     if (!node) return;
     this.onPressEnd();

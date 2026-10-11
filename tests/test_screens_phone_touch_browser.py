@@ -112,6 +112,9 @@ def test_a_tap_that_stops_a_glide_opens_nothing(browser, long_gallery):  # noqa:
                               [spot["x"], spot["y"]])
         page.evaluate("""() => { window.__opened = null; window.__mv.grid.addEventListener(
             'open', (e) => { window.__opened = String(e.detail.id); }, { once: true }); }""")
+        # A jump to a place (one scroll, as Jump to or a tile brought into
+        # view makes) just before is no glide: the tap still opens.
+        page.evaluate("window.__mv.grid.scroller.scrollTop += 1")
         tap(touch, spot["x"], spot["y"])
         page.wait_for_selector("#viewer:not([hidden])")
         opened = page.evaluate("window.__opened")
