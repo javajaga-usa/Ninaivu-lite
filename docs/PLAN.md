@@ -2,7 +2,7 @@
 
 **நினைவு லைட்** · Your family's photographs, at home — the small, steady edition.
 
-> **Status:** 1.12.0 (phases 0–4 done; Control Panel, installers, Import and Sudar added; Rotate, Flip and Reset; audits A01-A202 and phone layout fixes M01-M41 done). See [CHANGELOG](../CHANGELOG.md).
+> **Status:** 1.13.0 (phases 0–4 done; Control Panel, installers, Import and Sudar added; Rotate, Flip and Reset; Live Photos, Duplicates, On this day, Photos taken nearby; audits A01-A246 and phone layout fixes M01-M77 done). See [CHANGELOG](../CHANGELOG.md).
 
 ## 1. What Lite is
 
