@@ -8,6 +8,15 @@ import { $, grid, state, viewer } from './state.js';
 import { toast } from './toast.js';
 
 export function wireSelection() {
+  // M82: where the actions are one line that scrolls sideways (a phone, the
+  // Pi's short screen), a mouse wheel scrolls it too, as a finger would.
+  const actions = $('.sel-actions');
+  actions?.addEventListener('wheel', (event) => {
+    if (actions.scrollWidth <= actions.clientWidth) return;
+    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    actions.scrollLeft += event.deltaY;
+    event.preventDefault();
+  }, { passive: false });
   $('#sel-cancel').onclick = () => grid.clearSelection();
   $('#sel-all').onclick = () => grid.selectAll();
   $('#sel-fav').onclick = () => bulk({ favorite: true });

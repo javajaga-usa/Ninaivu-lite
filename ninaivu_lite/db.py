@@ -330,25 +330,27 @@ def connect(data_dir: str | Path) -> sqlite3.Connection:
     path = Path(data_dir) / DB_FILE
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path), timeout=30, check_same_thread=False)
-    _private(path)              # before WAL: its files take the index's permissions
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout=30000")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA synchronous=NORMAL")
+    # Closed on any failure, a damaged file's included: on Windows a handle
+    # left open keeps --restore from setting the damaged index aside (A251).
     try:
-        mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
-    except sqlite3.DatabaseError as exc:
-        # Locked by another process for longer than the busy timeout says
-        # nothing about the disk: the file keeps the mode it has, rather than
-        # leaving WAL for good.
-        transient = "locked" in str(exc) or "busy" in str(exc)
-        log.info("journal mode %s: %s", "left as it is" if transient else "not WAL", exc)
-        mode = "wal" if transient else ""
-    if str(mode).lower() != "wal":
-        # Network drives and some old filesystems cannot do WAL. The classic
-        # journal is slower with many readers but always works.
-        conn.execute("PRAGMA journal_mode=DELETE")
-    try:
+        _private(path)              # before WAL: its files take the index's permissions
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout=30000")
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        try:
+            mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+        except sqlite3.DatabaseError as exc:
+            # Locked by another process for longer than the busy timeout says
+            # nothing about the disk: the file keeps the mode it has, rather than
+            # leaving WAL for good.
+            transient = "locked" in str(exc) or "busy" in str(exc)
+            log.info("journal mode %s: %s", "left as it is" if transient else "not WAL", exc)
+            mode = "wal" if transient else ""
+        if str(mode).lower() != "wal":
+            # Network drives and some old filesystems cannot do WAL. The classic
+            # journal is slower with many readers but always works.
+            conn.execute("PRAGMA journal_mode=DELETE")
         version = conn.execute("PRAGMA user_version").fetchone()[0]
         if 0 < version < len(MIGRATIONS):
             # The first start after an update: a recovery zip of the index as

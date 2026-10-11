@@ -17,13 +17,15 @@ ruff check .
 python -m pytest
 ```
 
-The screens in a browser, and the stylesheet and script checks (Node 20 or newer), as CI
-runs them:
+The screens in a browser (every `tests/*_browser.py`), and the stylesheet and script checks
+(Node 20 or newer), as CI runs them. Without Playwright and its Chromium those tests are
+skipped; `NINAIVU_BROWSER_TESTS=1` makes a missing browser a failure instead. The video
+tests need `ffmpeg` on the PATH, and the face straightening `requirements-straighten.txt`:
 
 ```sh
-python -m pip install -r requirements-browser.txt
+python -m pip install -r requirements-browser.txt -r requirements-straighten.txt
 python -m playwright install chromium
-python -m pytest tests/test_smoke_browser.py
+NINAIVU_BROWSER_TESTS=1 python -m pytest      # Windows PowerShell: $env:NINAIVU_BROWSER_TESTS=1
 npm ci
 npm run lint
 ```

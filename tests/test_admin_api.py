@@ -11,7 +11,7 @@ import zipfile
 import pytest
 from conftest import ids, make_jpeg, sign_in
 
-from ninaivu_lite import auth, db, media
+from ninaivu_lite import auth, db, folders, media
 from ninaivu_lite.config import Config
 
 ROUTES = [
@@ -130,10 +130,14 @@ def test_browse(admin, library, tmp_path):
     assert [d["name"] for d in data["dirs"]] == ["2019", "family"]     # hidden skipped
     assert data["dirs"][0]["path"] == str(root / "2019")
     assert data["selectable"] is True
-    assert {"name": "Photos (current)", "path": str(root)} in data["shortcuts"]
+    assert {"name": "Photos (current)", "path": str(root),
+            "key": "{name} (current)", "vars": {"name": "Photos"}} in data["shortcuts"]
     data = admin.get("/api/library/browse", query_string={"path": str(root / "family")})
     assert [d["name"] for d in data.get_json()["dirs"]] == ["pongal"]
-    r = admin.get("/api/library/browse", query_string={"path": str(tmp_path / "nope")})
+    # A folder not there (yet) opens at the nearest one that is (A258); a file is refused.
+    r = admin.get("/api/library/browse", query_string={"path": str(tmp_path / "nope" / "deeper")})
+    assert r.status_code == 200 and r.get_json()["path"] == str(tmp_path)
+    r = admin.get("/api/library/browse", query_string={"path": str(root / "2019" / "beach.jpg")})
     assert r.status_code == 404 and r.get_json()["error"] == "Not a directory"
     if sys.platform != "win32":      # /proc, /sys and /dev exist only there
         assert admin.get("/api/library/browse?path=/proc").status_code == 403
@@ -623,3 +627,12 @@ def test_export_json(app, admin, library):
                                "password": None, "expires_at": None,
                                "created_at": data["shares"][0]["created_at"], "views": 3,
                                "album_id": album}]
+
+
+def test_browse_refuses_a_system_folder_that_is_not_there(admin, monkeypatch, tmp_path):
+    # /proc on a Mac: a missing folder opens at its parent (A258), but never a
+    # system folder's, which was answered with "/" instead of being refused.
+    gone = tmp_path / "proc"
+    monkeypatch.setattr(folders, "UNBROWSABLE", (*folders.UNBROWSABLE, folders._key(str(gone))))
+    r = admin.get("/api/library/browse", query_string={"path": str(gone / "self")})
+    assert r.status_code == 403

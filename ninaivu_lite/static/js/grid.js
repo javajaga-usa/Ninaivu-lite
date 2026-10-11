@@ -66,6 +66,11 @@ const MOUNT_BUDGET = 24;
 const KIND_NAMES = ['picture', 'video', 'audio'];
 
 const LONG_PRESS_MS = 450;
+/** M87: a finger put down within this of the grid's last scroll event,
+ *  itself as close to the one before, lands on a glide still running (a
+ *  fling's scroll moves every frame; a jump to a place is one event), and the
+ *  tap only stops it, as in every photo app. */
+const GLIDE_MS = 100;
 
 const ICON = {
   video: '<svg viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z" fill="currentColor" stroke="none"/></svg>',
@@ -394,7 +399,18 @@ export class Grid extends EventTarget {
       if (node.classList.contains('packed')) node.querySelector('.title').title = title;
       if (count != null) node.querySelector('.sub').textContent = sub;
       const select = node.querySelector('[data-select-section]');
-      if (select) select.textContent = i18n.t('Select all');
+      if (select) {
+        select.querySelector('.label').textContent = i18n.t('Select all');
+        select.setAttribute('aria-label', i18n.t('Select all'));
+        select.title = i18n.t('Select all');
+      }
+    }
+    // The tick on each tile carries its name too.
+    for (const node of this.mounted.values()) {
+      node.querySelector('.pick')?.setAttribute('aria-label', i18n.t('Select'));
+    }
+    for (const node of this.pool) {
+      node.querySelector('.pick')?.setAttribute('aria-label', i18n.t('Select'));
     }
     // A language whose count and "Select all" need wider packed headers.
     const before = this.packedHead;
@@ -445,6 +461,8 @@ export class Grid extends EventTarget {
   }
 
   onScroll() {
+    this.prevScrollAt = this.lastScrollAt || 0;
+    this.lastScrollAt = performance.now();
     if (this.frame) return;
     this.frame = requestAnimationFrame((frameTime) => {
       this.frame = null;
@@ -592,7 +610,12 @@ export class Grid extends EventTarget {
     // Tiles on screen still waiting for their picture come first: while any
     // is, nothing ahead is started (the prefetcher asks tilesLoading), and
     // the tiles' own load events start it again.
-    this.prefetcher.want(urls, this.shownUrls());
+    const keep = this.shownUrls();
+    // A255: stopped, the small pictures already on their way are let
+    // finish: cancelled at every short pause, the tiles the next stretch of
+    // the scroll put there waited for them from the start, blank.
+    if (!this.scrolling) for (const url of this.prefetcher.active.keys()) keep.add(url);
+    this.prefetcher.want(urls, keep);
   }
 
   /**
@@ -608,9 +631,22 @@ export class Grid extends EventTarget {
       this.holds.add(reason);
       this.lookahead = 0;
       this.prefetcher.want([], this.shownUrls());
+      // A253: and the sharp pictures being fetched for tiles that have a
+      // small one (see swapIn). A photo opened just after a scroll stopped
+      // waited behind a screenful of them (850 KB on a phone, measured);
+      // they are fetched again when the grid is back.
+      for (const node of this.mounted.values()) {
+        if (node.side) {
+          this.dropSide(node);
+          node.blurry = true;
+        }
+      }
     } else {
       this.holds.delete(reason);
-      if (!this.holds.size) this.preload(true);
+      if (!this.holds.size) {
+        this.render();
+        this.preload(true);
+      }
     }
   }
 
@@ -670,7 +706,7 @@ export class Grid extends EventTarget {
    * picture already decoded is drawn in the same frame, in every browser.
    */
   sharpen(node, cell) {
-    if (this.scrolling || !node.blurry) return;
+    if (this.scrolling || this.holds.size || !node.blurry) return;
     const img = node.img;
     const full = this.cellThumbUrl(cell);
     if (!full || !img || img.hidden || img.getAttribute('src') === full) {
@@ -699,11 +735,29 @@ export class Grid extends EventTarget {
       img.src = url;
     };
     sharp.onload = () => {
+      if (node.side === sharp) node.side = null;
       const decoded = sharp.decode ? sharp.decode() : Promise.resolve();
       decoded.then(swap, swap);
     };
-    sharp.onerror = () => { if (node.pendingSrc === url) node.pendingSrc = null; };
+    sharp.onerror = () => {
+      if (node.side === sharp) node.side = null;
+      if (node.pendingSrc === url) node.pendingSrc = null;
+    };
+    // Kept, so a tile that leaves the page, or a photo opened over the grid,
+    // can stop the download (see dropSide).
+    node.side = sharp;
     sharp.src = url;
+  }
+
+  /** Stop the sharp picture being fetched for *node* on the side, if any. */
+  dropSide(node) {
+    node.pendingSrc = null;
+    const side = node.side;
+    if (!side) return;
+    node.side = null;
+    side.onload = null;
+    side.onerror = null;
+    side.removeAttribute('src');                   // stops the download
   }
 
   render() {
@@ -769,7 +823,12 @@ export class Grid extends EventTarget {
         node.querySelector('.title').textContent = title;
         node.querySelector('.sub').textContent = sub;
         // A pooled header may have been made in the language used before.
-        node.querySelector('[data-select-section]').textContent = i18n.t('Select all');
+        // M79: only the label's words, never the button's own text, which
+        // took the tick with it and cut a narrow Tamil day's count to "1…".
+        const select = node.querySelector('[data-select-section]');
+        select.querySelector('.label').textContent = i18n.t('Select all');
+        select.setAttribute('aria-label', i18n.t('Select all'));
+        select.title = i18n.t('Select all');
         node.dataset.head = head.key;
         node.dataset.firstCell = String(head.firstCell);
         // A packed day's header is only as wide as its own photographs; a
@@ -904,7 +963,8 @@ export class Grid extends EventTarget {
   releaseCell(node, keep = this.pool.length < POOL_LIMIT) {
     node.remove();
     clearTimeout(node.shimmerTimer);
-    node.pendingSrc = null;
+    // A253: its sharp picture too, still coming for a tile now gone past.
+    this.dropSide(node);
     if (keep) {
       node.className = 'cell';
       const img = node.querySelector('img');
@@ -1123,6 +1183,12 @@ export class Grid extends EventTarget {
 
   onPressStart(event) {
     if (event.pointerType !== 'touch') return;
+    // M87: the finger that stops a glide is not choosing the photograph
+    // that happened to slide under it. Its tap opened (or, while selecting,
+    // ticked) whatever photograph the glide had brought there.
+    const now = performance.now(), last = this.lastScrollAt || -Infinity;
+    const gliding = now - last < GLIDE_MS && last - (this.prevScrollAt || -Infinity) < GLIDE_MS;
+    this.glideStoppedAt = gliding ? now : 0;
     const node = event.target.closest('.cell');
     if (!node) return;
     this.onPressEnd();
@@ -1169,6 +1235,11 @@ export class Grid extends EventTarget {
   onClick(event, isDouble = false) {
     if (this.swallowing()) {
       this.swallowUntil = 0;
+      return;
+    }
+    // A tap is short; a click long after that press is some other one.
+    if (this.glideStoppedAt && performance.now() - this.glideStoppedAt < 800) {
+      this.glideStoppedAt = 0;
       return;
     }
     const sectionButton = event.target.closest('[data-select-section]');

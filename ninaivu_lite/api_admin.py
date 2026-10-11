@@ -267,30 +267,37 @@ def preview():
 # --- library folders -----------------------------------------------------------------
 
 
-def _shortcuts() -> list[dict[str, str]]:
+def _shortcuts() -> list[dict[str, Any]]:
+    """Where the folder picker can jump to. ``name`` in English; ``key`` and
+    ``vars`` say it in the reader's language (A259: a Tamil picker read
+    "Home" and "Photos (current)")."""
     c = cfg()
     home = _norm(os.path.expanduser("~"))
-    out: list[dict[str, str]] = []
+    out: list[dict[str, Any]] = []
     seen: set[str] = set()
     for root in c.folders:
         if _norm(root) in seen or not library_exists(root):
             continue
         seen.add(_norm(root))
         name = os.path.basename(root.rstrip("\\/")) or root
-        out.append({"name": f"{name} (current)" if root == c.active_folder else name,
-                    "path": root})
+        if root == c.active_folder:
+            out.append({"name": f"{name} (current)", "path": root,
+                        "key": "{name} (current)", "vars": {"name": name}})
+        else:
+            out.append({"name": name, "path": root})
     for point in folders.starting_points():
         path = point["path"]
         if _norm(path) in seen:
             continue
         seen.add(_norm(path))
         if _norm(path) == home:
-            label = "Home"
+            out.append({"name": "Home", "path": path, "key": "Home folder", "vars": {}})
         elif len(path) <= 3 and path[1:2] == ":":
-            label = f"{path[0].upper()}: drive"
+            letter = path[0].upper()
+            out.append({"name": f"{letter}: drive", "path": path,
+                        "key": "{letter}: drive", "vars": {"letter": letter}})
         else:
-            label = point["name"]
-        out.append({"name": label, "path": path})
+            out.append({"name": point["name"], "path": path})
     return out[:14]
 
 
@@ -312,6 +319,14 @@ def browse():
     else:
         target = os.path.expanduser("~")
     target = os.path.normpath(target)
+    # A258: a folder not made yet (the archive's own, before the first
+    # import) or on a drive since unplugged opens at the nearest one that is
+    # there, not at "Not a directory" with nowhere to go from it. A system
+    # folder is refused as asked, even where it does not exist (/proc on a Mac).
+    if folders.unbrowsable(target):
+        fail(403, _CANNOT_OPEN.format(target))
+    while raw and not os.path.lexists(target) and os.path.dirname(target) != target:
+        target = os.path.dirname(target)
     try:
         listing = folders.list_dirs(target)
     except (FileNotFoundError, NotADirectoryError):

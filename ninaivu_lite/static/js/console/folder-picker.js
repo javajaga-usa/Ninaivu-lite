@@ -18,6 +18,9 @@ let browseSelectable = false;
  */
 let picker = null;
 
+/** A shortcut's name in the page's language (A259): the server said
+ *  "Photos (current)", "Home" and "C: drive" in English on a Tamil page. A
+ *  folder's own name is left as it is on the disk. */
 export function openFolderPicker(options = {}) {
   picker = {
     start: options.start ?? (state.overview?.library?.root || ''),
@@ -30,6 +33,12 @@ export function openFolderPicker(options = {}) {
   $('#fm-manual').value = '';
   $('#folder-modal h2').textContent = picker.title;
   $('#fm-apply').textContent = picker.cta;
+  // Nothing is chosen until the listing comes or a path is typed: the last
+  // picker's folder must not be what "Use this folder" hands back.
+  browsePath = '';
+  browseSelectable = false;
+  $('#fm-path').textContent = '';
+  refreshApply();
   return loadBrowse(picker.start);
 }
 
@@ -45,6 +54,13 @@ export function refreshApply() {
 }
 
 async function loadBrowse(path) {
+  // Choosing from the tree is an answer, so it replaces whatever was typed
+  // earlier — otherwise `typed || browsePath` submits the old string and the
+  // folder the admin just clicked is silently ignored. Cleared now, as the
+  // folder is chosen, not when its listing arrives (A257): a path typed
+  // while a slow drive was being listed was wiped, and "Use this folder"
+  // then took the folder the picker had opened at (often the home folder).
+  $('#fm-manual').value = '';
   const list = $('#fm-dirs');
   const loading = el('p', 'hint', i18n.t('Loading…'));
   loading.style.padding = '12px';
@@ -59,10 +75,6 @@ async function loadBrowse(path) {
   }
   browsePath = data.path;
   browseSelectable = picker?.anyFolder ? true : data.selectable !== false;
-  // Choosing from the tree is an answer, so it replaces whatever was typed
-  // earlier — otherwise `typed || browsePath` submits the old string and the
-  // folder the admin just clicked is silently ignored.
-  $('#fm-manual').value = '';
   $('#fm-path').textContent = data.path;
 
   refreshApply();
@@ -77,7 +89,8 @@ async function loadBrowse(path) {
   if (data.shortcuts?.length) {
     const bar = el('div', 'fm-shortcuts');
     for (const shortcut of data.shortcuts) {
-      const chip = el('button', 'chip', shortcut.name || shortcut.path);
+      const chip = el('button', 'chip', shortcut.key
+        ? i18n.t(shortcut.key, shortcut.vars) : (shortcut.name || shortcut.path));
       chip.type = 'button';
       chip.title = shortcut.path;
       chip.onclick = () => loadBrowse(shortcut.path);

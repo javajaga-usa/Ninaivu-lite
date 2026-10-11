@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 {# Before any script: every module the page imports, at the address that can be kept. #}
 {{ import_map }}
+{{ module_preloads('/static/js/admin.js') }}
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="format-detection" content="telephone=no">
 
@@ -286,9 +287,9 @@
       <div class="block-head">
         <div>
           <h2 data-i18n="Copies in more than one place">Copies in more than one place</h2>
-          <p class="hint" data-i18n="The same file, byte for byte, in more than one folder of the library. Ninaivu Lite only shows where they are: it never moves or deletes a file. To tidy up, remove the copies you do not want in the folders themselves (or in Ninaivu); the next scan updates this list.">The same file, byte for byte, in more than one folder of the
+          <p class="hint" data-i18n="The same file, byte for byte, in more than one folder of the library. Ninaivu Lite only shows where they are: it never moves or deletes a file. To tidy up, remove the copies you do not want in the folders themselves; the next scan updates this list.">The same file, byte for byte, in more than one folder of the
             library. Ninaivu Lite only shows where they are: it never moves or deletes a file. To
-            tidy up, remove the copies you do not want in the folders themselves (or in Ninaivu);
+            tidy up, remove the copies you do not want in the folders themselves;
             the next scan updates this list.</p>
         </div>
       </div>

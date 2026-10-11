@@ -2,6 +2,48 @@
 
 ## Unreleased
 
+- **Seventh complete audit (A247 to A261, M78 to M94): 32 problems found and fixed, 2 of them
+  High.** The report is kept with the project's audits. The photographs and videos are never
+  moved, changed or deleted.
+  - **Albums open in a fraction of a second on a large library (A252).** With dozens of albums
+    over 100,000 photos the Albums page took about 4.5 s every time (longer on a Raspberry Pi);
+    it now takes about 50 ms, and one album 10 to 20 ms.
+  - **Moved folders keep their albums after a scan cut short (A248).** If a scan was stopped
+    (shutdown, Stop, power cut) after a folder was moved or renamed in Explorer or Finder, some
+    of the moved photos lost their albums and favourites, and photos hidden one by one became
+    visible to the family. They now keep them. A profile picture also stays when the photo it
+    came from is moved (A249).
+  - **On a phone, Back closes what is open (M86, M91).** Back (or the edge swipe) closes an open
+    photo or the side drawer instead of leaving the gallery.
+  - **A tap that stops a flick opens nothing (M87).** Putting a finger down to stop the
+    gallery's glide no longer opens, or ticks, the photo that slid under it.
+  - **Film-roll scrolling, finished (A253, A255).** A photo opened just after scrolling no
+    longer waits for the grid's sharper thumbnails, and scrolling in short bursts no longer
+    leaves tiles blank.
+  - **A first visit starts sooner (A254).** Every script a page needs is asked for together
+    with the page.
+  - **Start-up is calmer about damage (A250, A251).** Settings another program holds open for a
+    moment are no longer taken for damaged and reset; a damaged index gets a plain message,
+    in the log and the Control Panel too, with the `--restore` command for the newest backup.
+  - **First-time setup cannot be blocked from the network (A247).** Wrong setup codes from
+    other devices no longer lock out the owner at the computer itself.
+  - **The folder picker (A257, A258, A259).** A path typed while the folder list loads is the
+    one used (it used to be emptied, and the first-day library could become the home folder);
+    "Change" for the archive folder opens at the nearest folder that exists; Home, the current
+    folder and drives are named in Tamil on a Tamil screen.
+  - **Screens.** The Raspberry Pi screen keeps the selection bar on one line (M82); Tamil
+    narrow days show their whole count and a tick again (M79); "Jump to" names the month the
+    top row starts with (M78); a new language also redraws the selection count, the profile
+    button and the tick names (M80); the theme key says which theme in the page's language
+    (M81); "1 video", not "1 videos" (M83); no previous or next arrow past either end (M84);
+    the Library page counts the files found while a scan looks for them (M85). On phones:
+    finger-sized taps for the selection bar, the console's sections and the year chips (M88,
+    M89, M92); the first-day steps on a small phone show their own buttons, with the long
+    import explanation behind *More* (M90, M94); the Tamil password hint fits (M93).
+  - **Words.** The Duplicates page and the guides no longer suggest a copy can be removed in
+    Ninaivu (A260); the installers' README says what each release checks (A261).
+  - **Every test runs in CI (A256).** The browser, video, face-straightening and Control Panel
+    tests used to be skipped; CI now runs all of them.
 - **Albums scroll like a film roll, as in the iPhone's Photos app.** While the finger or
   the wheel moves, tiles take the small picture (a quarter of the bytes; on a phone every
   tile wanted the sharp one, and a scroll met its tiles still empty) and are sharpened once

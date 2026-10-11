@@ -56,11 +56,20 @@ def own_album(album_id: int, who: auth.User) -> sqlite3.Row:
     return row
 
 
+#: An album's items with their rows, read from the album's side. A252: written
+#: as a plain JOIN, SQLite (with no statistics to go by) started from the
+#: assets, every row this person may see, and looked each up in the album:
+#: the Albums page took 4.5 s for 61 albums on a 100,000-photo library
+#: (several times that on a Raspberry Pi), one album 60-90 ms. CROSS JOIN keeps
+#: the order as written: 42 ms for the page.
+ITEMS = "album_items ai CROSS JOIN assets a ON a.id = ai.asset_id"
+
+
 def album_item_ids(album_id: int, who: auth.User) -> list[int]:
     """The album's items this person may see, most recently added first."""
     where, params = visible(who)
     return [r[0] for r in conn().execute(
-        f"""SELECT a.id FROM album_items ai JOIN assets a ON a.id = ai.asset_id
+        f"""SELECT a.id FROM {ITEMS}
             WHERE ai.album_id = ? AND {where} ORDER BY ai.added_at DESC, ai.rowid DESC""",
         [album_id, *params])]
 
@@ -74,8 +83,8 @@ def album_shape(row: sqlite3.Row, who: auth.User) -> dict[str, Any]:
     if items:
         where, params = visible(who)
         date_key = conn().execute(
-            f"""SELECT MAX(NULLIF(a.date_key, '')) FROM album_items ai
-                JOIN assets a ON a.id = ai.asset_id WHERE ai.album_id = ? AND {where}""",
+            f"""SELECT MAX(NULLIF(a.date_key, '')) FROM {ITEMS}
+                WHERE ai.album_id = ? AND {where}""",
             [row["id"], *params]).fetchone()[0]
     return {"id": row["id"], "name": row["name"], "created_at": row["created_at"],
             "cover_id": cover, "cover_v": cover_versions([cover]).get(cover, 0),
@@ -101,15 +110,14 @@ def albums():
     where, params = visible(who)
     rows = conn().execute(
         f"""SELECT al.id, al.name, al.created_at, al.created_by,
-               (SELECT COUNT(*) FROM album_items ai JOIN assets a ON a.id = ai.asset_id
+               (SELECT COUNT(*) FROM {ITEMS}
                  WHERE ai.album_id = al.id AND {where}) AS n,
                COALESCE(
                  (SELECT a.id FROM assets a WHERE a.id = al.cover_id AND {where}),
-                 (SELECT a.id FROM album_items ai JOIN assets a ON a.id = ai.asset_id
+                 (SELECT a.id FROM {ITEMS}
                    WHERE ai.album_id = al.id AND {where}
                    ORDER BY ai.added_at DESC, ai.rowid DESC LIMIT 1)) AS cover_id,
-               (SELECT MAX(NULLIF(a.date_key, '')) FROM album_items ai
-                  JOIN assets a ON a.id = ai.asset_id
+               (SELECT MAX(NULLIF(a.date_key, '')) FROM {ITEMS}
                  WHERE ai.album_id = al.id AND {where}) AS date_key
             FROM albums al ORDER BY al.name COLLATE NOCASE, al.id""",
         params * 4).fetchall()

@@ -112,10 +112,14 @@ def auth_setup():
     if not auth.needs_setup(conn()):
         fail(409, "This library already has an administrator.")
     key = f"setup:{request.remote_addr}"
-    if throttle_setup.blocked(key, "setup:all"):
+    local = _is_local()
+    # This computer needs no code, so it is never held back (A247): ten
+    # wrong codes from anywhere on the network used to keep the owner from
+    # making the first administrator at all, for as long as they were sent.
+    if not local and throttle_setup.blocked(key, "setup:all"):
         fail(429, "Too many attempts. Wait a few minutes and try again.")
     data = body()
-    if not _is_local():
+    if not local:
         code = str(data.get("setup_code") or "").strip().upper()
         import hmac
         # As bytes: compare_digest refuses text that is not ASCII (a 500).

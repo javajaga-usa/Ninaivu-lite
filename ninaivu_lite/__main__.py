@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import sqlite3
 import sys
 import threading
 import time
@@ -189,6 +190,19 @@ def refuse(message: str) -> None:
     logging.getLogger(REFUSED).error("not starting: %s", " ".join(message.split()))
 
 
+def damaged_index(data_dir: str, exc: Exception) -> str:
+    """Why a damaged index stops the start, and the way back: the newest
+    copy in backups/ and the --restore that puts it back."""
+    kept = [b for b in backups.listing(data_dir) if b["name"].endswith(".zip")]
+    message = (f"The index in {data_dir} is damaged ({exc}). Nothing was changed, and\n"
+               "  your photos are not in it: they are safe in their folders.\n")
+    if not kept:
+        return message + "  No backup of the index was found in its backups folder."
+    newest = Path(data_dir) / "backups" / kept[0]["name"]
+    return message + ("  To put back the newest backup (the damaged index is kept aside):\n"
+                      f"    ninaivu-lite --data \"{data_dir}\" --restore \"{newest}\"")
+
+
 def port_number(value: str) -> int:
     """A port a server can listen on and be found at (A171): 0 would let the
     system choose one nobody is told, and above 65535 there are none."""
@@ -277,6 +291,12 @@ def main(argv: list[str] | None = None) -> int:
         db.connect(cfg.data_dir).close()
     except db.NewerIndex as exc:
         refuse(str(exc))
+        return 2
+    except sqlite3.DatabaseError as exc:
+        # A damaged index (a disk error, a power cut on a drive that lies
+        # about its writes) printed a traceback, which the Control Panel
+        # showed as it was, and the log said nothing (A251).
+        refuse(damaged_index(cfg.data_dir, exc))
         return 2
     if args.reset_password:
         return reset_password(cfg, args.reset_password)

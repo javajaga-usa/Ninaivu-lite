@@ -285,7 +285,18 @@ def test_waitress_refuses_a_large_body_before_reading_it(app):
     from ninaivu_lite import __main__ as entry
     server = entry.make_server(app, "127.0.0.1", 0)
     port = server.socket.getsockname()[1]
-    threading.Thread(target=server.run, daemon=True).start()
+    # Served a step at a time so the loop has stopped before its sockets and
+    # its wake-up pipe are closed: closed under a running loop, their numbers
+    # were reused by later tests and the loop's "x" wake-up byte landed in a
+    # node child's output (a later test then failed to read its JSON).
+    stop = threading.Event()
+
+    def serve():
+        while not stop.is_set():
+            server.asyncore.loop(timeout=0.05, map=server._map, count=1)
+
+    loop = threading.Thread(target=serve, daemon=True)
+    loop.start()
     try:
         # 50 MB promised to the sign-in, nothing sent: answered at once.
         answer = _raw(port, b"POST /api/auth/login HTTP/1.1\r\nHost: 127.0.0.1\r\n"
@@ -309,4 +320,7 @@ def test_waitress_refuses_a_large_body_before_reading_it(app):
         answer = _raw(port, head, body, wait=20)
         assert answer.startswith(b"HTTP/1.1 400"), answer[:80]     # not a picture: the route said so
     finally:
-        server.close()
+        stop.set()
+        loop.join(5)
+        server.task_dispatcher.shutdown()
+        server.asyncore.close_all(server._map)

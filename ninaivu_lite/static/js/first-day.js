@@ -201,8 +201,21 @@ export class FirstDay {
 
   render_import(body) {
     $('#fd-title').textContent = i18n.t('Are there old photos to bring in?');
-    body.append(el('p', 'lede',
-      i18n.t('Ninaivu can sweep the photos and videos off old drives, memory cards, phone backups and backup folders into one archive, filed by the day each was taken, and show them in the library. Add every folder or drive that holds them: the top folder is enough, because every folder inside it is scanned, however deep. Each file is copied and checked; the originals are never changed, moved or deleted.')));
+    const lede = el('p', 'lede',
+      i18n.t('Ninaivu can sweep the photos and videos off old drives, memory cards, phone backups and backup folders into one archive, filed by the day each was taken, and show them in the library. Add every folder or drive that holds them: the top folder is enough, because every folder inside it is scanned, however deep. Each file is copied and checked; the originals are never changed, moved or deleted.'));
+    body.append(lede);
+    // M94: on a phone this one paragraph was eleven lines in Tamil and the
+    // step's own buttons were three screens down its little scroll. It opens
+    // at three lines, the rest a tap on More away, and the folder field and
+    // Browse come before the list of folders added so far.
+    const narrow = !!window.matchMedia?.('(max-width: 560px)').matches;
+    if (narrow) {
+      lede.classList.add('fd-clamped');
+      const more = el('button', 'btn ghost small fd-more', i18n.t('More'));
+      more.type = 'button';
+      more.onclick = () => { lede.classList.remove('fd-clamped'); more.remove(); };
+      body.append(more);
+    }
     if (this.sources === null) this.sources = [...(this.state.import?.sources || [])];
     if (!this.destination) this.destination = this.state.import?.destination || '';
 
@@ -218,7 +231,6 @@ export class FirstDay {
       list.append(li);
     }
     if (!this.sources.length) list.append(el('li', 'hint', i18n.t('No folders added yet. A drive letter or a whole backup folder is fine.')));
-    body.append(list);
 
     const row = el('form', 'row');
     const typed = el('input', 'input');
@@ -237,7 +249,7 @@ export class FirstDay {
     });
     row.onsubmit = (event) => { event.preventDefault(); this.addSource(typed.value); };
     row.append(typed, addTyped, browse);
-    body.append(row);
+    body.append(...(narrow ? [row, list] : [list, row]));
 
     body.append(el('p', 'fd-label', i18n.t('Where the archive is built')));
     const where = el('div', 'row');
