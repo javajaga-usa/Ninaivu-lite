@@ -77,6 +77,9 @@ LIVE_MAX_SECONDS = 4.0
 #: in those folders only (a pair is always in one folder); more, and the
 #: whole library is paired again.
 PAIR_FOLDERS_AT_MOST = 200
+#: When a walk began that has not finished yet (a shutdown or a power cut
+#: mid-walk), in the data folder: see Scanner._walk_began.
+UNFINISHED_FILE = "scan-unfinished"
 
 
 class _Stopped(Exception):
@@ -210,7 +213,7 @@ class Scanner:
         self._set(state="walking", found=0, new=0, added=0, removed=0, started=time.time(),
                   **({} if within else {"unreachable": [], "unreadable": 0}))
         unreachable = []
-        started = int(time.time()) - 1
+        started = self._walk_began(int(time.time()) - 1)
         self._gone_now: list[int] = []
         self._touched = set()
         for path, folder_id in ids.items():
@@ -229,6 +232,12 @@ class Scanner:
                 continue
             self._walk_folder(conn, folder_id, path, None if "" in (under or ()) else under)
         self._carry_over(conn, started)
+        if not within and not self._stop.is_set():
+            # Every folder walked to the end: what was new is settled.
+            try:
+                (self.data_dir / UNFINISHED_FILE).unlink(missing_ok=True)
+            except OSError:
+                pass
         # Live Photos are paired again where files came, changed or went, and
         # in the whole library once after every start: the first start after
         # the update pairs a library indexed before it. The whole library is
@@ -246,6 +255,27 @@ class Scanner:
             self._make_thumbnails(conn)      # only the ones just turned
         self._find_copies(conn)
         self._set(state="idle", last_finished=time.time())
+
+    def _walk_began(self, now: int) -> int:
+        """When the walk that new rows are counted from began: *now*, or an
+        earlier walk's start that never reached the end. A photograph moved
+        in Explorer is matched with where it was by being new in the walk
+        that finds it gone (see _carry_over). A walk cut short (the computer
+        shut down, Stop) had already written some of the moved photographs
+        at their new place, so the next walk took them as old, and they lost
+        their albums, favourites and Hidden (DATA1)."""
+        path = self.data_dir / UNFINISHED_FILE
+        try:
+            return min(now, int(path.read_text(encoding="ascii").strip()))
+        except FileNotFoundError:
+            pass
+        except (OSError, ValueError):
+            return now
+        try:
+            path.write_text(str(now), encoding="ascii")
+        except OSError:
+            pass
+        return now
 
     def _walk_folder(self, conn: sqlite3.Connection, folder_id: int, root: str,
                      under: list[str] | None = None) -> None:
