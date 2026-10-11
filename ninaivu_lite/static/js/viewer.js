@@ -9,6 +9,10 @@ import { blurhashUrl } from './blurhash.js';
 import * as i18n from './i18n.js';
 
 const MAX_ZOOM = 8;
+//: A press on the LIVE badge held this long (ms) keeps the motion playing
+//: until it is let go; a shorter one plays it once.
+const LIVE_HOLD_MS = 350;
+const LIVE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="5.5"/><circle cx="12" cy="12" r="9" stroke-dasharray="1.6 2.4"/></svg>';
 
 const escapeText = (value) => String(value ?? '');
 
@@ -412,6 +416,7 @@ export class Viewer extends EventTarget {
 
   renderStage(item) {
     this.stage.innerHTML = '';
+    this.liveVideo = null;
 
     if (item.kind === 'video') {
       if (!item.playable) {
@@ -503,6 +508,97 @@ export class Viewer extends EventTarget {
     };
     this.media = img;
     this.stage.appendChild(img);
+    if (item.is_live && item.live_src) this.renderLive(item);
+  }
+
+  /**
+   * A Live Photo: the still, and a LIVE badge over it that plays the short
+   * video the phone took with it, muted, in the same place. A press (or
+   * Enter) plays it once; a press held keeps it moving until it is let go;
+   * a mouse resting on the badge plays it once. The video is only fetched
+   * the first time it is asked for. The server sends it only to someone who
+   * may see the still.
+   */
+  renderLive(item) {
+    const badge = document.createElement('button');
+    badge.type = 'button';
+    badge.className = 'live-badge';
+    badge.setAttribute('aria-label', i18n.t('Play the Live Photo'));
+    badge.title = i18n.t('Press to see it move, or hold to keep it moving');
+    badge.innerHTML = `${LIVE_ICON}<span class="live-dot" aria-hidden="true"></span><span class="live-word"></span>`;
+    badge.querySelector('.live-word').textContent = i18n.t('LIVE');
+    let video = null;
+    let holdTimer = null;
+    let holding = false;
+    const stop = () => {
+      badge.classList.remove('playing');
+      if (!video) return;
+      video.classList.remove('playing');
+      video.pause();
+    };
+    const play = () => {
+      if (!video) {
+        video = document.createElement('video');
+        video.className = 'live-motion';
+        video.muted = true;
+        video.defaultMuted = true;
+        video.playsInline = true;
+        video.preload = 'auto';
+        video.setAttribute('aria-hidden', 'true');
+        video.src = item.live_src;
+        // Shown only once it is really moving: no black frame over the still.
+        video.onplaying = () => video.classList.add('playing');
+        video.onended = () => { if (!holding) stop(); };
+        video.onerror = () => {
+          stop();
+          badge.disabled = true;
+          this.toast?.(i18n.t('The motion of this Live Photo could not be played.'));
+        };
+        badge.before(video);
+        this.liveVideo = video;
+        this.applyTransform();
+      }
+      if (badge.disabled) return;
+      badge.classList.add('playing');
+      video.loop = holding;
+      try { video.currentTime = 0; } catch { /* not loaded yet: it starts at 0 anyway */ }
+      video.play().catch(() => stop());
+    };
+    const letGo = () => {
+      clearTimeout(holdTimer);
+      if (!holding) return;
+      holding = false;
+      stop();
+    };
+    badge.addEventListener('pointerdown', (event) => {
+      // The badge is the control here: no swipe, pan or zoom starts on it.
+      event.stopPropagation();
+      if (event.button > 0) return;
+      event.preventDefault();
+      badge.setPointerCapture?.(event.pointerId);
+      holding = false;
+      clearTimeout(holdTimer);
+      holdTimer = setTimeout(() => {
+        holding = true;
+        if (video) video.loop = true;
+      }, LIVE_HOLD_MS);
+      play();
+    });
+    badge.addEventListener('pointerup', letGo);
+    badge.addEventListener('pointercancel', letGo);
+    badge.addEventListener('pointerenter', (event) => {
+      if (event.pointerType !== 'mouse' || event.buttons) return;
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      if (!badge.classList.contains('playing')) play();
+    });
+    // From the keyboard (a click with no pointer behind it): once.
+    badge.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (event.detail === 0) play();
+    });
+    badge.addEventListener('dblclick', (event) => event.stopPropagation());
+    badge.addEventListener('contextmenu', (event) => event.preventDefault());
+    this.stage.appendChild(badge);
   }
 
   renderUnsupported(item) {
@@ -890,6 +986,11 @@ export class Viewer extends EventTarget {
       if (own) own.hidden = !turned;
     }
     el.style.transition = this.pointers.size ? 'none' : 'transform .18s cubic-bezier(.22,.61,.36,1)';
+    // A Live Photo's motion moves, turns and zooms with its still.
+    if (this.liveVideo) {
+      this.liveVideo.style.transform = el.style.transform;
+      this.liveVideo.style.transition = el.style.transition;
+    }
     el.classList.toggle('zoomed', scale > 1.02);
     // Zooming out only makes sense once something has zoomed in — at 1:1
     // there is nowhere further out to go, so the button starts disabled and
@@ -935,7 +1036,7 @@ export class Viewer extends EventTarget {
   }
 
   onPointerDown(event) {
-    if (event.target.closest('video, audio, .filmstrip, .viewer-info, .video-turned-controls')) return;
+    if (event.target.closest('video, audio, .filmstrip, .viewer-info, .video-turned-controls, .live-badge')) return;
     this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     this.stage.setPointerCapture?.(event.pointerId);
     this.dragStart = {

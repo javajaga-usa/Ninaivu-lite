@@ -210,6 +210,38 @@ def _boxes(f, start, end):
         pos += size
 
 
+def container_duration(path: str) -> float | None:
+    """How long a QuickTime or MP4 video plays, in seconds, from its movie
+    header (``mvhd``), or None when it does not say. Only the box headers on
+    the way are read, wherever in the file the movie header is."""
+    try:
+        with open(long_path(os.fspath(path)), "rb") as f:
+            head = f.read(12)
+            if len(head) < 12 or head[4:8] not in _ISO_TOP_LEVEL:
+                return None
+            f.seek(0, os.SEEK_END)
+            size = f.tell()
+            for kind, body, end in _boxes(f, 0, size):
+                if kind != b"moov":
+                    continue
+                for inner, inner_body, inner_end in _boxes(f, body, end):
+                    if inner != b"mvhd":
+                        continue
+                    f.seek(inner_body)
+                    data = f.read(min(inner_end - inner_body, 32))
+                    if len(data) >= 32 and data[0] == 1:
+                        scale, length = struct.unpack(">IQ", data[20:32])
+                    elif len(data) >= 20:
+                        scale, length = struct.unpack(">II", data[12:20])
+                    else:
+                        return None
+                    return length / scale if scale and length else None
+                return None
+    except (OSError, ValueError, struct.error):
+        pass
+    return None
+
+
 def _iso_date(f, size, zone=None):
     for kind, body, end in _boxes(f, 0, size):
         if kind == b"moov":

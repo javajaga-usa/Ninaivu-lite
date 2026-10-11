@@ -292,6 +292,32 @@ MIGRATIONS: list[str] = [
     """
     ALTER TABLE assets ADD COLUMN mirror INTEGER NOT NULL DEFAULT 0;
     """,
+    # 11 — Live Photos and copies. An iPhone keeps a Live Photo as two files
+    # side by side (IMG_1234.HEIC and IMG_1234.MOV); the scan pairs them:
+    # the still's `live_id` names its short video, the video's `live_of`
+    # names its still. A paired video stays in the index, is played from
+    # the still's LIVE badge, and is left out of the grid, every count and
+    # search (the grid and count indexes start with it for that, and the
+    # grid's ends with `live_id`, for the tile's mark). And the
+    # same file in two places: `quick_hash` (the size, the first and the
+    # last 64 KiB) for files of a size another file has too, then
+    # `content_hash` (every byte) where those agree. Worked out once, in
+    # the background, and forgotten when the file changes. Nothing on disk
+    # is ever moved, changed or deleted for either.
+    """
+    ALTER TABLE assets ADD COLUMN live_of INTEGER;
+    ALTER TABLE assets ADD COLUMN live_id INTEGER;
+    ALTER TABLE assets ADD COLUMN quick_hash TEXT;
+    ALTER TABLE assets ADD COLUMN content_hash TEXT;
+    DROP INDEX IF EXISTS assets_grid;
+    CREATE INDEX IF NOT EXISTS assets_grid ON assets (missing, live_of, captured_at DESC, id DESC,
+                                                      visibility, kind, width, height, duration,
+                                                      thumb, thumb_v, color, date_key, live_id);
+    DROP INDEX IF EXISTS assets_counts;
+    CREATE INDEX IF NOT EXISTS assets_counts ON assets (missing, live_of, visibility, kind);
+    CREATE INDEX IF NOT EXISTS assets_size ON assets (missing, size, live_of);
+    CREATE INDEX IF NOT EXISTS assets_copies ON assets (content_hash) WHERE content_hash IS NOT NULL;
+    """,
 ]
 
 

@@ -158,4 +158,4 @@ def test_a_turned_video_plays_turned_on_a_share_link(app, admin, family):
 
 
 def test_the_index_keeps_the_mirror_in_version_10():
-    assert "ADD COLUMN mirror" in db.MIGRATIONS[9] and len(db.MIGRATIONS) == 10
+    assert "ADD COLUMN mirror" in db.MIGRATIONS[9] and len(db.MIGRATIONS) >= 10
