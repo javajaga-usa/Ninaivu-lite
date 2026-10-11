@@ -143,9 +143,11 @@ def test_a_share_link_plays_the_live_photo(app, family, live):
     still, motion = live["IMG_1234.JPG"], live["IMG_1234.MOV"]
     token = share(family, "asset", still)
     stranger = app.test_client()
+    # The fake clip cannot be remuxed, and without ffmpeg (or this setting) a
+    # link is sent no video at all, the Live Photo's included.
+    app.config["LITE"].video_originals = True
     item = stranger.get(f"/api/share/{token}").json["item"]
     assert item["is_live"] and item["live_src"] == f"/api/share/{token}/file/{motion}"
-    app.config["LITE"].video_originals = True     # the fake clip cannot be remuxed
     assert stranger.get(item["live_src"]).status_code == 200
     # Only the clip that goes with the shared still.
     assert stranger.get(f"/api/share/{token}/file/{live['img_2000.mov']}").status_code == 404
