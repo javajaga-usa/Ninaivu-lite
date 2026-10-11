@@ -159,3 +159,26 @@ def test_the_selection_actions_take_a_finger_sized_tap(browser, server):  # noqa
         assert not errors, errors
     finally:
         context.close()
+
+
+def test_the_console_section_buttons_take_a_finger_sized_tap(browser, server):  # noqa: F811
+    context, page, errors = phone(browser, server, 360, 740)
+    try:
+        page.goto(server["base"] + "/admin")
+        page.wait_for_selector(".panel.active")
+        settle(page)
+        found = page.evaluate("""() => [...document.querySelectorAll('#tab-groups button')].map((b) => {
+          const r = b.getBoundingClientRect();
+          if (r.right > innerWidth) return null;
+          const at = (y) => { const e = document.elementFromPoint(r.left + r.width / 2, y);
+                              return !!e && (e === b || b.contains(e)); };
+          // 4 px above and below a 34 px button: inside a 44 px target.
+          return { group: b.dataset.group, above: at(r.top - 4), below: at(r.bottom + 4) };
+        }).filter(Boolean)""")
+        assert len(found) >= 3, found
+        for button in found:
+            # PHONE4: the sideways row cut the target off at its top edge.
+            assert button["above"] and button["below"], button
+        assert not errors, errors
+    finally:
+        context.close()

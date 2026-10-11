@@ -1014,6 +1014,12 @@ body.admin .admin-bar .brand span:not(.console-tag) { display: inline; }
   min-height: 34px; padding: 6px 12px; border-radius: 999px;
   font-size: 12.5px; letter-spacing: 0; text-transform: none; font-weight: 560;
 }
+/* PHONE4: the row scrolls sideways, so it clipped the 44 px touch target
+   each section button has on a touch screen (style.css) to its top edge:
+   38 px. The row reaches into the space above it; nothing drawn moves. */
+@media (hover: none) and (pointer: coarse) {
+  .admin-groups { padding-top: 5px; margin-top: -5px; }
+}
 .admin-tabs { gap: 4px; }
 .admin-tabs button {
   display: inline-flex; align-items: center; gap: 8px;
