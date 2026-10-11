@@ -1845,6 +1845,15 @@ button.drive-notice-main:focus-visible { outline: 2px solid var(--accent); outli
      the second. */
   .fd-body form.row > .input { flex: 1 1 calc(50% - 4px); }
   .fd-body form.row > .input:nth-child(3) { flex-basis: 0; }
+  /* PHONE5: the four step names took four lines beside Skip (Tamil, 320 px)
+     and left the step 171 px, its own "Choose a folder" 60 px out of sight
+     below in that little scroll with nothing to say it was there. The other
+     steps are dots; the current one keeps its name (all four are still read
+     out, the list being labelled "Steps"). */
+  .fd-steps { gap: 6px 8px; }
+  .fd-steps li:not(.current) { font-size: 0; gap: 0; }
+  /* And the card takes the height the screen has, not 86% of it. */
+  #first-day .fd-card { max-height: calc(100vh - 40px); max-height: calc(100dvh - 40px); }
 }
 
 /* ==========================================================================

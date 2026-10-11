@@ -1,13 +1,20 @@
 """Phone touch behaviour in a real browser with phone emulation (touch, 3x
 pixels): the Back button with a photograph open, a tap that stops a glide
-of the grid, and the selection bar's buttons under a finger. Uses the smoke
-tests' server and Chromium, and skips the same way they do."""
+of the grid, the selection bar's and the console's buttons under a finger,
+and the first-day steps on a small phone. Uses the smoke tests' server and
+Chromium, and skips the same way they do."""
 
 from __future__ import annotations
 
+import subprocess
+import sys
+import time
+import urllib.request
+
 import pytest
-from test_smoke_browser import REQUIRED, browser, long_gallery, server, settle  # noqa: F401
-from ninaivu_lite import auth
+from test_smoke_browser import (REQUIRED, ROOT, browser, free_port, long_gallery,  # noqa: F401
+                                server, settle)
+from ninaivu_lite import auth, db
 
 pytest.importorskip("playwright.sync_api")
 
@@ -179,6 +186,69 @@ def test_the_console_section_buttons_take_a_finger_sized_tap(browser, server):  
         for button in found:
             # PHONE4: the sideways row cut the target off at its top edge.
             assert button["above"] and button["below"], button
+        assert not errors, errors
+    finally:
+        context.close()
+
+
+@pytest.fixture(scope="module")
+def first_day(tmp_path_factory):
+    """`python -m ninaivu_lite` with no library folder yet and an
+    administrator: the console opens on the first-day steps."""
+    tmp = tmp_path_factory.mktemp("first-day")
+    data = tmp / "data"
+    conn = db.connect(data)
+    admin = auth.create_user(conn, "appa", password="admin passphrase", name="Appa",
+                             role="admin")
+    token = auth.start_session(conn, admin.id)
+    conn.close()
+    port = free_port()
+    base = f"http://127.0.0.1:{port}"
+    with open(tmp / "server.log", "w", encoding="utf-8") as log:
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "ninaivu_lite", "--no-browser", "--host", "127.0.0.1",
+             "--port", str(port), "--data", str(data)],
+            cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
+        try:
+            deadline = time.monotonic() + 60
+            while time.monotonic() < deadline:
+                try:
+                    urllib.request.urlopen(base + "/api/health", timeout=2).close()
+                    break
+                except OSError:
+                    time.sleep(0.3)
+            yield {"base": base, "token": token}
+        finally:
+            proc.terminate()
+            try:
+                proc.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+
+
+def test_the_first_day_steps_show_their_own_buttons_on_a_small_phone(browser, first_day):  # noqa: F811
+    context, page, errors = phone(browser, first_day, 320, 568)
+    context.add_init_script("try { localStorage.setItem('ninaivu.lang', 'ta'); } catch {}")
+    try:
+        page.goto(first_day["base"] + "/admin")
+        page.wait_for_selector("#first-day:not([hidden]) #fd-body button")
+        settle(page)
+        out_of_sight = """() => { const body = document.querySelector('#fd-body').getBoundingClientRect();
+          return [...document.querySelectorAll('#fd-body button, #fd-body input')]
+            .filter((b) => b.offsetWidth && b.getBoundingClientRect().bottom > body.bottom + 1)
+            .map((b) => b.textContent.trim() || b.placeholder); }"""
+        assert page.evaluate("document.documentElement.lang") == "ta"
+        # PHONE5: "Choose a folder" sat 60 px below the step's little scroll
+        # (Tamil, 320 px), the household's Name, PIN and Add 60 px too.
+        assert page.evaluate(out_of_sight) == []
+        page.click("#fd-next")
+        page.click("#fd-next")
+        page.wait_for_selector("#fd-body form")
+        page.wait_for_timeout(200)
+        assert page.evaluate(out_of_sight) == []
+        # Back and Next are still on the card (M72).
+        bottom = page.evaluate("document.querySelector('#fd-next').getBoundingClientRect().bottom")
+        assert bottom <= 568, bottom
         assert not errors, errors
     finally:
         context.close()
