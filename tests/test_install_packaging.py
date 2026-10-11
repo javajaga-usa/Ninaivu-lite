@@ -302,6 +302,23 @@ def test_a59_every_released_installer_is_also_run():
     assert "docker build -f installers/docker/Dockerfile" in docker and "/api/health" in docker
 
 
+# --- FLOW1: every test runs somewhere ------------------------------------------------------
+
+
+def test_flow1_the_browser_job_runs_every_test_with_what_the_others_skip_for():
+    """The browser job named tests/test_smoke_browser.py alone, so the
+    film-roll scroll, the phone long-press and the first-day import tests
+    (Chromium) were skipped in every run, as were the video tests (no ffmpeg
+    on the runners) and the face straightening (no OpenCV)."""
+    tests = read(".github/workflows/tests.yml")
+    browser = tests[tests.index("\n  browser:\n"):]
+    run = re.search(r'NINAIVU_BROWSER_TESTS: "1"\n(?:\s+#.*\n)*\s+run: (.+)', browser).group(1)
+    assert run.startswith("python -m pytest") and "tests/" not in run and "-k" not in run, run
+    assert "-rs" in run
+    assert "requirements-browser.txt" in browser and "requirements-straighten.txt" in browser
+    assert "install --with-deps chromium" in browser and "ffmpeg" in browser
+
+
 # --- A62: tool versions do not float ------------------------------------------------------
 
 
