@@ -1,12 +1,16 @@
 # Changelog
 
-## Unreleased
+## 1.13.0 — 2026-10-11
 
 **The index goes to version 11** (four new columns and the grid's indexes made again, for Live
 Photos and copies), so 1.12.0 and earlier cannot open this version's data folder. The first
-start keeps the index as it was in `backups/before-update-from-index-10-<time>.zip`; to go back
-to 1.12.0, install it and restore that zip with `--restore <zip>` (favourites, albums and
-other changes made since are not in it). Stop Ninaivu Lite before installing, as always.
+start of 1.13.0 keeps the index as it was in `backups/before-update-from-index-10-<time>.zip`
+(kept however many backups follow); to go back to 1.12.0, install it and restore that zip with
+`--restore <zip>` (favourites, albums and other changes made since are not in it). Before
+installing 1.13.0, stop Ninaivu Lite: in the Control Panel press **Stop**, then close it (on a
+Linux server, `sudo systemctl stop ninaivu-lite`); the photos, people, settings, index and
+backups are kept. Coming from an older portable zip: extract the new zip to a new folder and
+copy the old `data` folder beside the new `Ninaivu Lite.exe`.
 
 Live Photos, a read-only list of copies, On this day, Photos taken nearby and HEIC in every
 installer. The photographs and videos are never moved, changed or deleted.
