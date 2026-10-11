@@ -54,10 +54,14 @@ def setup_logging(data_dir: str) -> None:
         root.addHandler(console)
     try:
         from .control import log_path
+        from .db import owner_only
         folder = Path(data_dir) / "logs"
-        folder.mkdir(parents=True, exist_ok=True)
+        folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+        # The log names people's photographs and folders: its owner's alone.
+        owner_only(folder, folder=True)
         path = log_path(data_dir)
         handler = RotatingFileHandler(path, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+        owner_only(path)
         if path.parent != folder:
             # Only the current log at the top of a portable folder; the older ones in logs/.
             handler.namer = lambda name: str(folder / Path(name).name)

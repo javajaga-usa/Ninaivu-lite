@@ -14,6 +14,7 @@ Lite never changes a photograph: the only writes here are to the index
 
 from __future__ import annotations
 
+import calendar
 import io
 import logging
 import math
@@ -433,8 +434,12 @@ def grid_filters(who: auth.User) -> tuple[str, list[Any]]:
     # The same day of the year in the years before (the "On this day" row).
     day = query.get("on_this_day") or ""
     if DAY_RE.match(day):
-        clauses.append("substr(a.date_key, 6, 5) = ? AND a.date_key < ?")
-        args += [day[5:], day[:4]]
+        days = [day[5:]]
+        if days == ["02-28"] and not calendar.isleap(int(day[:4])):
+            days.append("02-29")      # a leap day's photographs, in the years between
+        clauses.append(f"substr(a.date_key, 6, 5) IN ({','.join('?' * len(days))}) "
+                       f"AND a.date_key < ?")
+        args += [*days, day[:4]]
 
     # Taken within a kilometre of a photograph this person may see. Where a
     # photograph was taken is for the family, as in its details.
@@ -443,6 +448,12 @@ def grid_filters(who: auth.User) -> tuple[str, list[Any]]:
         box = near_box(near, who)
         if box is None:
             clauses.append("0")
+        elif box[2] < -180 or box[3] > 180:
+            # Across the 180th meridian (Fiji, Kamchatka): east of the west
+            # edge, or west of the east edge, on the other side of it.
+            clauses.append("a.gps_lat BETWEEN ? AND ? AND (a.gps_lon >= ? OR a.gps_lon <= ?)")
+            args += [box[0], box[1], box[2] + 360 if box[2] < -180 else box[2],
+                     box[3] - 360 if box[3] > 180 else box[3]]
         else:
             clauses.append("a.gps_lat BETWEEN ? AND ? AND a.gps_lon BETWEEN ? AND ?")
             args += box
