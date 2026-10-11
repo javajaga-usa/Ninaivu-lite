@@ -191,7 +191,7 @@ def test_a84_vis_reasons_use_the_servers_rule_name(app, admin):
     assert r.status_code == 200, r.get_json()
     item = admin.get(f"/api/asset/{ids(app)['beach.jpg']}").get_json()
     assert item["visibility_source"] == "rule"
-    app_js = read(JS / "app.js")
+    app_js = read(JS / "gallery" / "visibility.js")
     reasons = app_js[app_js.index("const VIS_REASONS = {"):]
     reasons = reasons[:reasons.index("};")]
     assert "rule: i18n.key('Follows the rule set on its folder')" in reasons

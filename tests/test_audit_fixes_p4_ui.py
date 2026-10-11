@@ -53,7 +53,8 @@ def test_a27_a_change_of_person_closes_the_viewer_and_the_gate_takes_the_keys():
     assert lost.index("forgetPerson()") < lost.index("gate.show(")
     signed_in = app_js[app_js.index("onSignedIn: async"):]
     assert signed_in.index("forgetPerson()") < signed_in.index("start(user)")
-    keys = app_js[app_js.index("function wireKeyboard()"):]
+    keyboard_js = read(JS / "gallery" / "keyboard.js")
+    keys = keyboard_js[keyboard_js.index("function wireKeyboard()"):]
     assert keys.index("$('#gate').hidden") < keys.index("cycleTheme()")
     assert "getElementById('gate')" in read(JS / "palette.js")
 
@@ -208,7 +209,7 @@ console.log(results.join(' '));
 
 
 def test_a54_load_more_keeps_its_place_and_offers_a_retry(app):
-    app_js = read(JS / "app.js")
+    app_js = read(JS / "gallery" / "data.js")
     more = app_js[app_js.index("async function loadMoreIfNear("):]
     more = more[:more.index("\n}\n")]
     assert "page.next = null" not in more
@@ -224,7 +225,7 @@ def test_a54_load_more_keeps_its_place_and_offers_a_retry(app):
 
 
 def test_a55_install_banner_share_page_and_offline_page_are_translated():
-    app_js = read(JS / "app.js")
+    app_js = read(JS / "gallery" / "install.js")
     assert "desc.innerHTML = 'Tap" not in app_js
     assert "i18n.t('Tap {share} Share below" in app_js
     share_js = read(JS / "share.js")

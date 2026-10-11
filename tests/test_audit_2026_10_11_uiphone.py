@@ -20,6 +20,7 @@ STATIC = PACKAGE / "static"
 STYLE = read(STATIC / "css" / "style.css")
 ADMIN_CSS = read(STATIC / "css" / "admin.css")
 APP_JS = read(STATIC / "js" / "app.js")
+FILTERS_JS = read(STATIC / "js" / "gallery" / "filters.js")
 GRID_JS = read(STATIC / "js" / "grid.js")
 INDEX = read(PACKAGE / "templates" / "index.html")
 TA = json.loads(read(STATIC / "i18n" / "ta.json"))
@@ -135,7 +136,7 @@ def test_picking_a_view_in_the_phone_drawer_closes_it():
 
 
 def test_a_phones_search_key_searches_and_clears_the_suggestions():
-    keydown = function_body(APP_JS, "input.addEventListener('keydown'")
+    keydown = function_body(FILTERS_JS, "input.addEventListener('keydown'")
     enter = keydown[keydown.index("} else if (event.key === 'Enter') {"):]
     assert "list.hidden = true" in enter and "reload({ resetScroll: true })" in enter
     assert "input.blur()" in enter
@@ -143,8 +144,8 @@ def test_a_phones_search_key_searches_and_clears_the_suggestions():
 
 
 def test_suggestion_kinds_are_in_the_page_language():
-    assert "kind.textContent = entry.type;" not in APP_JS
-    kinds = re.search(r"const SUGGESTION_KINDS = \{(.*?)\};", APP_JS, re.S).group(1)
+    assert "kind.textContent = entry.type;" not in FILTERS_JS
+    kinds = re.search(r"const SUGGESTION_KINDS = \{(.*?)\};", FILTERS_JS, re.S).group(1)
     for word in re.findall(r"i18n\.key\('([^']+)'\)", kinds):
         assert TA.get(word) and TA[word] != word, word
 

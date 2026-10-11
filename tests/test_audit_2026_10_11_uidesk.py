@@ -32,6 +32,7 @@ STYLE = read(CSS / "style.css")
 LIGHT = tokens(STYLE, ":root")
 DARK = tokens(STYLE, ':root[data-theme="dark"]')
 APP_JS = read(JS / "app.js")
+FILTERS_JS = read(JS / "gallery" / "filters.js")
 
 needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="Node is not installed")
 
@@ -99,9 +100,9 @@ def test_safari_reads_backdrop_filter_and_user_select_only_with_the_prefix(sheet
 
 
 def test_the_on_this_day_chip_names_the_day_in_words():
-    assert "state.filters.onThisDay.slice(5)" not in APP_JS
-    assert "dayOfYear(state.filters.onThisDay)" in APP_JS
-    helper = APP_JS[APP_JS.index("function dayOfYear(day)"):]
+    assert "state.filters.onThisDay.slice(5)" not in FILTERS_JS
+    assert "dayOfYear(state.filters.onThisDay)" in FILTERS_JS
+    helper = FILTERS_JS[FILTERS_JS.index("function dayOfYear(day)"):]
     assert "toLocaleDateString(i18n.locale()" in helper[:500] and "month: 'long'" in helper[:500]
 
 
@@ -112,7 +113,7 @@ def test_on_this_day_tiles_say_their_date_in_the_page_language():
 
 
 def test_a_new_language_redraws_the_filter_chips_and_the_on_this_day_row():
-    change = APP_JS[APP_JS.index("  i18n.onChange(() => {\n    setSearchHint();"):]
+    change = FILTERS_JS[FILTERS_JS.index("  i18n.onChange(() => {\n    setSearchHint();"):]
     change = change[:change.index("  });")]
     assert "renderFilterBar();" in change and "onThisDay?.refresh(true);" in change
     otd = read(JS / "on-this-day.js")
@@ -123,7 +124,8 @@ def test_a_new_language_redraws_the_filter_chips_and_the_on_this_day_row():
 
 
 def test_a_scan_finished_before_the_page_opened_is_not_announced_again():
-    body = APP_JS[APP_JS.index("const phase = `${scan.status}:${scan.added}:${scan.removed}`;"):]
+    progress = read(JS / "gallery" / "progress.js")
+    body = progress[progress.index("const phase = `${scan.status}:${scan.added}:${scan.removed}`;"):]
     guard = body[:body.index("toast(i18n.t('{added} added")]
     assert "if (lastPhase === null) {" in guard
     assert "if (scan.status === 'done' || scan.status === 'error') return;" in guard
@@ -133,7 +135,8 @@ def test_a_scan_finished_before_the_page_opened_is_not_announced_again():
 
 
 def test_the_scrubber_rail_starts_where_the_grid_does():
-    wire = APP_JS[APP_JS.index("function wireScrubber() {"):]
+    scrubber = read(JS / "gallery" / "scrubber.js")
+    wire = scrubber[scrubber.index("function wireScrubber() {"):]
     wire = wire[:wire.index("thumb.addEventListener")]
     assert "scroller.offsetTop" in wire and "scrubber.style.top = `${top + 8}px`" in wire
     assert "new ResizeObserver(fit).observe(scroller)" in wire and "buildScrubber()" in wire
@@ -143,8 +146,8 @@ def test_the_scrubber_rail_starts_where_the_grid_does():
 
 
 def test_search_suggestions_name_their_kind_in_the_page_language():
-    assert "kind.textContent = entry.type;" not in APP_JS
-    assert "const SUGGESTION_KINDS = {" in APP_JS
+    assert "kind.textContent = entry.type;" not in FILTERS_JS
+    assert "const SUGGESTION_KINDS = {" in FILTERS_JS
     ta = json.loads(read(STATIC / "i18n" / "ta.json"))
     assert ta["Folder"] and ta["Camera"] and ta["Search"]
 
@@ -178,9 +181,9 @@ def test_the_search_box_says_which_suggestion_is_picked():
     search = html[html.index('<input id="search"'):]
     search = search[:search.index(">")]
     assert 'role="combobox"' in search and 'aria-autocomplete="list"' in search
-    assert "li.id = `suggestion-${list.childElementCount}`;" in APP_JS
-    assert "input.setAttribute('aria-activedescendant', options[next].id);" in APP_JS
-    assert "input.setAttribute('aria-expanded', String(!list.hidden));" in APP_JS
+    assert "li.id = `suggestion-${list.childElementCount}`;" in FILTERS_JS
+    assert "input.setAttribute('aria-activedescendant', options[next].id);" in FILTERS_JS
+    assert "input.setAttribute('aria-expanded', String(!list.hidden));" in FILTERS_JS
 
 
 # --- contrast -----------------------------------------------------------------------------------

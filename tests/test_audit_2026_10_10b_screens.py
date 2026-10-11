@@ -183,7 +183,7 @@ def test_escape_in_the_console_closes_the_dialog_on_top():
 
 
 def test_escape_closes_the_sidebar_drawer():
-    app = read(JS / "app.js")
+    app = read(JS / "gallery" / "keyboard.js")
     keys = app[app.index("function wireKeyboard()"):]
     drawer = keys[keys.index("event.key === 'Escape' && document.querySelector('.shell.mobile-open')"):]
     drawer = drawer[:drawer.index("return;")]
