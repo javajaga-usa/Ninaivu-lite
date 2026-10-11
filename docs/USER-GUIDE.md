@@ -271,7 +271,7 @@ later. The visitor does not see the file's name.
   150.3 KB in the extra copies"). The scan finds them in its quiet pass after the thumbnails,
   reading only files exactly as large as another one, and each of those once. The list only
   shows: Ninaivu Lite never moves or deletes a file. To tidy up, delete the copies you do not
-  want in the folders themselves (or in Ninaivu); the next scan updates the list.
+  want in the folders themselves; the next scan updates the list.
   Administrators only.
 - **Data folder** — `%LOCALAPPDATA%\Ninaivu-lite` on Windows, `~/Library/Application
   Support/Ninaivu-lite` on macOS, `~/.local/share/ninaivu-lite` on Linux; the `data` folder

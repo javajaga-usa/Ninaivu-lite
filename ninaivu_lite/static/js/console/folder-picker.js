@@ -86,7 +86,8 @@ async function loadBrowse(path) {
   if (data.shortcuts?.length) {
     const bar = el('div', 'fm-shortcuts');
     for (const shortcut of data.shortcuts) {
-      const chip = el('button', 'chip', shortcut.name || shortcut.path);
+      const chip = el('button', 'chip', shortcut.key
+        ? i18n.t(shortcut.key, shortcut.vars) : (shortcut.name || shortcut.path));
       chip.type = 'button';
       chip.title = shortcut.path;
       chip.onclick = () => loadBrowse(shortcut.path);
