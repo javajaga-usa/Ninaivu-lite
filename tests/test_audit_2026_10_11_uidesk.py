@@ -229,3 +229,91 @@ def test_a_page_that_is_not_there_says_so_in_both_languages_with_a_way_back(app)
     # The API still answers in JSON.
     api = client.get("/api/no-such-thing")
     assert api.status_code == 404 and api.is_json
+
+
+# --- follow-ups: the Control Panel's addresses from the keyboard; the share line in Tamil -------
+
+
+class _FakeLabel:
+    """Enough of tkinter.Label to build an address link without a display."""
+
+    def __init__(self, parent, **options):
+        self.options = options
+        self.bindings = {}
+
+    def bind(self, sequence, handler):
+        self.bindings[sequence] = handler
+
+    def configure(self, **options):
+        self.options.update(options)
+
+
+class _FakeTk:
+    Label = _FakeLabel
+
+
+def test_the_control_panels_addresses_open_from_the_keyboard():
+    from ninaivu_lite import panel
+
+    opened = []
+    plain, underlined = object(), object()
+    link = panel.address_link(_FakeTk, None, "http://192.168.1.20:8080/", (plain, underlined),
+                              opener=opened.append)
+    # In the Tab order, with a ring in the accent colour while it has the focus.
+    assert link.options["takefocus"] == 1
+    assert link.options["highlightthickness"] >= 1
+    assert link.options["highlightcolor"] == panel.ACCENT
+    # Enter, the keypad's Enter, Space and a click each open it once.
+    for key in ("<Return>", "<KP_Enter>", "<space>", "<Button-1>"):
+        assert link.bindings[key](None) == "break"
+    assert opened == ["http://192.168.1.20:8080/"] * 4
+    # Underlined while focused (or hovered), plain again after.
+    link.bindings["<FocusIn>"](None)
+    assert link.options["font"] is underlined
+    link.bindings["<Enter>"](None)
+    link.bindings["<FocusOut>"](None)
+    assert link.options["font"] is underlined          # the mouse is still on it
+    link.bindings["<Leave>"](None)
+    assert link.options["font"] is plain
+    source = read(PACKAGE / "panel.py")
+    assert "link = address_link(tk, box, value, self.link_fonts)" in source
+
+
+def test_the_control_panels_address_takes_the_tab_and_enter_in_real_tk():
+    """The same, in a real window, where Tk and a display exist."""
+    from test_panel import _tk_root
+
+    from ninaivu_lite import panel
+
+    root = _tk_root()
+    try:
+        import tkinter as tk
+        import tkinter.font as tkfont
+        opened = []
+        fonts = (tkfont.Font(root=root, size=10), tkfont.Font(root=root, size=10, underline=True))
+        first = panel.address_link(tk, root, "http://a/", fonts,
+                                   opener=opened.append)
+        first.pack()
+        root.update()
+        root.focus_force()
+        first.focus_set()
+        root.update()
+        assert root.focus_get() is first and first.cget("font") == str(fonts[1])
+        first.event_generate("<Return>")
+        first.event_generate("<space>")
+        root.update()
+        assert opened == ["http://a/", "http://a/"]
+        # Tab reaches it from another widget.
+        before = tk.Button(root, text="x")
+        before.pack(before=first)
+        root.update()
+        assert before.tk_focusNext() is first
+    finally:
+        root.destroy()
+
+
+def test_the_share_pages_line_reads_as_tamil():
+    ta = json.loads(read(STATIC / "i18n" / "ta.json"))
+    line = ta["Shared from {name}"]
+    assert line == "{name} பகிர்ந்தவை"
+    assert "இல் இருந்து" not in line

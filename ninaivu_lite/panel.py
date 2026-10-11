@@ -205,6 +205,38 @@ def icon(canvas, name: str, x: float, y: float, s: float, color: str, tag="icon"
                            fill="#ffffff", outline="#ffffff", tags=tag)
 
 
+def address_link(tk, parent, url: str, fonts: tuple, opener=None):
+    """An address that opens in the browser: by a click, and from the keyboard.
+
+    A plain Label is not in the Tab order, so the addresses (the one place a
+    phone's address is spelled out) could be reached only with a mouse. This
+    one takes the focus, draws a ring while it has it, and Enter or Space
+    opens it, as the drawn buttons beside it do. *fonts* is (plain, underlined).
+    """
+    open_it = opener or webbrowser.open
+    link = tk.Label(parent, text=url, font=fonts[0], bg=SURFACE, fg=LINK, anchor="w",
+                    cursor="hand2", takefocus=1, highlightthickness=max(1, px(2)),
+                    highlightcolor=ACCENT, highlightbackground=SURFACE, padx=px(2))
+    state = {"hover": False, "focus": False}
+
+    def show(**change) -> None:
+        state.update(change)
+        link.configure(font=fonts[1] if state["hover"] or state["focus"] else fonts[0])
+
+    def activate(_event=None) -> str:
+        open_it(url)
+        return "break"
+
+    link.bind("<Button-1>", activate)
+    for key in ("<Return>", "<KP_Enter>", "<space>"):
+        link.bind(key, activate)
+    link.bind("<Enter>", lambda _e: show(hover=True))
+    link.bind("<Leave>", lambda _e: show(hover=False))
+    link.bind("<FocusIn>", lambda _e: show(focus=True))
+    link.bind("<FocusOut>", lambda _e: show(focus=False))
+    return link
+
+
 class RoundButton:
     """A rounded button with an icon, drawn on a canvas. It answers state()
     as a ttk button does, so the panel enables and disables it the same way,
@@ -736,12 +768,8 @@ class Panel:
                          fg="#92400e").pack()
                 what = "the setup code"
             else:
-                link = tk.Label(box, text=value, font=self.link_fonts[0], bg=SURFACE, fg=LINK,
-                                anchor="w", cursor="hand2")
+                link = address_link(tk, box, value, self.link_fonts)
                 link.grid(row=i, column=1, sticky="w", pady=gap)
-                link.bind("<Button-1>", lambda _e, url=value: webbrowser.open(url))
-                link.bind("<Enter>", lambda _e, w=link: w.configure(font=self.link_fonts[1]))
-                link.bind("<Leave>", lambda _e, w=link: w.configure(font=self.link_fonts[0]))
                 what = "the address"
             RoundButton(box, "Copy", glyph="copy", kind="ghost", small=True, bg=SURFACE,
                         font=(FONT, 9),
