@@ -47,6 +47,7 @@ a **reference**: `{"folder": "<library folder, absolute>", "path": "<path inside
 | `visibility[]` | reference + `level` + `source` (`"rule"` or `"item"`), only where different from the default (Family) |
 | `favourites[]` | reference + `user` + `added_at` |
 | `turns[]` | reference + `rotation` (`0`/`90`/`180`/`270`, clockwise) + `mirror` (`true`: mirrored left to right, before the turn): only photos and videos turned or flipped by hand; Lite keeps this in its index, never in the file |
+| `live_photos[]` | `photo` (reference) + `video` (reference): a Live Photo's still and its short video, side by side in one folder (`IMG_1234.HEIC` and `IMG_1234.MOV`), as Lite's scan paired them; Lite plays the video from the still and leaves it out of the grid |
 | `albums[]` | `id`, `name`, `owner`, `created_at`, `cover` (reference or `null`), `items[]` (reference + `added_at`) |
 | `shares[]` | `token`, `kind` (`asset`/`album`), `owner`, `password` (hash or `null`), `expires_at`, `created_at`, `views`; plus a reference for a photo or `album_id` for an album |
 

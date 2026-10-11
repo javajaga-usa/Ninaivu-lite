@@ -17,6 +17,9 @@ export default [
       'no-empty': ['error', { allowEmptyCatch: true }],
       // Said, not failed: an unused name is tidiness, not a fault.
       'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none' }],
+      // New in @eslint/js 10's recommended set: a starting value later replaced
+      // is tidiness too, not a fault.
+      'no-useless-assignment': 'warn',
     },
   },
   // Sudar's drawing runs in a worker.

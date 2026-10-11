@@ -204,6 +204,9 @@ foreach ($name in @("python.exe", "pythonw.exe", "python$majorMinor.dll")) {
 Remove-Item -Recurse -Force $unpacked
 if (-not $listed) { Write-Warning "$embedName is not in installers\PYTHON_SHA256SUMS; once checked, add:  $have  $embedName" }
 Write-Host "Embeddable Python $pinned, SHA-256 $have"
+# As a notice on the run too, readable without the log, so the hash can be
+# recorded in installers\PYTHON_SHA256SUMS from a build that checked the signatures.
+if ($env:GITHUB_ACTIONS) { Write-Host "::notice title=Embeddable Python::$have  $embedName" }
 $env:PYNSIST_CACHE_DIR = $cache
 
 # installer.cfg with this version and this Python.

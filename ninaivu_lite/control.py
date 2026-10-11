@@ -277,8 +277,15 @@ class Controller:
             try:
                 conn = read_only(db)
                 try:
-                    items = conn.execute(
-                        "SELECT COUNT(*) FROM assets WHERE missing = 0").fetchone()[0]
+                    # As the gallery counts them: a Live Photo's short video
+                    # is part of its photo. An index the server has not yet
+                    # brought forward (index version 10 or older) has no pairs.
+                    try:
+                        items = conn.execute("SELECT COUNT(*) FROM assets WHERE missing = 0 "
+                                             "AND live_of IS NULL").fetchone()[0]
+                    except sqlite3.OperationalError:
+                        items = conn.execute(
+                            "SELECT COUNT(*) FROM assets WHERE missing = 0").fetchone()[0]
                 finally:
                     conn.close()
             except sqlite3.Error:

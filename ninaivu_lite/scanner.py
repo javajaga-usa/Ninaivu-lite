@@ -10,6 +10,11 @@ A scan has two passes:
    fills in first. These are small and quick (about 20 ms a photo).
 3. **Big tiles** (640 px), newest first, in a second pass.
 
+Between the walk and the thumbnails, a Live Photo's still and its short
+video are paired (:meth:`Scanner._pair_live`); after them, in the quiet
+pass, files the same size as another are read to find copies
+(:meth:`Scanner._find_copies`). Neither changes a file.
+
 On a computer with cores to spare, new files' headers are read, thumbnails
 made and faces looked for several at a time (:data:`THUMB_WORKERS`, one for
 every core but one); the index is written by this thread alone.
@@ -36,7 +41,7 @@ from typing import Any
 
 from PIL import Image, ImageOps
 
-from . import db, media, parallel
+from . import copies, dates, db, media, parallel
 from .dates import from_timestamp, long_path
 
 log = logging.getLogger(__name__)
@@ -62,6 +67,16 @@ SLOW_HEADER = 0.002
 #: Thumbnails written to the index together (see :class:`Batch`).
 RECORD_EVERY_ROWS = 50
 RECORD_EVERY_SECONDS = 1.0
+#: A Live Photo's still and short video (see Scanner._pair_live), by extension.
+LIVE_STILLS = frozenset({"heic", "heif", "jpg", "jpeg"})
+LIVE_CLIPS = frozenset({"mov", "mp4"})
+#: An iPhone's Live Photo plays for about three seconds. A longer video
+#: beside a photograph of the same name is a video of its own.
+LIVE_MAX_SECONDS = 4.0
+
+
+class _Stopped(Exception):
+    """A file being read for copies when a stop or a rescan was asked for."""
 
 
 class Scanner:
@@ -88,6 +103,8 @@ class Scanner:
         self._remaking: dict[int, None] = {}
         self._remaking_lock = threading.Lock()
         self._remaker = False
+        #: Live Photos paired since this scanner started (see scan_once).
+        self._paired = False
         #: Goes up whenever the index changes, so cached answers know they are stale.
         self.generation = 0
         self.status: dict[str, Any] = {
@@ -202,11 +219,18 @@ class Scanner:
                 continue
             self._walk_folder(conn, folder_id, path, None if "" in (under or ()) else under)
         self._carry_over(conn, started)
+        # Live Photos are paired again when files came, changed or went (half
+        # a second on 100,000 photographs), and once after every start: the
+        # first start after the update pairs a library indexed before it.
+        if not self._paired or self.status["new"] or self.status["removed"]:
+            self._pair_live(conn)
+            self._paired = True
         if not within:
             self._set(unreachable=unreachable)
         self._make_thumbnails(conn)
         if self._straighten(conn):
             self._make_thumbnails(conn)      # only the ones just turned
+        self._find_copies(conn)
         self._set(state="idle", last_finished=time.time())
 
     def _walk_folder(self, conn: sqlite3.Connection, folder_id: int, root: str,
@@ -268,6 +292,9 @@ class Scanner:
                            exposure=excluded.exposure, focal_length=excluded.focal_length,
                            gps_lat=excluded.gps_lat, gps_lon=excluded.gps_lon,
                            error=excluded.error, thumb=0, large=0, missing=0,
+                           -- a changed file is another file: how long it plays and
+                           -- what it holds are found out again
+                           duration=0, quick_hash=NULL, content_hash=NULL,
                            -- a turn somebody set by hand outlives a changed file, and the
                            -- shape stays the shape as shown
                            width=CASE WHEN assets.rot_source='manual' AND assets.rotation % 180 != 0
@@ -352,6 +379,7 @@ class Scanner:
                 if row and row[1] == st.st_size and abs(row[2] - st.st_mtime) < 1:
                     seen.add(row[0])
                     if row[3]:
+                        self._paired = False      # back: its Live Photo pair may be too
                         with conn:
                             # Back after being away: a thumbnail that failed while it
                             # was away is asked for again. Never in a folder taken
@@ -475,6 +503,70 @@ class Scanner:
         log.info("%d moved or renamed photographs kept what was set for them", len(moves))
         self.generation += 1
 
+    # --- Live Photos -------------------------------------------------------------
+
+    def _pair_live(self, conn: sqlite3.Connection) -> int:
+        """Pair each Live Photo's still with its short video: an iPhone keeps
+        IMG_1234.HEIC (or .JPG) and IMG_1234.MOV side by side, and an export
+        from Google Photos MVIMG_1234.jpg and MVIMG_1234.mp4. Same folder,
+        same name but for the extension (in any case), and a video of at most
+        :data:`LIVE_MAX_SECONDS` (or one whose header does not say). The
+        video stays in the index and on disk, is played from the still's
+        LIVE badge, and is left out of the grid and every count; a still
+        gone, a video grown long or renamed, and the pair is undone.
+
+        Motion kept inside the photograph itself (a Pixel's ``.MP.jpg``, a
+        Samsung motion photo) is not taken out: it shows as the photograph.
+        Returns how many pairs changed."""
+        exts = sorted(LIVE_STILLS | LIVE_CLIPS)
+        rows = conn.execute(
+            f"""SELECT a.id, a.folder_id, a.dir, a.name, a.ext, a.kind, a.duration, a.live_of,
+                       a.live_id, a.size, a.mtime, f.path AS root
+                FROM assets a JOIN folders f ON f.id = a.folder_id
+                WHERE a.missing = 0 AND (a.ext IN ({','.join('?' * len(exts))})
+                      OR a.live_of IS NOT NULL OR a.live_id IS NOT NULL)""", exts).fetchall()
+        groups: dict[tuple[int, str, str], tuple[list, list]] = {}
+        for row in rows:
+            stem = os.path.splitext(row["name"])[0].casefold()
+            if row["kind"] == "picture" and row["ext"] in LIVE_STILLS:
+                # A Pixel's PXL_..._MP.jpg, should its video be beside it.
+                side = 0
+                stem = stem[:-3] if stem.endswith(".mp") else stem
+            elif row["kind"] == "video" and row["ext"] in LIVE_CLIPS:
+                side = 1
+            else:
+                continue
+            groups.setdefault((row["folder_id"], row["dir"], stem), ([], []))[side].append(row)
+        still_of: dict[int, int] = {}
+        lengths: list[tuple[float, int, int, float]] = []
+        for stills, clips in groups.values():
+            if not stills or not clips:
+                continue
+            # The pair there already, else the camera's own pair (HEIC, MOV).
+            clip = min(clips, key=lambda r: (r["live_of"] is None, r["ext"] != "mov", r["id"]))
+            still = min(stills, key=lambda r: (r["id"] != clip["live_of"],
+                                               r["ext"] not in ("heic", "heif"), r["id"]))
+            seconds = clip["duration"] or 0
+            if not seconds and clip["live_of"] != still["id"]:
+                seconds = dates.container_duration(
+                    full_path(clip["root"], clip["dir"], clip["name"])) or 0
+                if seconds:
+                    lengths.append((seconds, clip["id"], clip["size"], clip["mtime"]))
+            if seconds <= LIVE_MAX_SECONDS:
+                still_of[clip["id"]] = still["id"]
+        clip_of = {still: clip for clip, still in still_of.items()}
+        changes = [(still_of.get(r["id"]), clip_of.get(r["id"]), r["id"]) for r in rows
+                   if (r["live_of"], r["live_id"]) != (still_of.get(r["id"]), clip_of.get(r["id"]))]
+        if changes or lengths:
+            with conn:
+                conn.executemany("UPDATE assets SET duration = ? WHERE id = ? AND size = ? "
+                                 "AND mtime = ?", lengths)
+                conn.executemany("UPDATE assets SET live_of = ?, live_id = ? WHERE id = ?", changes)
+            self.generation += 1
+        if changes:
+            log.info("Live Photos: %d paired, %d changed", len(still_of), len(changes))
+        return len(changes)
+
     def add_file(self, conn: sqlite3.Connection, folder_id: int, root: str, rel_dir: str,
                  name: str, visibility: int | None = None) -> int:
         """Index one new file now (a copy Sudar just saved), with its small
@@ -498,7 +590,8 @@ class Scanner:
                    ON CONFLICT (folder_id, dir, name) DO UPDATE SET
                        size=excluded.size, mtime=excluded.mtime, captured_at=excluded.captured_at,
                        date_key=excluded.date_key, date_source=excluded.date_source,
-                       width=excluded.width, height=excluded.height, thumb=0, large=0, missing=0""",
+                       width=excluded.width, height=excluded.height, thumb=0, large=0, missing=0,
+                       duration=0, quick_hash=NULL, content_hash=NULL""",
                 (folder_id, rel_dir, name, os.path.splitext(name)[1].lower().lstrip("."), kind,
                  st.st_size, st.st_mtime, info["taken_at"], day_of(info["taken_at"]),
                  info.get("taken_source"), info.get("width"), info.get("height"),
@@ -568,7 +661,8 @@ class Scanner:
 
     _QUEUE = {
         # pass: (where, sizes, state shown)
-        "small": ("a.thumb = 0", ("s",), "thumbnails"),
+        # A Live Photo's short video has no tile of its own: its still has.
+        "small": ("a.thumb = 0 AND a.live_of IS NULL", ("s",), "thumbnails"),
         "large": ("a.thumb = 1 AND a.large = 0 AND a.kind = 'picture'", ("l",), "finishing"),
     }
 
@@ -678,6 +772,67 @@ class Scanner:
             if pool is not None:
                 pool.shutdown(wait=False, cancel_futures=True)
         return turned
+
+    # --- copies ------------------------------------------------------------------
+
+    def _find_copies(self, conn: sqlite3.Connection) -> int:
+        """The same file in two places (see :mod:`copies`): files of a size
+        another file has too are quick-hashed, files whose quick hashes agree
+        hashed whole. One file at a time (several reading one disk at once
+        only make it seek), each answer kept, so this is done once a file.
+        Stops for a stop or a rescan and carries on next time. Never writes
+        to a file. Returns how many files were read."""
+        read = 0
+        for listing, column in ((copies.to_quick_hash, "quick_hash"),
+                                (copies.to_content_hash, "content_hash")):
+            after: tuple[int, int] | None = None
+            while not (self._stop.is_set() or self._wake.is_set()):
+                rows = listing(conn, after)
+                if not rows:
+                    break
+                after = (rows[-1]["size"], rows[-1]["id"])
+                self._set(state="finishing", thumbs_total=0, thumbs_left=0)
+                found = []
+                for row in rows:
+                    if self._stop.is_set() or self._wake.is_set():
+                        break
+                    value = self._hash_one(row, column)
+                    if value is not None:
+                        found.append((value, row["id"], row["size"], row["mtime"]))
+                if found:
+                    read += len(found)
+                    with conn:
+                        # Not when the file changed meanwhile: the walk has
+                        # forgotten its hashes, and these are the old file's.
+                        conn.executemany(f"UPDATE assets SET {column} = ? WHERE id = ? "
+                                         f"AND size = ? AND mtime = ?", found)
+                    self.generation += 1
+        return read
+
+    def _hash_one(self, row: sqlite3.Row, column: str) -> str | None:
+        """One file's quick or full hash; :data:`copies.UNREADABLE` for one
+        that is there but cannot be read; None for one away (a drive asleep)
+        or a read stopped for a rescan, so it is asked again next time."""
+        path = full_path(row["root"], row["dir"], row["name"])
+        if not os.path.isfile(long_path(path)) or leads_away(path, self._data_real):
+            return None
+
+        def check() -> None:
+            if self._stop.is_set() or self._wake.is_set():
+                raise _Stopped()
+
+        try:
+            if column == "quick_hash":
+                return copies.quick_hash(path, row["size"])
+            return copies.content_hash(path, check)
+        except _Stopped:
+            return None
+        except PermissionError as exc:
+            log.info("could not read %s for copies: %s", path, exc)
+            return copies.UNREADABLE
+        except OSError as exc:          # gone or away mid-read: next time
+            log.info("could not read %s for copies: %s", path, exc)
+            return None
 
     def set_rotation(self, conn: sqlite3.Connection, asset_id: int, rotation: int, source: str,
                      remake: bool = True, mirror: bool | None = None) -> bool:

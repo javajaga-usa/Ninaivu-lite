@@ -198,6 +198,8 @@ def test_a29_every_bundled_python_has_its_sha256_written_down():
                    "aarch64-apple-darwin", "x86_64-apple-darwin"):
         name = f"cpython-{PINNED}+{PBS_RELEASE}-{triple}-install_only_stripped.tar.gz"
         assert name in listed, f"{name} is not in installers/PYTHON_SHA256SUMS"
+    # The Windows installer's embeddable Python too (A174).
+    assert f"python-{PINNED}-embed-amd64.zip" in listed
     for script in ("installers/linux/build.sh", "installers/macos/build.sh"):
         text = read(script)
         assert "PYTHON_SHA256SUMS" in text and 'expected "$expected"' not in text

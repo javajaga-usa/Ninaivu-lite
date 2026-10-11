@@ -4,4 +4,4 @@
 # Windows, macOS (Apple silicon and Intel) and Linux on x86-64 and ARM (a Pi).
 # Running from a checkout it stays optional: `pip install pillow-heif`.
 -r requirements.txt
-pillow-heif>=1.1,<2
+pillow-heif>=1.8.0,<2
