@@ -30,6 +30,12 @@ export function openFolderPicker(options = {}) {
   $('#fm-manual').value = '';
   $('#folder-modal h2').textContent = picker.title;
   $('#fm-apply').textContent = picker.cta;
+  // Nothing is chosen until the listing comes or a path is typed: the last
+  // picker's folder must not be what "Use this folder" hands back.
+  browsePath = '';
+  browseSelectable = false;
+  $('#fm-path').textContent = '';
+  refreshApply();
   return loadBrowse(picker.start);
 }
 
@@ -45,6 +51,13 @@ export function refreshApply() {
 }
 
 async function loadBrowse(path) {
+  // Choosing from the tree is an answer, so it replaces whatever was typed
+  // earlier — otherwise `typed || browsePath` submits the old string and the
+  // folder the admin just clicked is silently ignored. Cleared now, as the
+  // folder is chosen, not when its listing arrives (FLOW2): a path typed
+  // while a slow drive was being listed was wiped, and "Use this folder"
+  // then took the folder the picker had opened at (often the home folder).
+  $('#fm-manual').value = '';
   const list = $('#fm-dirs');
   const loading = el('p', 'hint', i18n.t('Loading…'));
   loading.style.padding = '12px';
@@ -59,10 +72,6 @@ async function loadBrowse(path) {
   }
   browsePath = data.path;
   browseSelectable = picker?.anyFolder ? true : data.selectable !== false;
-  // Choosing from the tree is an answer, so it replaces whatever was typed
-  // earlier — otherwise `typed || browsePath` submits the old string and the
-  // folder the admin just clicked is silently ignored.
-  $('#fm-manual').value = '';
   $('#fm-path').textContent = data.path;
 
   refreshApply();

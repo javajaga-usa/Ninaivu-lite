@@ -133,7 +133,10 @@ def test_browse(admin, library, tmp_path):
     assert {"name": "Photos (current)", "path": str(root)} in data["shortcuts"]
     data = admin.get("/api/library/browse", query_string={"path": str(root / "family")})
     assert [d["name"] for d in data.get_json()["dirs"]] == ["pongal"]
-    r = admin.get("/api/library/browse", query_string={"path": str(tmp_path / "nope")})
+    # A folder not there (yet) opens at the nearest one that is (FLOW3); a file is refused.
+    r = admin.get("/api/library/browse", query_string={"path": str(tmp_path / "nope" / "deeper")})
+    assert r.status_code == 200 and r.get_json()["path"] == str(tmp_path)
+    r = admin.get("/api/library/browse", query_string={"path": str(root / "2019" / "beach.jpg")})
     assert r.status_code == 404 and r.get_json()["error"] == "Not a directory"
     if sys.platform != "win32":      # /proc, /sys and /dev exist only there
         assert admin.get("/api/library/browse?path=/proc").status_code == 403

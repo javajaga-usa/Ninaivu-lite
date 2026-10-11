@@ -312,6 +312,11 @@ def browse():
     else:
         target = os.path.expanduser("~")
     target = os.path.normpath(target)
+    # FLOW3: a folder not made yet (the archive's own, before the first
+    # import) or on a drive since unplugged opens at the nearest one that is
+    # there, not at "Not a directory" with nowhere to go from it.
+    while raw and not os.path.lexists(target) and os.path.dirname(target) != target:
+        target = os.path.dirname(target)
     try:
         listing = folders.list_dirs(target)
     except (FileNotFoundError, NotADirectoryError):
