@@ -1489,6 +1489,18 @@ body.admin .admin-bar .brand span:not(.console-tag) { display: inline; }
   /* A long step (Tamil, several sources) scrolls inside the card instead of
      spilling over the footer and the Start button. */
   overflow-y: auto; overscroll-behavior: contain; }
+/* PHONE9: and says so — a shadow at the edge with more behind it, as the
+   console's page list does (the covers scroll with the text, the shadows
+   stay with the box, so each shows only when there is something there). */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .fd-body {
+    background:
+      linear-gradient(var(--bg-elev) 40%, transparent) top / 100% 24px no-repeat local,
+      linear-gradient(transparent, var(--bg-elev) 60%) bottom / 100% 24px no-repeat local,
+      linear-gradient(color-mix(in srgb, var(--text) 14%, transparent), transparent) top / 100% 10px no-repeat scroll,
+      linear-gradient(transparent, color-mix(in srgb, var(--text) 14%, transparent)) bottom / 100% 10px no-repeat scroll;
+  }
+}
 .fd-body .lede { font-size: 15px; color: var(--text-2); margin: 0; max-width: 60ch; }
 .fd-body .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .fd-body .fd-chosen { font-family: var(--mono, ui-monospace, monospace); font-size: 13px; padding: 8px 10px;
@@ -1852,6 +1864,13 @@ button.drive-notice-main:focus-visible { outline: 2px solid var(--accent); outli
      out, the list being labelled "Steps"). */
   .fd-steps { gap: 6px 8px; }
   .fd-steps li:not(.current) { font-size: 0; gap: 0; }
+  /* PHONE9: the import step's long paragraph opens at three lines on a
+     phone (first-day.js), its More just under it. */
+  .fd-body .lede.fd-clamped {
+    display: -webkit-box; -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; flex: none;
+  }
+  .fd-body .fd-more { align-self: flex-start; margin-top: -8px; }
   /* And the card takes the height the screen has, not 86% of it. */
   #first-day .fd-card { max-height: calc(100vh - 40px); max-height: calc(100dvh - 40px); }
 }

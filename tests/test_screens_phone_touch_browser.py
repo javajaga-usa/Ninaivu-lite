@@ -318,8 +318,21 @@ def test_the_first_day_steps_show_their_own_buttons_on_a_small_phone(browser, fi
         # (Tamil, 320 px), the household's Name, PIN and Add 60 px too.
         assert page.evaluate(out_of_sight) == []
         page.click("#fd-next")
+        page.wait_for_selector("#fd-start-import")
+        page.wait_for_timeout(200)
+        # PHONE9: the import step's paragraph ran eleven lines and put the
+        # folder field and Browse 280 px down its scroll. The field, Add and
+        # Browse are in sight; the rest of the paragraph is behind More.
+        hidden = page.evaluate(out_of_sight)
+        browse = page.evaluate("""() => [...document.querySelectorAll('#fd-body button')]
+            .find((b) => b.classList.contains('primary') && b.id !== 'fd-start-import').textContent.trim()""")
+        assert browse not in hidden and not any("D:" in h for h in hidden), hidden
+        clamped = page.evaluate("document.querySelector('#fd-body .lede').getBoundingClientRect().height")
+        page.click("#fd-body .fd-more")
+        full = page.evaluate("document.querySelector('#fd-body .lede').getBoundingClientRect().height")
+        assert full > clamped * 2, (clamped, full)
         page.click("#fd-next")
-        page.wait_for_selector("#fd-body form")
+        page.wait_for_selector("#fd-body form input[type='password'], #fd-body form .input")
         page.wait_for_timeout(200)
         assert page.evaluate(out_of_sight) == []
         # Back and Next are still on the card (M72).
