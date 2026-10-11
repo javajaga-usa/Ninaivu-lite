@@ -73,6 +73,10 @@ LIVE_CLIPS = frozenset({"mov", "mp4"})
 #: An iPhone's Live Photo plays for about three seconds. A longer video
 #: beside a photograph of the same name is a video of its own.
 LIVE_MAX_SECONDS = 4.0
+#: A walk that changed files in at most this many folders pairs Live Photos
+#: in those folders only (a pair is always in one folder); more, and the
+#: whole library is paired again.
+PAIR_FOLDERS_AT_MOST = 200
 
 
 class _Stopped(Exception):
@@ -105,6 +109,8 @@ class Scanner:
         self._remaker = False
         #: Live Photos paired since this scanner started (see scan_once).
         self._paired = False
+        #: Folders whose files came, changed or went in the walk under way.
+        self._touched: set[tuple[int, str]] = set()
         #: Library folders whose unreadable files were read again since this
         #: scanner started (see _walk_folder).
         self._reread: set[str] = set()
@@ -206,6 +212,7 @@ class Scanner:
         unreachable = []
         started = int(time.time()) - 1
         self._gone_now: list[int] = []
+        self._touched = set()
         for path, folder_id in ids.items():
             if self._stop.is_set():
                 return
@@ -222,12 +229,16 @@ class Scanner:
                 continue
             self._walk_folder(conn, folder_id, path, None if "" in (under or ()) else under)
         self._carry_over(conn, started)
-        # Live Photos are paired again when files came, changed or went (half
-        # a second on 100,000 photographs), and once after every start: the
-        # first start after the update pairs a library indexed before it.
-        if not self._paired or self.status["new"] or self.status["removed"]:
+        # Live Photos are paired again where files came, changed or went, and
+        # in the whole library once after every start: the first start after
+        # the update pairs a library indexed before it. The whole library is
+        # a second on 100,000 photographs (several on a Raspberry Pi), and an
+        # import asks for a walk of its folder once a minute.
+        if not self._paired or len(self._touched) > PAIR_FOLDERS_AT_MOST:
             self._pair_live(conn)
             self._paired = True
+        elif self._touched:
+            self._pair_live(conn, self._touched)
         if not within:
             self._set(unreachable=unreachable)
         self._make_thumbnails(conn)
@@ -240,6 +251,14 @@ class Scanner:
                      under: list[str] | None = None) -> None:
         """Index the files under *root*, or only under its folders *under*
         (paths relative to it): what is gone is looked for there only."""
+        where, args = "folder_id = ?", [folder_id]
+        if under is not None and "" not in under:
+            # Only those folders' rows, read from the (folder_id, dir) index:
+            # an import's walk of its folder once a minute read every row of
+            # a library of 100,000. "/" + 1 is "0", so the range is the subtree.
+            where += " AND (" + " OR ".join(["dir = ? OR (dir >= ? AND dir < ?)"] * len(under)) + ")"
+            for u in under:
+                args += [u, u + "/", u + "0"]
         # A photograph that could not be read for want of a reader this
         # computer has now (pillow-heif installed since, so an iPhone's HEIC
         # photographs were indexed as unreadable, under the day they were
@@ -251,7 +270,7 @@ class Scanner:
                                          r["error"] is not None and r["ext"] in readable)
                  for r in conn.execute(
                      "SELECT id, dir, name, ext, size, mtime, missing, error FROM assets "
-                     "WHERE folder_id = ?", (folder_id,))
+                     f"WHERE {where}", args)
                  if under is None or any(r["dir"] == u or r["dir"].startswith(u + "/")
                                          for u in under)}
         seen: set[int] = set()
@@ -371,6 +390,7 @@ class Scanner:
             else:
                 self.status["added"] += 1
             self.status["new"] += 1
+            self._touched.add((folder_id, rel_dir))
             if len(pending) >= BATCH:
                 flush()
 
@@ -391,7 +411,7 @@ class Scanner:
                         and not row[4]:
                     seen.add(row[0])
                     if row[3]:
-                        self._paired = False      # back: its Live Photo pair may be too
+                        self._touched.add((folder_id, rel_dir))  # back: its pair may be too
                         with conn:
                             # Back after being away: a thumbnail that failed while it
                             # was away is asked for again. Never in a folder taken
@@ -435,6 +455,9 @@ class Scanner:
                 if r[0] not in seen and not r[3] and not under_any(rel_dir, name, failed)]
         self.status["removed"] += len(gone)
         if gone:
+            gone_ids = set(gone)
+            self._touched.update((folder_id, rel_dir) for (rel_dir, _name), r in known.items()
+                                 if r[0] in gone_ids)
             with conn:
                 conn.executemany("UPDATE assets SET missing = 1 WHERE id = ?",
                                  [(i,) for i in gone])
@@ -519,7 +542,8 @@ class Scanner:
 
     # --- Live Photos -------------------------------------------------------------
 
-    def _pair_live(self, conn: sqlite3.Connection) -> int:
+    def _pair_live(self, conn: sqlite3.Connection,
+                   folders: set[tuple[int, str]] | None = None) -> int:
         """Pair each Live Photo's still with its short video: an iPhone keeps
         IMG_1234.HEIC (or .JPG) and IMG_1234.MOV side by side, and an export
         from Google Photos MVIMG_1234.jpg and MVIMG_1234.mp4. Same folder,
@@ -531,14 +555,22 @@ class Scanner:
 
         Motion kept inside the photograph itself (a Pixel's ``.MP.jpg``, a
         Samsung motion photo) is not taken out: it shows as the photograph.
+        *folders*, (library folder id, folder inside it) pairs: only there.
         Returns how many pairs changed."""
         exts = sorted(LIVE_STILLS | LIVE_CLIPS)
+        args: list[Any] = list(exts)
+        only = ""
+        if folders is not None:
+            only = " AND (" + " OR ".join(["(a.folder_id = ? AND a.dir = ?)"] * len(folders)) + ")"
+            for one in sorted(folders):
+                args += one
         rows = conn.execute(
             f"""SELECT a.id, a.folder_id, a.dir, a.name, a.ext, a.kind, a.duration, a.live_of,
                        a.live_id, a.size, a.mtime, f.path AS root
                 FROM assets a JOIN folders f ON f.id = a.folder_id
                 WHERE a.missing = 0 AND (a.ext IN ({','.join('?' * len(exts))})
-                      OR a.live_of IS NOT NULL OR a.live_id IS NOT NULL)""", exts).fetchall()
+                      OR a.live_of IS NOT NULL OR a.live_id IS NOT NULL){only}""",
+            args).fetchall() if folders != set() else []
         groups: dict[tuple[int, str, str], tuple[list, list]] = {}
         for row in rows:
             stem = os.path.splitext(row["name"])[0].casefold()
@@ -1065,6 +1097,11 @@ class Scanner:
             return None
         if row["kind"] == "video":
             sizes = ("s", "l")   # one ffmpeg call makes both
+        elif sizes == ("s",) and not media.read_reduced(row["name"]):
+            # A HEIC, PNG or TIFF is read whole for the small one too: the big
+            # one from the same reading costs 5% more, where the finishing
+            # pass would read the file whole again (half the scan's time).
+            sizes = ("s", "l")
         ok, colour = media.make_thumbnails(full, row["kind"], self.thumbs_dir, row["id"], sizes,
                                            rotation=row["rotation"] or 0, threads=threads,
                                            mirror=bool(row["mirror"]))

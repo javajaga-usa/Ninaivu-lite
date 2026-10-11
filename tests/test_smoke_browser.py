@@ -354,17 +354,24 @@ def long_gallery(tmp_path_factory):
         yield {"base": base, "token": token}
 
 
-SCROLL = """async (speed) => {
+SCROLL = """async ([speed, busy]) => {
   const scroller = document.querySelector('#scroller');
   const mounted = new Set();
   const look = () => document.querySelectorAll('#grid .cell').forEach((c) => mounted.add(c.dataset.id));
   look();
+  // Each time the grid works out what to fetch ahead: how far it looked (px).
+  const grid = window.__mv.grid, preload = grid.preload.bind(grid), reach = [];
+  grid.preload = (now) => { const before = grid.lastPreload; preload(now);
+    if (grid.lastPreload !== before && grid.scrolling) reach.push(grid.lookahead); };
   const started = performance.now();
-  let last = started, wasScrolling = false;
+  let last = started, wasScrolling = false, frames = 0;
   await new Promise((done) => {
     const step = (now) => {
       scroller.scrollTop += speed * (now - last) / 1000;
       last = now;
+      // A busy computer: every other frame, work that runs before the
+      // grid's own frame callback (the load of a Raspberry Pi, or of CI).
+      if (busy && (frames++ % 2)) { const until = performance.now() + busy; while (performance.now() < until); }
       look();
       wasScrolling ||= document.querySelector('#grid').classList.contains('is-scrolling');
       if (now - started < 700) requestAnimationFrame(step); else done();
@@ -376,7 +383,9 @@ SCROLL = """async (speed) => {
     .filter((e) => e.name.includes('/api/thumb/') && e.startTime > started && e.startTime < ended)
     .map((e) => new URL(e.name).pathname.split('/').pop()));
   await new Promise((r) => setTimeout(r, 400));
+  grid.preload = preload;
   return { ahead: [...fetched].filter((id) => !mounted.has(id)).length,
+           reach,
            wasScrolling,
            stillScrolling: document.querySelector('#grid').classList.contains('is-scrolling') };
 }"""
@@ -398,11 +407,126 @@ def test_scrolling_fetches_thumbnails_ahead_by_speed(browser, long_gallery):
             page.wait_for_selector("#grid .cell img.ready")
             settle(page)
             page.evaluate("performance.setResourceTimingBufferSize(5000)")
-            found[speed] = page.evaluate(SCROLL, speed)
+            found[speed] = page.evaluate(SCROLL, [speed, 0])
             assert not watched.problems, watched.problems
         finally:
             context.close()
-    assert found[600]["ahead"] > 0, found
-    assert found[3000]["ahead"] > found[600]["ahead"], found
+    assert found[600]["ahead"] > 0 and found[3000]["ahead"] > 0, found
+    # Further ahead the faster: how far the grid looked, not how many pictures
+    # a loaded computer happened to fetch in 0.7 s (which varied, and failed).
+    assert max(found[3000]["reach"]) > max(found[600]["reach"]), found
     # Hover is held off while moving, and given back once it stops.
     assert found[3000]["wasScrolling"] and not found[3000]["stillScrolling"], found
+
+
+def test_a_steady_scroll_on_a_busy_computer_still_fetches_ahead(browser, long_gallery):
+    """Long, uneven frames (a loaded computer) do not make a steady scroll look
+    like a jump with the scrubber, which fetches nothing on the way: the
+    speed is taken from each frame's own time, and a jump is only a jump
+    when it lasts."""
+    context = browser.new_context(viewport={"width": 390, "height": 780},
+                                  service_workers="block")
+    context.add_cookies([{"name": auth.SESSION_COOKIE, "value": long_gallery["token"],
+                          "url": long_gallery["base"]}])
+    watched = Watched(context, long_gallery["base"])
+    page = watched.page
+    try:
+        page.goto(long_gallery["base"] + "/")
+        page.wait_for_selector("#grid .cell img.ready")
+        settle(page)
+        page.evaluate("performance.setResourceTimingBufferSize(5000)")
+        found = page.evaluate(SCROLL, [1500, 70])
+        reach = found["reach"]
+        assert not watched.problems, watched.problems
+    finally:
+        context.close()
+    assert found["ahead"] > 0, found
+    # Not once taken for a jump (which looks nowhere), nor for a scroll faster
+    # than it is: at 1,500 px a second the grid looks 2.5 s ahead, 3,750 px
+    # (the frames' clock read late made it 7,700-8,800 px, or a jump).
+    assert reach and all(0 < r < 1500 * 2.5 * 1.25 for r in reach), reach
+
+
+def _scrolling_page(browser, long_gallery):
+    context = browser.new_context(viewport={"width": 390, "height": 780},
+                                  service_workers="block")
+    context.add_cookies([{"name": auth.SESSION_COOKIE, "value": long_gallery["token"],
+                          "url": long_gallery["base"]}])
+    watched = Watched(context, long_gallery["base"])
+    watched.page.goto(long_gallery["base"] + "/")
+    watched.page.wait_for_selector("#grid .cell img.ready")
+    settle(watched.page)
+    return context, watched
+
+
+def test_an_open_photo_stops_the_grid_fetching_ahead(browser, long_gallery):
+    """A photo opened mid-scroll gets the connection: the grid under it went on
+    fetching up to 160 thumbnails ahead (18 measured on a phone on 3G, a
+    megabyte, while the photo waited). Closed, the grid carries on."""
+    context, watched = _scrolling_page(browser, long_gallery)
+    page = watched.page
+    try:
+        found = page.evaluate("""async () => {
+          const { grid, viewer } = window.__mv;
+          const started = [];
+          const want = grid.prefetcher.want.bind(grid.prefetcher);
+          grid.prefetcher.pump = ((pump) => function () {
+            const before = this.active.size; pump.call(this);
+            if (this.active.size > before) started.push(performance.now()); })(grid.prefetcher.pump);
+          const scroller = grid.scroller;
+          for (let i = 0; i < 20; i += 1) {
+            scroller.scrollTop += 60;
+            await new Promise((r) => requestAnimationFrame(r));
+          }
+          const cell = [...document.querySelectorAll('#grid .cell')][3];
+          cell.click();
+          await new Promise((r) => setTimeout(r, 50));
+          const opened = performance.now();
+          const queued = grid.prefetcher.queue.length + grid.prefetcher.active.size;
+          await new Promise((r) => setTimeout(r, 600));       // the scroll settles
+          const after = started.filter((t) => t > opened).length;
+          viewer.close();
+          await new Promise((r) => setTimeout(r, 100));
+          return { queued, after, open: !document.querySelector('#viewer').hidden,
+                   resumed: grid.lookahead > 0 };
+        }""")
+        assert not watched.problems, watched.problems
+    finally:
+        context.close()
+    assert found["queued"] == 0 and found["after"] == 0, found
+    assert found["resumed"] and not found["open"], found
+
+
+def test_a_frame_reads_the_scroll_position_once(browser, long_gallery):
+    """Asking the page where the scroll is after tiles were put on it lays the
+    page out again; the grid did it for every tile of a frame (1.1 s of the
+    2.3 s of script a scroll took, phone CPU slowed four times)."""
+    context, watched = _scrolling_page(browser, long_gallery)
+    page = watched.page
+    try:
+        reads = page.evaluate("""async () => {
+          const { grid } = window.__mv;
+          const scroller = grid.scroller;
+          let reads = 0;
+          for (const name of ['scrollTop', 'clientHeight']) {
+            const own = Object.getOwnPropertyDescriptor(Element.prototype, name);
+            Object.defineProperty(scroller, name, { configurable: true,
+              get() { reads += 1; return own.get.call(this); },
+              set(v) { own.set.call(this, v); } });
+          }
+          const counts = [];
+          for (let i = 0; i < 12; i += 1) {
+            scroller.scrollTop += 400;
+            reads = 0;
+            await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+            counts.push(reads);
+          }
+          return counts;
+        }""")
+        assert not watched.problems, watched.problems
+    finally:
+        context.close()
+    # Two frames each time: the grid reads both once in each (a frame that put
+    # more tiles on the page than it could takes the rest in the next), the
+    # app's scroll handler not at all. It was one read or two for every tile.
+    assert max(reads) <= 4, reads

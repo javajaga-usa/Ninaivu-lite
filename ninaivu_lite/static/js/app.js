@@ -994,7 +994,7 @@ async function reload({ resetScroll = false } = {}) {
  * to a month further down), waiting for a piece already on its way. True
  * when a piece came.
  */
-async function loadMoreIfNear({ force = false } = {}) {
+async function loadMoreIfNear({ force = false, top = null, view: height = null } = {}) {
   const page = paging;
   if (page !== loadMoreFailed.page) showLoadMoreFailed(null);
   if (page.next == null || !page.signal || page.signal.aborted) return false;
@@ -1006,8 +1006,10 @@ async function loadMoreIfNear({ force = false } = {}) {
   // After a failure, wait out the back-off rather than asking again on every
   // scroll frame; the Retry row (or the timer) clears it.
   if (!force && page.retryAt && Date.now() < page.retryAt) return false;
-  const view = grid.scroller.clientHeight || 1;
-  const remaining = grid.layout.height - (grid.scroller.scrollTop + view);
+  // From the grid's own frame when it says (reading them from the page
+  // after the tiles were put on it lays the page out again, every frame).
+  const view = (height ?? grid.scroller.clientHeight) || 1;
+  const remaining = grid.layout.height - ((top ?? grid.scroller.scrollTop) + view);
   // As far ahead as the grid is fetching pictures: a fast scroll asks sooner.
   if (!force && remaining > Math.max(view * 3, grid.lookahead + view)) return false;
 
@@ -2165,9 +2167,16 @@ function buildScrubber() {
 }
 
 /** The marker's own label: the month and year it is on. */
+let scrubberLabelled = '';
+
 function labelScrubber(section) {
   const label = $('#scrubber-thumb').querySelector('span');
   if (!section) return;
+  // Called on every frame of a scroll: the label is made again only when the
+  // month under it (or the language) changes.
+  const said = `${section.key.slice(0, 7)}|${i18n.locale()}|${i18n.language()}`;
+  if (said === scrubberLabelled && label.textContent) return;
+  scrubberLabelled = said;
   if (section.key === 'match') label.textContent = i18n.t('Best matches');
   else if (!/^\d{4}-\d{2}/.test(section.key)) label.textContent = i18n.t('Undated');
   else {
@@ -2263,7 +2272,7 @@ function wireGrid() {
 
   grid.addEventListener('scroll', (event) => {
     positionScrubber(event.detail.ratio);
-    loadMoreIfNear();
+    loadMoreIfNear({ top: event.detail.top, view: event.detail.height });
     labelScrubber(event.detail.section);
   });
 
@@ -2319,7 +2328,10 @@ function wireViewer() {
     }
   });
 
+  // The grid under an open photo fetches nothing ahead: the photo needs the connection.
+  viewer.addEventListener('open', () => grid.hold('viewer', true));
   viewer.addEventListener('close', (event) => {
+    grid.hold('viewer', false);
     const index = grid.indexOfId(event.detail.id);
     if (index >= 0) {
       grid.cursor = index;

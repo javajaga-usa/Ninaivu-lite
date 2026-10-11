@@ -309,6 +309,7 @@ export class Viewer extends EventTarget {
     this.thumbed = thumbed;
     this.root.hidden = false;
     document.body.style.overflow = 'hidden';
+    this.dispatchEvent(new CustomEvent('open'));
     await this.goTo(index);
     this.root.focus?.();
   }
