@@ -720,6 +720,77 @@ function wireViewer() {
       grid.render();
     }
   });
+  wireViewerBack();
+}
+
+/* PHONE1, PHONE6: a phone's Back button (or edge swipe) with a photograph or
+   the drawer open closed the whole gallery — the browser went to the page
+   before it, or an installed app quit — instead of what was open, as every
+   photo app does. Each now has its own history entry: Back takes it away,
+   and closing it any other way (its button, Escape, a pick in the drawer or
+   a tap beside it) takes the entry away too, so the next Back leaves the
+   gallery as before. One entry each, whatever order they open and close in. */
+function wireViewerBack() {
+  const shell = document.querySelector('.shell');
+  const viewerLayer = { key: 'viewer', isOpen: () => viewer.isOpen, close: () => viewer.close() };
+  const drawerLayer = {
+    key: 'drawer',
+    isOpen: () => !!shell?.classList.contains('mobile-open'),
+    close: () => {
+      shell.classList.remove('mobile-open');
+      $('#sidebar-toggle')?.setAttribute('aria-expanded', 'false');
+    },
+  };
+  const layers = [viewerLayer, drawerLayer];
+  // What is open now, as a history entry's state.
+  const now = () => ({
+    ...(history.state || {}),
+    ...Object.fromEntries(layers.map((layer) => [layer.key, layer.isOpen()])),
+  });
+  let goingBack = 0;
+  // Reloaded with something open: the page comes back without it.
+  if (layers.some((layer) => history.state?.[layer.key])) history.replaceState(now(), '');
+  const opened = (layer) => {
+    if (!history.state?.[layer.key]) history.pushState(now(), '');
+  };
+  const closed = (layer) => {
+    if (!history.state?.[layer.key]) return;     // closed by Back: already gone
+    goingBack += 1;
+    history.back();
+  };
+  viewer.addEventListener('open', () => opened(viewerLayer));
+  viewer.addEventListener('close', () => closed(viewerLayer));
+  // The drawer opens and closes in several places (its button, a pick in it,
+  // a tap beside it, Escape, a change of person): its class says which.
+  let drawerWas = drawerLayer.isOpen();
+  if (shell) {
+    new MutationObserver(() => {
+      const open = drawerLayer.isOpen();
+      if (open === drawerWas) return;
+      drawerWas = open;
+      if (open) opened(drawerLayer); else closed(drawerLayer);
+    }).observe(shell, { attributes: true, attributeFilter: ['class'] });
+  }
+  window.addEventListener('popstate', () => {
+    if (goingBack) {
+      goingBack -= 1;
+      // Opened again before the browser got round to it: its entry back.
+      if (layers.some((layer) => layer.isOpen() && !history.state?.[layer.key])) {
+        history.pushState(now(), '');
+      }
+      return;
+    }
+    const gone = layers.filter((layer) => layer.isOpen() && !history.state?.[layer.key]);
+    if (!gone.length) return;
+    // A dialog over the photograph (Sudar with its edits, Share, Add to
+    // album) has it under it still: the photograph stays, and so does its
+    // entry. Chrome on Android gives Back to the dialog itself first.
+    if (document.querySelector('dialog[open], .modal:not([hidden])')) {
+      history.pushState(now(), '');
+      return;
+    }
+    for (const layer of gone) layer.close();
+  });
 }
 
 /* ======================================================================== */

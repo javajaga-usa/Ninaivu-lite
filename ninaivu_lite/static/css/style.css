@@ -1449,6 +1449,13 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 @media (max-width: 900px) {
   .year-strip:not([hidden]) { display: flex; }
 }
+/* PHONE7: the strip scrolls sideways and so clips what its chips draw outside
+   it: their 44 px touch targets stopped 2 px under the chips, 40 px in all.
+   6 px each side holds the target; the strip is 2 px taller. (A phone on its
+   side and the Pi's screen show no strip: M64.) */
+@media (hover: none) and (pointer: coarse) {
+  .year-strip { padding-block: 6px; }
+}
 
 /* On this day (on-this-day.js) ------------------------------------------- */
 
@@ -1792,6 +1799,13 @@ body[data-role="guest"] .segmented button[data-layout="film"] { display: none; }
   }
   .sel-actions::-webkit-scrollbar { display: none; }
   .sel-actions > *, .sel-actions .sel-rotate { flex: none; }
+}
+/* PHONE3: a row that scrolls sideways clips what its buttons draw outside it,
+   their 44 px touch targets too (see "a finger-sized target" below): the
+   actions took taps on their 28 px only. The row reaches into the bar's
+   padding and the gap above it, with nothing drawn moving. */
+@media (max-width: 720px) and (hover: none) and (pointer: coarse) {
+  .sel-actions { padding-block: 8px; margin-block: -8px; }
 }
 
 .select:disabled, .btn:disabled {
