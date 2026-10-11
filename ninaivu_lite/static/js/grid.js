@@ -51,9 +51,9 @@ const PRELOAD_BEHIND_FAST = 0.25;
 const PRELOAD_MAX = 160;
 /** How often the list ahead is worked out again while scrolling. */
 const PRELOAD_EVERY_MS = 120;
-/** Faster than this (px/ms) is a jump — the scrubber dragged, End pressed —
- *  not a scroll: nothing on the way will be looked at, so nothing is fetched
- *  until it lands. */
+/** Faster than this (px/ms), two frames running, is a jump — the scrollbar
+ *  dragged, End pressed — not a scroll: nothing on the way will be looked at,
+ *  so nothing is fetched until it lands. The scrubber says so itself. */
 const JUMP = 25;
 /** Tiles off the screen put on the page in one frame; the rest follow in the
  *  next, so a fast scroll on a slow computer does not stall a frame. */
@@ -196,10 +196,20 @@ export class Grid extends EventTarget {
     this.prefetcher = new Prefetcher();
     this.scrolling = false;
     this.lastPreload = 0;
+    // Frames running the scroll has gone faster than JUMP; a jump asked for.
+    this.overJump = 0;
+    this.jumpAsked = false;
     // How far ahead of the screen, in px, pictures are being fetched (the app
     // asks for the next piece of the gallery before the scroll reaches it).
     this.lookahead = 0;
     this.topUp = null;
+    // The scroll position and screen height, while a frame's work is done.
+    this.frameViewport = null;
+    // Why nothing is being fetched ahead right now (the viewer covers the
+    // grid, the page is in the background): while any holds, nothing is.
+    this.holds = new Set();
+    this.onVisibility = () => this.hold('hidden', document.hidden);
+    document.addEventListener('visibilitychange', this.onVisibility);
 
     this.onScroll = this.onScroll.bind(this);
     this.scroller.addEventListener('scroll', this.onScroll, { passive: true });
@@ -340,34 +350,47 @@ export class Grid extends EventTarget {
 
   onScroll() {
     if (this.frame) return;
-    this.frame = requestAnimationFrame(() => {
+    this.frame = requestAnimationFrame((frameTime) => {
       this.frame = null;
-      this.measureSpeed();
-      this.render();
-      this.preload();
-      this.dispatchEvent(new CustomEvent('scroll', {
-        detail: {
-          top: this.scroller.scrollTop,
-          section: sectionAt(this.layout, this.scroller.scrollTop + 40),
-          ratio: this.scroller.scrollTop /
-            Math.max(1, this.layout.height - this.scroller.clientHeight),
-        },
-      }));
+      const detail = this.withViewport(() => {
+        this.measureSpeed(frameTime);
+        this.render();
+        this.preload();
+        const { top, height } = this.viewport();
+        return {
+          top,
+          height,
+          section: sectionAt(this.layout, top + 40),
+          ratio: top / Math.max(1, this.layout.height - height),
+        };
+      });
+      this.dispatchEvent(new CustomEvent('scroll', { detail }));
     });
   }
 
   /* ---------------------------------------------------------------- */
 
-  /** Speed and direction from this frame and the last, smoothed. */
-  measureSpeed() {
-    const now = performance.now();
-    const top = this.scroller.scrollTop;
+  /**
+   * Speed and direction from this frame and the last, smoothed. *now* is the
+   * frame's own time, when the scroll position it shows was taken: the clock
+   * read inside the callback is late by whatever ran before it in that frame,
+   * so on a busy computer two frames' worth of scrolling could be divided by
+   * a few milliseconds and a steady scroll look like a jump (and fetch
+   * nothing ahead).
+   */
+  measureSpeed(now = performance.now()) {
+    const { top } = this.viewport();
     const elapsed = now - this.lastTime;
     if (this.lastTime && elapsed > 0 && elapsed < 250) {
       const speed = (top - this.lastTop) / elapsed;
       this.velocity = this.velocity * 0.4 + speed * 0.6;
+      // A jump is going on when it was asked for (the scrubber, scrollToRatio)
+      // or the scroll has gone faster than any finger for two frames running:
+      // one long frame on a slow computer is not a jump.
+      this.overJump = Math.abs(speed) > JUMP ? this.overJump + 1 : 0;
     } else {
       this.velocity = 0;
+      this.overJump = 0;
     }
     const direction = this.velocity < 0 ? -1 : this.velocity > 0 ? 1 : this.direction;
     // Turned round: what was fetched ahead is now behind.
@@ -387,11 +410,10 @@ export class Grid extends EventTarget {
 
   /** The band of tiles kept ready: longer ahead of a fast scroll, shorter behind. */
   band() {
-    const view = this.scroller.clientHeight;
+    const { top, height: view } = this.viewport();
     const speed = Math.abs(this.velocity);
     const ahead = Math.min(OVERSCAN + speed * LOOKAHEAD_MS, OVERSCAN + view * MAX_AHEAD_SCREENS);
     const behind = this.fast ? TRAILING : OVERSCAN;
-    const top = this.scroller.scrollTop;
     return this.direction >= 0
       ? [top - behind, top + view + ahead]
       : [top - ahead, top + view + behind];
@@ -406,6 +428,8 @@ export class Grid extends EventTarget {
   settle() {
     this.velocity = 0;
     this.lastTime = 0;
+    this.overJump = 0;
+    this.jumpAsked = false;
     this.fast = false;
     this.scrolling = false;
     this.container.classList.remove('is-scrolling');
@@ -422,17 +446,21 @@ export class Grid extends EventTarget {
    * small ones a fast scroll gets.
    */
   preload(now = false) {
+    if (this.holds.size) return;
     const clock = performance.now();
     if (!now && clock - this.lastPreload < PRELOAD_EVERY_MS) return;
     this.lastPreload = clock;
-    const view = this.scroller.clientHeight;
+    this.withViewport(() => this.preloadNow());
+  }
+
+  preloadNow() {
+    const { top, height: view } = this.viewport();
     const speed = Math.abs(this.velocity);
-    if (!view || speed > JUMP) {
+    if (!view || this.jumpAsked || this.overJump >= 2) {
       this.lookahead = 0;
       this.prefetcher.want([], this.shownUrls());
       return;
     }
-    const top = this.scroller.scrollTop;
     const bottom = top + view;
     const [bandTop, bandBottom] = this.band();
     const down = this.direction >= 0;
@@ -478,6 +506,25 @@ export class Grid extends EventTarget {
     this.prefetcher.want(urls, this.shownUrls());
   }
 
+  /**
+   * Stop fetching ahead for *reason* (`on`), or let it carry on. The grid
+   * under an open photo, or on a page in the background, is not going to be
+   * scrolled: what it went on fetching there took the slow connection the
+   * photo being opened needed (on a phone on mobile data, a megabyte of
+   * thumbnails ahead of the photo).
+   */
+  hold(reason, on) {
+    if (on === this.holds.has(reason)) return;
+    if (on) {
+      this.holds.add(reason);
+      this.lookahead = 0;
+      this.prefetcher.want([], this.shownUrls());
+    } else {
+      this.holds.delete(reason);
+      if (!this.holds.size) this.preload(true);
+    }
+  }
+
   /** The pictures the tiles on the page are showing or fetching. */
   shownUrls() {
     const urls = new Set();
@@ -494,8 +541,30 @@ export class Grid extends EventTarget {
   }
 
   onScreen(cell) {
-    const top = this.scroller.scrollTop;
-    return cell.y + cell.h > top && cell.y < top + this.scroller.clientHeight;
+    const { top, height } = this.viewport();
+    return cell.y + cell.h > top && cell.y < top + height;
+  }
+
+  /**
+   * Where the scroll is and how tall the screen is: read once a frame (see
+   * withViewport). Read from the page after a tile was put on it, they make
+   * the browser lay the page out again there and then; asked for every tile
+   * of a frame, that was most of the time a scroll took on a slow phone
+   * (1.1 s of 2.3 s of script measured, CPU slowed four times).
+   */
+  viewport() {
+    return this.frameViewport
+      || { top: this.scroller.scrollTop, height: this.scroller.clientHeight };
+  }
+
+  withViewport(work) {
+    if (this.frameViewport) return work();
+    this.frameViewport = { top: this.scroller.scrollTop, height: this.scroller.clientHeight };
+    try {
+      return work();
+    } finally {
+      this.frameViewport = null;
+    }
   }
 
   /**
@@ -511,8 +580,7 @@ export class Grid extends EventTarget {
       node.blurry = false;
       return;
     }
-    const top = this.scroller.scrollTop;
-    const view = this.scroller.clientHeight;
+    const { top, height: view } = this.viewport();
     if (cell.y + cell.h < top - view / 2 || cell.y > top + view * 1.5) return;
     img.fetchPriority = this.onScreen(cell) ? 'high' : 'auto';
     img.src = full;
@@ -520,6 +588,10 @@ export class Grid extends EventTarget {
   }
 
   render() {
+    this.withViewport(() => this.renderNow());
+  }
+
+  renderNow() {
     const [top, bottom] = this.band();
     const { cells, headers } = visibleRange(this.layout, top, bottom);
 
@@ -1106,7 +1178,10 @@ export class Grid extends EventTarget {
 
   scrollToRatio(ratio) {
     const max = Math.max(0, this.layout.height - this.scroller.clientHeight);
+    const before = this.scroller.scrollTop;
     this.scroller.scrollTop = max * Math.max(0, Math.min(1, ratio));
+    // A jump until the scroll settles: nothing on the way will be looked at.
+    if (this.scroller.scrollTop !== before) this.jumpAsked = true;
   }
 
   currentId() {
@@ -1118,6 +1193,7 @@ export class Grid extends EventTarget {
     this.resizeObserver.disconnect();
     clearTimeout(this.settleTimer);
     if (this.topUp) cancelAnimationFrame(this.topUp);
+    document.removeEventListener('visibilitychange', this.onVisibility);
     this.prefetcher.want([]);
   }
 }

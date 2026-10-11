@@ -394,6 +394,45 @@ def thumb_path(thumbs_dir: Path, asset_id: int, size: str) -> Path:
 HEAVY_PIXELS = 16_000_000
 _HEAVY = threading.Lock()
 
+#: Photographs Pillow can read at a half, a quarter or an eighth of their
+#: size (JPEG's own trick, see _draft). Every other kind is read whole, the
+#: small thumbnail as dearly as the big one: an iPhone's 12 MP HEIC takes
+#: 0.65 s either way here, and several seconds on a Raspberry Pi.
+REDUCED_READ = {".jpg", ".jpeg", ".jfif"}
+
+
+def read_reduced(name: str) -> bool:
+    """Whether the photograph called *name* is read at a reduced size for a thumbnail."""
+    return os.path.splitext(name)[1].lower() in REDUCED_READ
+
+
+def _give_back_memory() -> None:
+    """Return memory freed by a large picture to the system (glibc on Linux).
+    Each thread keeps what it freed for itself: a 24 MP HEIC takes about
+    300 MB to read, and three scan workers taking turns at those held three
+    times that between them (775 MB measured, 338 MB with this), more than a
+    Raspberry Pi with 1 GB has."""
+    if _LIBC is not None:
+        try:
+            _LIBC.malloc_trim(0)
+        except Exception:  # noqa: BLE001 — only ever an optimisation
+            pass
+
+
+def _libc():
+    if not sys.platform.startswith("linux"):
+        return None
+    try:
+        import ctypes
+
+        libc = ctypes.CDLL("libc.so.6")
+        return libc if hasattr(libc, "malloc_trim") else None
+    except (OSError, AttributeError):
+        return None     # not glibc (musl, in a small Docker image): nothing to do
+
+
+_LIBC = _libc()
+
 
 def _draft(path: str, edge: int) -> Image.Image:
     """The photograph opened (its header only) to be read at about *edge*."""
@@ -517,6 +556,8 @@ def make_thumbnails(path: str, kind: str, thumbs_dir: Path, asset_id: int,
             return False, None
         finally:
             img.close()
+            if gate is _HEAVY:
+                _give_back_memory()
 
 
 def save_thumbnails(img: Image.Image, thumbs_dir: Path, asset_id: int,

@@ -37,6 +37,19 @@ UNREADABLE = ""
 SHOWN = "missing = 0 AND live_of IS NULL"
 SHOWN_A = "a.missing = 0 AND a.live_of IS NULL"
 
+#: The sizes more than one file has. Only those files can have a copy, and
+#: only those are ever hashed, so every query below starts from them: read
+#: from the size index alone, they leave a few thousand rows of a library of
+#: 100,000 to look at, where a walk of every row took 150-350 ms (several
+#: seconds on a Raspberry Pi) each scan and each opening of the page.
+SHARED_SIZES = f"""SELECT size FROM assets WHERE {SHOWN} AND size > 0
+                   GROUP BY size HAVING COUNT(*) > 1"""
+#: The sizes and quick hashes more than one file has.
+SHARED_QUICK = f"""SELECT size, quick_hash FROM assets
+                   WHERE {SHOWN} AND quick_hash IS NOT NULL AND quick_hash != ''
+                     AND size IN ({SHARED_SIZES})
+                   GROUP BY size, quick_hash HAVING COUNT(*) > 1"""
+
 
 def quick_hash(path: str, size: int) -> str:
     """blake2b of the size, the first and the last :data:`QUICK_PART` bytes."""
@@ -73,8 +86,7 @@ def to_quick_hash(conn: sqlite3.Connection, after: tuple[int, int] | None = None
     return conn.execute(
         f"""SELECT {_COLUMNS} FROM assets a JOIN folders f ON f.id = a.folder_id
             WHERE {SHOWN_A} AND a.quick_hash IS NULL
-              AND a.size IN (SELECT size FROM assets WHERE {SHOWN} AND size > 0
-                             GROUP BY size HAVING COUNT(*) > 1)
+              AND a.size IN ({SHARED_SIZES})
               {_AFTER if after else ""}
             ORDER BY a.size DESC, a.id LIMIT ?""",
         (*((after[0], after[0], after[1]) if after else ()), limit)).fetchall()
@@ -87,10 +99,8 @@ def to_content_hash(conn: sqlite3.Connection, after: tuple[int, int] | None = No
         f"""SELECT {_COLUMNS} FROM assets a JOIN folders f ON f.id = a.folder_id
             WHERE {SHOWN_A} AND a.content_hash IS NULL
               AND a.quick_hash IS NOT NULL AND a.quick_hash != ''
-              AND (a.size, a.quick_hash) IN (
-                  SELECT size, quick_hash FROM assets
-                  WHERE {SHOWN} AND quick_hash IS NOT NULL AND quick_hash != ''
-                  GROUP BY size, quick_hash HAVING COUNT(*) > 1)
+              AND a.size IN ({SHARED_SIZES})
+              AND (a.size, a.quick_hash) IN ({SHARED_QUICK})
               {_AFTER if after else ""}
             ORDER BY a.size DESC, a.id LIMIT ?""",
         (*((after[0], after[0], after[1]) if after else ()), limit)).fetchall()
@@ -99,6 +109,7 @@ def to_content_hash(conn: sqlite3.Connection, after: tuple[int, int] | None = No
 #: The groups of copies: the same size and every byte the same.
 GROUPS_SQL = f"""SELECT size, content_hash, COUNT(*) AS n FROM assets
                  WHERE content_hash IS NOT NULL AND content_hash != '' AND {SHOWN}
+                   AND size IN ({SHARED_SIZES})
                  GROUP BY size, content_hash HAVING n > 1"""
 
 
@@ -111,13 +122,10 @@ def totals(read: Callable[[str, tuple], list[tuple]]) -> dict[str, int]:
         f"FROM ({GROUPS_SQL})", ())[0]
     pending = read(
         f"""SELECT COUNT(*) FROM assets WHERE {SHOWN} AND (
-                (quick_hash IS NULL AND size IN (
-                    SELECT size FROM assets WHERE {SHOWN} AND size > 0
-                    GROUP BY size HAVING COUNT(*) > 1))
-                OR (content_hash IS NULL AND quick_hash != '' AND (size, quick_hash) IN (
-                    SELECT size, quick_hash FROM assets
-                    WHERE {SHOWN} AND quick_hash IS NOT NULL AND quick_hash != ''
-                    GROUP BY size, quick_hash HAVING COUNT(*) > 1)))""", ())[0][0]
+                quick_hash IS NULL
+                OR (content_hash IS NULL AND quick_hash != ''
+                    AND (size, quick_hash) IN ({SHARED_QUICK})))
+              AND size IN ({SHARED_SIZES})""", ())[0][0]
     return {"groups": groups, "extra": extra, "bytes": wasted, "pending": pending}
 
 
