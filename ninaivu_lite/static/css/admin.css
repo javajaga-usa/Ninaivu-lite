@@ -1834,6 +1834,11 @@ button.drive-notice-main:focus-visible { outline: 2px solid var(--accent); outli
   #fd-note { flex: 1 1 100%; margin: 0; }
   #fd-note:empty { display: none; }
   .fd-body { flex: 1 1 auto; min-height: 96px; }
+  /* Name, kind, PIN and Add on one line left each field a few letters wide
+     ("Fa...", "PIN (4"). Name and kind share the first line, the PIN and Add
+     the second. */
+  .fd-body form.row > .input { flex: 1 1 calc(50% - 4px); }
+  .fd-body form.row > .input:nth-child(3) { flex-basis: 0; }
 }
 
 /* ==========================================================================

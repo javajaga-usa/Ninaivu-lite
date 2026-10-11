@@ -164,18 +164,70 @@ def test_first_day_buttons_stay_inside_the_card_on_a_phone():
 
 # -- Touch targets -------------------------------------------------------------
 
-def test_small_round_buttons_have_a_44px_target_on_touch():
-    targets = [sel for m, sel, body in blocks(STYLE)
-               if m == TOUCH and "width: 44px" in body and "height: 44px" in body]
-    assert targets
-    named = targets[-1]
-    for control in ("#sidebar-toggle::after", "#more-btn::after", "#lang-btn::after",
-                    "#profile-btn::after", "#on-this-day-close::after", "#sel-cancel::after",
-                    "#jump-close::after", ".viewer-tools > .icon-btn::after"):
-        assert control in named, control
-        owner = control.removesuffix("::after")
-        assert any("position: relative" in body for body in rules(STYLE, owner, TOUCH)), owner
+def tap_area_rules(css: str) -> list[tuple[str, str]]:
+    return [(sel, body) for m, sel, body in blocks(css)
+            if m.strip() == TOUCH and "min-width: 44px" in body and "min-height: 44px" in body]
+
+
+def test_every_small_control_has_a_44px_target_on_touch():
+    found = tap_area_rules(STYLE)
+    assert len(found) == 1
+    selector, body = found[0]
+    assert selector.startswith(":where(") and selector.endswith("::after")
+    # Buttons, button-like links, tabs, disclosure rows and tick-box labels.
+    for kind in ("button", "a.btn", "a.icon-btn", "[role=button]", "[role=tab]",
+                 "summary", "label:has(> input[type=checkbox]"):
+        assert kind in selector, kind
+    # Buttons that draw their own ::after are left alone.
+    for own in (".otd-tile", ".needs-attention", ".fold-item"):
+        assert own in selector, own
+    # Centred, never smaller than the button, and drawn as nothing.
+    for part in ('content: ""', "position: absolute", "left: 50%", "top: 50%",
+                 "width: 100%", "height: 100%", "translate(-50%, -50%)"):
+        assert part in body, part
+    for word in ("background", "border", "box-shadow", "outline"):
+        assert word not in body, word
+    owner = selector.removesuffix("::after")
+    owner_rules = [b for m, sel, b in blocks(STYLE) if m.strip() == TOUCH and sel == owner]
+    assert owner_rules and "position: relative" in owner_rules[0]
+    # A button placed absolutely (On this day's See all, LIVE) must stay so.
+    assert owner.startswith(":where(") and ":where(:not(" in owner
     assert any("width: 44px" in body for body in rules(ADMIN_CSS, ".drive-notice-close::after", TOUCH))
+    share = read(PACKAGE / "templates" / "share.html")
+    assert ":where(button) { position: relative; }" in share
+    assert "min-width: 44px; min-height: 44px;" in share
+
+
+def test_the_page_can_be_pinch_zoomed():
+    for name in ("index.html", "admin.html", "share.html"):
+        page = read(PACKAGE / "templates" / name)
+        viewport = re.search(r'<meta name="viewport" content="([^"]+)"', page).group(1)
+        assert "maximum-scale" not in viewport and "user-scalable" not in viewport, name
+        assert "width=device-width" in viewport
+
+
+def test_fields_are_16px_on_touch_so_focusing_one_does_not_zoom():
+    found = [(sel, body) for m, sel, body in blocks(STYLE)
+             if m.strip() == TOUCH and "font-size: 16px !important" in body]
+    assert len(found) == 1
+    selector = found[0][0]
+    for kind in ("input:not([type=checkbox])", "select", "textarea"):
+        assert kind in selector, kind
+    # The PIN field is drawn at 24 px and keeps it.
+    assert ":not(.pin-input)" in selector
+
+
+def test_a_double_tap_zooms_the_photograph_not_the_page():
+    html_rules = rules(STYLE, "html", TOUCH)
+    assert any("touch-action: manipulation" in body for body in html_rules)
+    assert any("overflow-x: clip" in body for body in html_rules)
+    everything = [body for m, sel, body in blocks(STYLE) if m.strip() == TOUCH and sel == ":where(body, body *)"]
+    assert everything and "touch-action: manipulation" in everything[0]
+    assert any("touch-action: none" in body for body in rules(STYLE, ".viewer-stage"))
+    viewer = read(STATIC / "js" / "viewer.js")
+    assert "'gesturestart', 'gesturechange'" in viewer
+    assert "this.stage.addEventListener(type, (event) => event.preventDefault(), { passive: false })" in viewer
+    assert "this.stage.addEventListener('dblclick'" in viewer
 
 
 # -- The notch -----------------------------------------------------------------
