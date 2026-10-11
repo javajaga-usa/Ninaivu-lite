@@ -394,7 +394,18 @@ export class Grid extends EventTarget {
       if (node.classList.contains('packed')) node.querySelector('.title').title = title;
       if (count != null) node.querySelector('.sub').textContent = sub;
       const select = node.querySelector('[data-select-section]');
-      if (select) select.textContent = i18n.t('Select all');
+      if (select) {
+        select.querySelector('.label').textContent = i18n.t('Select all');
+        select.setAttribute('aria-label', i18n.t('Select all'));
+        select.title = i18n.t('Select all');
+      }
+    }
+    // The tick on each tile carries its name too.
+    for (const node of this.mounted.values()) {
+      node.querySelector('.pick')?.setAttribute('aria-label', i18n.t('Select'));
+    }
+    for (const node of this.pool) {
+      node.querySelector('.pick')?.setAttribute('aria-label', i18n.t('Select'));
     }
     // A language whose count and "Select all" need wider packed headers.
     const before = this.packedHead;
@@ -800,7 +811,12 @@ export class Grid extends EventTarget {
         node.querySelector('.title').textContent = title;
         node.querySelector('.sub').textContent = sub;
         // A pooled header may have been made in the language used before.
-        node.querySelector('[data-select-section]').textContent = i18n.t('Select all');
+        // DESK2: only the label's words, never the button's own text, which
+        // took the tick with it and cut a narrow Tamil day's count to "1…".
+        const select = node.querySelector('[data-select-section]');
+        select.querySelector('.label').textContent = i18n.t('Select all');
+        select.setAttribute('aria-label', i18n.t('Select all'));
+        select.title = i18n.t('Select all');
         node.dataset.head = head.key;
         node.dataset.firstCell = String(head.firstCell);
         // A packed day's header is only as wide as its own photographs; a

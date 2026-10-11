@@ -589,9 +589,18 @@ function showLanguage() {
 export function cycleTheme() {
   const order = ['system', 'light', 'dark'];
   const current = document.documentElement.dataset.theme || 'system';
-  applyTheme(order[(order.indexOf(current) + 1) % order.length]);
-  toast(i18n.t('Theme: {theme}', { theme: document.documentElement.dataset.theme }));
+  const next = order[(order.indexOf(current) + 1) % order.length];
+  applyTheme(next);
+  // DESK4: said in words, not as the setting's own name ("Theme: dark",
+  // "தோற்றம்: dark").
+  toast(i18n.t(THEME_TOASTS[next]));
 }
+
+const THEME_TOASTS = {
+  system: i18n.key('The theme follows this device'),
+  light: i18n.key('Light theme'),
+  dark: i18n.key('Dark theme'),
+};
 window.cycleTheme = cycleTheme;
 
 /* -- accounts ----------------------------------------------------------- */
@@ -618,6 +627,15 @@ function wireAccounts() {
 function wireGrid() {
   grid.addEventListener('open', (event) => {
     viewer.open(grid.ids, event.detail.index, grid.thumbedIds());
+  });
+
+  // DESK3: a change of language redraws what the page wrote itself here too:
+  // "3 selected" on the bar, and the profile button's name and tooltip.
+  i18n.onChange(() => {
+    if (grid.selection.size) {
+      $('#sel-count').textContent = i18n.t('{count} selected', { count: grid.selection.size });
+    }
+    if (state.user) renderIdentity();
   });
 
   grid.addEventListener('selection', (event) => {

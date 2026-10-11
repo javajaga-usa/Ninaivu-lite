@@ -34,8 +34,7 @@ export function renderOverview() {
 
   cards.append(
     card(i18n.t('In the library'), (stats.count || 0).toLocaleString(),
-      i18n.t('{photos} photos · {videos} videos',
-        { photos: stats.pictures || 0, videos: stats.videos || 0 }),
+      `${counted(stats.pictures, PHOTOS)} · ${counted(stats.videos, VIDEOS)}`,
       '', 'library'),
     card(i18n.t('Public'), (stats.public || 0).toLocaleString(), i18n.t('visible to guests'),
       stats.public ? 'good' : '', 'visibility'),
@@ -60,6 +59,14 @@ const ROLE_COUNTS = {
   family: i18n.key('{count} family'),
   admin: i18n.key('{count} admin'),
 };
+
+// DESK7: "1 photo", not "1 photos"; and 12,345 with its separator.
+const PHOTOS = [i18n.key('1 photo'), i18n.key('{count} photos')];
+const VIDEOS = [i18n.key('1 video'), i18n.key('{count} videos')];
+function counted(n, [one, many]) {
+  const count = Number(n) || 0;
+  return count === 1 ? i18n.t(one) : i18n.t(many, { count: count.toLocaleString(i18n.locale()) });
+}
 
 /* -- Preview ------------------------------------------------------------- */
 

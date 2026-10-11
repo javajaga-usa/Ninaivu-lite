@@ -18,6 +18,9 @@ let browseSelectable = false;
  */
 let picker = null;
 
+/** A shortcut's name in the page's language (DESK6): the server said
+ *  "Photos (current)", "Home" and "C: drive" in English on a Tamil page. A
+ *  folder's own name is left as it is on the disk. */
 export function openFolderPicker(options = {}) {
   picker = {
     start: options.start ?? (state.overview?.library?.root || ''),

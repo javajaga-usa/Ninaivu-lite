@@ -1190,6 +1190,9 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 .viewer-nav:hover { background: rgba(0, 0, 0, .62); }
 .viewer-nav.prev { left: 18px; }
 .viewer-nav.next { right: 18px; }
+/* At either end of the photographs (viewer.js): by id, so no layout's
+   display: grid brings a dead arrow back. */
+#v-prev[hidden], #v-next[hidden] { display: none; }
 
 /* With the details panel open, the chrome yields the right-hand strip so no
    control ends up underneath it. */
@@ -3010,6 +3013,21 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 @media (max-width: 480px) { .selection-bar { padding-right: 40px; } }
 /* A finger has no date rail (it is hidden for touch): no gutter kept for it. */
 @media (hover: none) and (pointer: coarse) { .selection-bar { padding-right: 16px; } }
+/* DESK5: a short, wide screen (the Raspberry Pi's 800x480 touch screen, a
+   laptop window made low): wrapped, the bar took three lines, 119 px, and
+   with the top bar and On this day left the photographs being chosen 231 of
+   480 px. The actions keep one line beside the count and scroll sideways,
+   as on a phone (M63), with a thin scrollbar for a mouse. */
+@media (max-height: 520px) and (min-width: 721px) {
+  .selection-bar { flex-wrap: nowrap; }
+  .selection-bar .spacer { display: none; }
+  #sel-count { flex: none; white-space: nowrap; }
+  .sel-actions {
+    display: flex; flex: 1 1 auto; min-width: 0; gap: 6px; align-items: center;
+    overflow-x: auto; scrollbar-width: thin; overscroll-behavior-x: contain;
+  }
+  .sel-actions > *, .sel-actions .sel-rotate, .sel-actions .sel-visibility { flex: none; }
+}
 
 /* ==========================================================================
    Phones: nothing on top of anything else (M01–M13, 2026-10-08)
