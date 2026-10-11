@@ -702,6 +702,39 @@ function wireViewer() {
       grid.render();
     }
   });
+  wireViewerBack();
+}
+
+/* PHONE1: a phone's Back button (or edge swipe) with a photograph open closed
+   the whole gallery — the browser went to the page before it, or an installed
+   app quit — instead of the photograph, as every photo app does. The viewer
+   now has its own history entry: Back takes it away, and closing the viewer
+   by its own button or Escape takes the entry away too, so the next Back
+   leaves the gallery as before. */
+function wireViewerBack() {
+  let goingBack = false;
+  // Reloaded with a photograph open: the page comes back without it.
+  if (history.state?.viewer) history.replaceState({ ...history.state, viewer: false }, '');
+  viewer.addEventListener('open', () => {
+    if (history.state?.viewer) return;
+    history.pushState({ ...(history.state || {}), viewer: true }, '');
+  });
+  viewer.addEventListener('close', () => {
+    if (!history.state?.viewer) return;     // closed by Back: already gone
+    goingBack = true;
+    history.back();
+  });
+  window.addEventListener('popstate', () => {
+    if (goingBack) {
+      goingBack = false;
+      // Opened again before the browser got round to it: its entry back.
+      if (viewer.isOpen && !history.state?.viewer) {
+        history.pushState({ ...(history.state || {}), viewer: true }, '');
+      }
+      return;
+    }
+    if (viewer.isOpen && !history.state?.viewer) viewer.close();
+  });
 }
 
 /* ======================================================================== */
