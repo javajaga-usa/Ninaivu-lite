@@ -4,6 +4,8 @@ __pycache__/
 venv/
 .pytest_cache/
 .ruff_cache/
+# The stylesheet and script checks (package.json)
+node_modules/
 build/
 dist/
 *.egg-info/
