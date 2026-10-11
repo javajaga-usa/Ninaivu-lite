@@ -4,6 +4,8 @@ the audit described and checks that it no longer happens."""
 
 from __future__ import annotations
 
+import os
+
 from pathlib import Path
 
 from test_import import noisy_jpeg, rows, run, sha
@@ -46,7 +48,12 @@ def test_a11_a_copy_the_audit_found_damaged_is_still_replaced(tmp_path):
     photo = noisy_jpeg(card / "IMG_0002.JPG", "2020:01:01 10:00:00", seed=2)
     run(data, [card], dest)
     copy = Path(rows(data)["IMG_0002.JPG"]["destination"])
+    filed = copy.stat()
     copy.write_bytes(copy.read_bytes()[:-10] + b"0123456789")
+    # Bit rot changes the bytes where they lie, not the file's time (a later
+    # time is an edit, never written over); on a slow runner the write above
+    # could land more than two seconds after the copy was filed.
+    os.utime(copy, ns=(filed.st_atime_ns, filed.st_mtime_ns))
     run(data, [card], dest, mode="verify")
     assert rows(data)["IMG_0002.JPG"]["status"] == "error"
     run(data, [card], dest)
