@@ -234,7 +234,10 @@ function applyHomeName(authState) {
 
   // The profile sheet shows the household name as its placeholder, so an
   // empty box reads as "using the household name" rather than "unset".
-  if (profileSheet) profileSheet.houseName = (authState && authState.house_name) || '';
+  // Ninaivu's own name (nobody named the home) is left out, so the sheet
+  // writes it in the page's language (நினைவு) rather than "Ninaivu".
+  const house = (authState && authState.house_name) || '';
+  if (profileSheet) profileSheet.houseName = house === 'Ninaivu' ? '' : house;
 }
 
 // Nobody has named this home, so what the tab and the frame say is Ninaivu's
@@ -310,6 +313,9 @@ function watchSearchHint() {
     renderLibraryName();
     renderFolders();
     syncChips();
+    // The filter chips and the On this day row are built here too.
+    renderFilterBar();
+    onThisDay?.refresh(true);
     // "6 items · 398.1 KB" is built here too, so it would keep the old language.
     if (state.lastCounts) renderCounts(state.lastCounts);
   });
@@ -1512,6 +1518,9 @@ function wireSearch() {
         ? Math.min(options.length - 1, index + 1)
         : Math.max(0, index - 1);
       options.forEach((li, i) => li.setAttribute('aria-selected', String(i === next)));
+      // Said out loud: the focus stays in the box, so a screen reader hears
+      // which suggestion is picked only through the box's active descendant.
+      input.setAttribute('aria-activedescendant', options[next].id);
     } else if (event.key === 'Enter' && active) {
       active.click();
     } else if (event.key === 'Escape') {
@@ -1521,6 +1530,11 @@ function wireSearch() {
   });
 
   input.addEventListener('blur', () => setTimeout(() => (list.hidden = true), 140));
+  // Whichever of the several places hides or shows the list, the box says so.
+  new MutationObserver(() => {
+    input.setAttribute('aria-expanded', String(!list.hidden));
+    if (list.hidden) input.removeAttribute('aria-activedescendant');
+  }).observe(list, { attributes: true, attributeFilter: ['hidden'] });
   $('#clear-search').onclick = () => {
     clearTimeout(searchTimer);
     input.value = '';
@@ -1550,6 +1564,7 @@ async function updateSuggestions(value) {
   ].slice(0, 10);
 
   list.innerHTML = '';
+  $('#search').removeAttribute('aria-activedescendant');
   if (!entries.length) {
     list.hidden = true;
     return;
@@ -1557,9 +1572,14 @@ async function updateSuggestions(value) {
   for (const entry of entries) {
     const li = document.createElement('li');
     li.setAttribute('role', 'option');
+    li.id = `suggestion-${list.childElementCount}`;
+    li.setAttribute('aria-selected', 'false');
     const kind = document.createElement('span');
     kind.className = 'kind';
-    kind.textContent = entry.type;
+    // The server says what kind it is in English ("folder"); the tag is
+    // written in the page's language, as the filter chip it becomes is.
+    const KIND_LABELS = { folder: 'Folder', camera: 'Camera', concept: 'Search' };
+    kind.textContent = KIND_LABELS[entry.type] ? i18n.t(KIND_LABELS[entry.type]) : entry.type;
     const label = document.createElement('span');
     label.textContent = entry.value;
     li.append(kind, label);
@@ -1589,6 +1609,18 @@ async function updateSuggestions(value) {
 
 /* -- filter bar --------------------------------------------------------- */
 
+/** "11 October" (or its Tamil) for an On this day filter's YYYY-MM-DD: the
+ *  chip read "10-11", which is neither language's way of writing a day. */
+function dayOfYear(day) {
+  const [y, m, d] = day.split('-').map(Number);
+  try {
+    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(i18n.locale(),
+      { day: 'numeric', month: 'long', timeZone: 'UTC' });
+  } catch {
+    return day.slice(5);
+  }
+}
+
 function renderFilterBar() {
   const bar = $('#active-filters');
   bar.innerHTML = '';
@@ -1604,7 +1636,7 @@ function renderFilterBar() {
     state.filters.from = '';
     state.filters.to = '';
   }]);
-  if (state.filters.onThisDay) chips.push([i18n.t('On this day'), state.filters.onThisDay.slice(5), () => (state.filters.onThisDay = '')]);
+  if (state.filters.onThisDay) chips.push([i18n.t('On this day'), dayOfYear(state.filters.onThisDay), () => (state.filters.onThisDay = '')]);
   if (state.filters.near) chips.push([i18n.t('Taken nearby'), state.filters.nearName || i18n.t('Taken nearby'), () => {
     state.filters.near = 0;
     state.filters.nearName = '';
@@ -2149,6 +2181,25 @@ function wireScrubber() {
   const thumb = $('#scrubber-thumb');
   let dragging = false;
 
+  // The rail runs beside the grid itself, not beside the bars above it. Over
+  // the selection bar or the On this day row, its marker sat at the top of
+  // the page, half hidden behind the bar's blur, and the marks did not line
+  // up with the grid they stand for.
+  const scroller = $('#scroller');
+  let railTop = -1;
+  let railHeight = -1;
+  const fit = () => {
+    const top = scroller.offsetTop;
+    const height = scroller.clientHeight;
+    if (top === railTop && height === railHeight) return;
+    railTop = top;
+    railHeight = height;
+    scrubber.style.top = `${top + 8}px`;
+    if (grid?.layout && !scrubber.hidden) buildScrubber();
+  };
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(scroller);
+  fit();
+
   const seek = (clientY) => {
     const rect = scrubber.getBoundingClientRect();
     grid.scrollToRatio((clientY - rect.top) / rect.height);
@@ -2471,6 +2522,13 @@ function onActivity(activity) {
   if (!scan) return;
   // Refresh the gallery when a phase completes, not on every tick.
   const phase = `${scan.status}:${scan.added}:${scan.removed}`;
+  // A scan that had already finished when this page opened is old news: the
+  // page has just loaded what it found. Every visit used to say "116 added,
+  // 0 removed." again, hours later, and load the gallery a second time.
+  if (lastPhase === null) {
+    lastPhase = phase;
+    if (scan.status === 'done' || scan.status === 'error') return;
+  }
   if (phase !== lastPhase && (scan.status === 'done' || scan.status === 'error')) {
     lastPhase = phase;
     refreshStatus();

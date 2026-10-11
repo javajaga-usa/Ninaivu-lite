@@ -243,8 +243,11 @@ async function load() {
 i18n.start().catch(() => {}).then(() => {
   const from = document.getElementById('from');
   if (from) {
+    // Ninaivu's own name is written in the reader's language, as the gallery
+    // writes it (நினைவு); the Tamil line read "Ninaivu இல் இருந்து பகிரப்பட்டது".
+    const name = document.body.dataset.appName || 'Ninaivu';
     from.textContent = i18n.t('Shared from {name}',
-      { name: document.body.dataset.appName || 'Ninaivu' });
+      { name: name === 'Ninaivu' ? i18n.t('Ninaivu') : name });
   }
   load();
 });

@@ -21,6 +21,18 @@ export function today(now = new Date()) {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
+/** "11 October 2025" (or its Tamil) for a YYYY-MM-DD day key. */
+function spelled(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  if (!y || !m || !d) return key;
+  try {
+    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(i18n.locale(),
+      { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  } catch {
+    return key;
+  }
+}
+
 /**
  * `wanted()` says whether the timeline is plain enough to show the row;
  * `open(ids, index, thumbed)` opens the viewer; `seeAll(day)` filters the grid to them.
@@ -43,9 +55,11 @@ export function wireOnThisDay({ wanted, open, seeAll }) {
     try { return localStorage.getItem(HIDDEN_KEY) === today(); } catch { return false; }
   }
 
-  async function refresh() {
+  /** `again`: build the row anew even if it is up to date (a new language). */
+  async function refresh(again = false) {
     const day = today();
     if (!wanted() || hiddenToday()) { row.hidden = true; return; }
+    if (again) shownFor = null;
     if (shownFor === day && list.childElementCount) { row.hidden = false; return; }
     asking?.abort();
     asking = new AbortController();
@@ -75,8 +89,9 @@ export function wireOnThisDay({ wanted, open, seeAll }) {
       button.className = 'otd-tile';
       const ago = Number(day.slice(0, 4)) - Number(key.slice(0, 4));
       const label = ago === 1 ? i18n.t('1 year ago') : i18n.t('{count} years ago', { count: ago });
-      button.setAttribute('aria-label', `${label} · ${key}`);
-      button.title = key;
+      const when = spelled(key);
+      button.setAttribute('aria-label', `${label} · ${when}`);
+      button.title = when;
       if (flags & 2) {
         const img = document.createElement('img');
         img.alt = '';
