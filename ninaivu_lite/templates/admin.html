@@ -101,6 +101,7 @@
       <span class="tab-group-label" aria-hidden="true" data-i18n="Library">Library</span>
       <button role="tab" data-tab="library" data-group="library" aria-selected="false" hidden><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span class="tab-label" data-i18n="Library settings">Library settings</span></button>
       <button role="tab" data-tab="archive" data-group="library" aria-selected="false" hidden><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="17" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/></svg><span class="tab-label" data-i18n="Import">Import</span></button>
+      <button role="tab" data-tab="duplicates" data-group="library" aria-selected="false" hidden><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8.5" y="8.5" width="12" height="12" rx="2"/><path d="M15.5 8.5V5.5a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg><span class="tab-label" data-i18n="Duplicates">Duplicates</span></button>
       <span class="tab-group-label" aria-hidden="true" data-i18n="People & access">People &amp; access</span>
       <button role="tab" data-tab="people" data-group="people" aria-selected="false" hidden><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 5.2a3.5 3.5 0 0 1 0 6.6M18.5 14.5A6.5 6.5 0 0 1 21.5 20"/></svg><span class="tab-label" data-i18n="People">People</span></button>
       <button role="tab" data-tab="visibility" data-group="people" aria-selected="false" hidden><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg><span class="tab-label" data-i18n="Visibility">Visibility</span></button>
@@ -268,6 +269,33 @@
       </div>
     </div>
 
+  </section>
+
+  <!-- Duplicates: read-only. Lite never moves or deletes a file. ------ -->
+  <section class="panel" data-panel="duplicates">
+    <div class="admin-guide">
+      <svg class="admin-guide-art" viewBox="0 0 180 120" aria-hidden="true" focusable="false"><circle class="guide-halo" cx="90" cy="60" r="51"/><rect class="guide-sheet guide-sheet-back" x="43" y="21" width="84" height="80" rx="16" transform="rotate(-12 85 61)"/><rect class="guide-sheet" x="52" y="18" width="84" height="80" rx="16"/><svg x="72" y="30" width="44" height="44" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="12" height="12" rx="2"/><path d="M15.5 8.5V5.5a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg><path class="guide-caption" d="M77 83h34M85 89h18"/><circle class="guide-dot" cx="34" cy="42" r="4"/><path class="guide-spark" d="M147 73v12m-6-6h12M38 84v8m-4-4h8"/></svg>
+      <div class="admin-guide-copy">
+        <p class="admin-guide-kicker" data-i18n="Your guide">Your guide</p>
+        <h2 data-i18n="One memory, in two places.">One memory, in two places.</h2>
+        <p class="admin-guide-description" data-i18n="See where the same photo or video is kept more than once. Nothing here moves or deletes a file.">See where the same photo or video is kept more than once. Nothing here moves or deletes a file.</p>
+        <ul class="admin-guide-topics" aria-label="At a glance" data-i18n-label="At a glance"><li data-i18n="Copies">Copies</li><li data-i18n="Where each one is">Where each one is</li><li data-i18n="Read-only">Read-only</li></ul>
+      </div>
+    </div>
+    <div class="block">
+      <div class="block-head">
+        <div>
+          <h2 data-i18n="Copies in more than one place">Copies in more than one place</h2>
+          <p class="hint" data-i18n="The same file, byte for byte, in more than one folder of the library. Ninaivu Lite only shows where they are: it never moves or deletes a file. To tidy up, remove the copies you do not want in the folders themselves (or in Ninaivu); the next scan updates this list.">The same file, byte for byte, in more than one folder of the
+            library. Ninaivu Lite only shows where they are: it never moves or deletes a file. To
+            tidy up, remove the copies you do not want in the folders themselves (or in Ninaivu);
+            the next scan updates this list.</p>
+        </div>
+      </div>
+      <div class="dup-summary" id="dup-summary" aria-live="polite"></div>
+      <div class="dup-list" id="dup-list"></div>
+      <nav class="dup-pager" id="dup-pager" aria-label="Pages of copies" data-i18n-label="Pages of copies" hidden></nav>
+    </div>
   </section>
 
   <!-- Import ---------------------------------------------------------- -->

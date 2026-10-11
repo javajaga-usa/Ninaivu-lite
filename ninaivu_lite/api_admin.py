@@ -17,11 +17,11 @@ from typing import Any
 
 from flask import Blueprint, Response, jsonify, request
 
-from . import auth, backups, db, export, folders, media
+from . import auth, backups, copies, db, export, folders, media
 from . import importer as importer_rules
 from .api_auth import public_of, sweep_avatar_sources
-from .common import (body, cfg, conn, counted, drop_avatar, fail, folder_ids, importer,
-                     library_exists, require_admin, row_id, scanner, split_library, subtree,
+from .common import (body, cfg, conn, counted, drop_avatar, fail, folder_ids, human_size,
+                     importer, library_exists, require_admin, row_id, scanner, split_library, subtree,
                      visible)
 from .config import clean_house_name
 from .version import COPYRIGHT, LICENCE, __version__
@@ -82,7 +82,7 @@ def _library_summaries() -> list[dict[str, Any]]:
         if root in ids:
             count, size = counted(
                 "SELECT COUNT(*) n, COALESCE(SUM(size), 0) b FROM assets "
-                "WHERE folder_id = ? AND missing = 0", (ids[root],))[0]
+                "WHERE folder_id = ? AND missing = 0 AND live_of IS NULL", (ids[root],))[0]
         out.append({
             "path": root,
             "name": os.path.basename(root.rstrip("\\/")) or root,
@@ -97,7 +97,7 @@ def _library_summaries() -> list[dict[str, Any]]:
 
 def _stats(who: auth.User) -> dict[str, Any]:
     where, params = visible(who)
-    count, pictures, videos, public, family, hidden, size, first, last = counted(
+    count, pictures, videos, public, family, hidden, size, live, first, last = counted(
         f"""SELECT COUNT(*) count,
                    COALESCE(SUM(a.kind = 'picture'), 0) pictures,
                    COALESCE(SUM(a.kind = 'video'), 0) videos,
@@ -105,6 +105,7 @@ def _stats(who: auth.User) -> dict[str, Any]:
                    COALESCE(SUM(a.visibility = 1), 0) family,
                    COALESCE(SUM(a.visibility = 2), 0) hidden,
                    COALESCE(SUM(a.size), 0) bytes,
+                   COALESCE(SUM(a.live_id IS NOT NULL), 0) live,
                    MIN(a.date_key) first_date, MAX(a.date_key) last_date
             FROM assets a WHERE {where}""", params)[0]
     favourites = counted(
@@ -113,7 +114,7 @@ def _stats(who: auth.User) -> dict[str, Any]:
     return {
         "count": count, "pictures": pictures, "videos": videos,
         "audio": 0, "public": public, "family": family, "hidden": hidden,
-        "bytes": size, "live": 0, "favorites": favourites, "nsfw": 0,
+        "bytes": size, "live": live, "favorites": favourites, "nsfw": 0,
         "duplicate_groups": 0, "embedded": 0,
         "first_date": first or "", "last_date": last or "",
     }
@@ -472,7 +473,7 @@ def assignable():
         if root in ids:
             rows = conn().execute(
                 "SELECT dir, COUNT(*) n FROM assets WHERE folder_id = ? AND missing = 0 "
-                "GROUP BY dir", (ids[root],)).fetchall()
+                "AND live_of IS NULL GROUP BY dir", (ids[root],)).fetchall()
         out.append({"path": root, "label": os.path.basename(root.rstrip("\\/")) or root,
                     "depth": 0, "count": sum(r["n"] for r in rows), "is_root": True})
         totals: dict[str, int] = {}
@@ -772,7 +773,7 @@ def folder_tree():
     rows = conn().execute(
         "SELECT dir, COUNT(*) n, SUM(visibility = 0) pub, SUM(visibility = 1) fam, "
         "SUM(visibility = 2) hid FROM assets WHERE folder_id = ? AND missing = 0 "
-        "GROUP BY dir", (folder_id,)).fetchall()
+        "AND live_of IS NULL GROUP BY dir", (folder_id,)).fetchall()
     totals: dict[str, dict[str, int]] = {}
     for row in rows:
         parts = [p for p in row["dir"].split("/") if p]
@@ -804,7 +805,7 @@ def _impact(folder_id: int, folder: str, wanted: int) -> dict[str, Any]:
         f"SELECT COUNT(*) total, COALESCE(SUM(visibility > ?), 0) exposed, "
         f"COALESCE(SUM(visibility < ?), 0) restricted, "
         f"COALESCE(SUM(vis_source = 'item'), 0) decided "
-        f"FROM assets WHERE folder_id = ? AND missing = 0 AND {inside}",
+        f"FROM assets WHERE folder_id = ? AND missing = 0 AND live_of IS NULL AND {inside}",
         [wanted, wanted, folder_id, *params]).fetchone()
     below, below_params = _below(folder)
     child_rules = conn().execute(
@@ -1031,3 +1032,53 @@ def export_download():
     require_admin()
     return _download(export.dumps(conn(), cfg()), "application/json",
                      f"ninaivu-lite-export-{datetime.now():%Y-%m-%d}.json")
+
+
+# --- copies ----------------------------------------------------------------------------
+
+#: Groups of copies on one page of the console's Duplicates list.
+COPIES_PAGE = 20
+
+
+@bp.get("/api/admin/duplicates")
+def duplicates():
+    """The same photograph or video in more than one place in the library,
+    a page of groups at a time, those taking the most room first. Read-only:
+    Ninaivu Lite never moves or deletes a file, so the list says where each
+    copy is and nothing more. Found by the scan (see :mod:`copies`); files it
+    has still to read are counted as ``pending``."""
+    require_admin()
+    found = copies.totals(counted)
+    pages = max(1, -(-found["groups"] // COPIES_PAGE))
+    page = min(row_id(request.args.get("page")) or 1, pages)
+    out = []
+    for group in copies.groups(conn(), (page - 1) * COPIES_PAGE, COPIES_PAGE):
+        items = [{
+            "id": row["id"],
+            "name": row["name"],
+            "kind": row["kind"],
+            "library": row["root"],
+            "dir": row["dir"],
+            # The folder the copy is in, as the computer names it.
+            "folder": os.path.join(row["root"], *[p for p in row["dir"].split("/") if p]),
+            "size": row["size"],
+            "size_h": human_size(row["size"]),
+            "date": row["date_key"] or "",
+            "has_thumb": row["thumb"] != db.THUMB_NONE,
+            "thumb_v": row["thumb_v"] or 0,
+            "visibility": db.VIS_NAMES.get(row["visibility"], "family"),
+            "open": f"/?photo={row['id']}",
+        } for row in group["items"]]
+        out.append({"size": group["size"], "size_h": human_size(group["size"]),
+                    "count": group["count"], "items": items})
+    return jsonify({
+        "groups": out,
+        "page": page,
+        "pages": pages,
+        "per_page": COPIES_PAGE,
+        "total_groups": found["groups"],
+        "extra_copies": found["extra"],
+        "extra_bytes": found["bytes"],
+        "extra_bytes_h": human_size(found["bytes"]),
+        "pending": found["pending"],
+    })

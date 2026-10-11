@@ -18,7 +18,9 @@ What carries across unchanged:
   path inside it, so who sees what is the same after the move;
 * turns and flips set by hand, which exist only in the index;
 * share links: the token is kept, so a link already sent keeps working if
-  Ninaivu answers on the same address.
+  Ninaivu answers on the same address;
+* Live Photos: which short video belongs to which still (``live_photos[]``),
+  as the scan paired them; the video is not shown on its own in Lite.
 """
 
 from __future__ import annotations
@@ -49,7 +51,7 @@ def build(conn: sqlite3.Connection, cfg) -> dict[str, Any]:
     name_of = {uid: r["username"] for uid, r in users.items()}
     assets = {r["id"]: r for r in conn.execute(
         "SELECT a.id, a.dir, a.name, a.visibility, a.vis_source, a.rotation, a.mirror, "
-        "a.rot_source, f.path AS root FROM assets a "
+        "a.rot_source, a.live_of, a.missing, f.path AS root FROM assets a "
         "JOIN folders f ON f.id = a.folder_id")}
 
     out: dict[str, Any] = {
@@ -99,6 +101,12 @@ def build(conn: sqlite3.Connection, cfg) -> dict[str, Any]:
         "turns": [{**_ref(a), "rotation": a["rotation"], "mirror": bool(a["mirror"])}
                   for a in assets.values() if a["rot_source"] == "manual"
                   and (a["rotation"] or a["mirror"])],
+        # A Live Photo's still and its short video, side by side in one folder
+        # (IMG_1234.HEIC and IMG_1234.MOV). Both files are in the library; Lite
+        # plays the video from the still and leaves it out of the grid.
+        "live_photos": [{"photo": _ref(assets[a["live_of"]]), "video": _ref(a)}
+                        for a in assets.values()
+                        if a["live_of"] in assets and not a["missing"]],
         "albums": [],
         "shares": [],
     }

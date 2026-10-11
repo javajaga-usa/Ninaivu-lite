@@ -47,6 +47,8 @@ const ICON = {
   globe: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4a14 14 0 0 1 0 16 14 14 0 0 1 0-16"/></svg>',
   eyeOff: '<svg viewBox="0 0 24 24"><path d="M10.6 5.2A9.7 9.7 0 0 1 12 5c5 0 9 4.5 9 7a11 11 0 0 1-2.2 3.4M6.3 6.6C3.9 8.2 3 10.6 3 12c0 2.5 4 7 9 7 1.6 0 3-.4 4.3-1.1M3 3l18 18"/></svg>',
   check: '<svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-9"/></svg>',
+  // A Live Photo: a still that moves (its short video is played in the viewer).
+  live: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="5.5"/><circle cx="12" cy="12" r="9" stroke-dasharray="1.6 2.4"/></svg>',
 };
 
 /**
@@ -690,6 +692,14 @@ export class Grid extends EventTarget {
       const badge = document.createElement('span');
       badge.className = 'badge kind';
       badge.innerHTML = ICON[kind];
+      node.appendChild(badge);
+    }
+    // A Live Photo (flag 4): its still, which moves in the viewer.
+    if (kind === 'picture' && (cell.flags & 4)) {
+      const badge = document.createElement('span');
+      badge.className = 'badge live';
+      badge.title = i18n.t('Live Photo');
+      badge.innerHTML = ICON.live;
       node.appendChild(badge);
     }
     if (cell.dur) {
