@@ -278,3 +278,113 @@ def test_a_restore_under_a_running_linux_service_says_how_to_stop_it(tmp_path, m
     assert cli.main(["--data", str(tmp_path / "data"), "--restore", str(tmp_path / "x.zip")]) == 2
     said = capsys.readouterr().err
     assert "Control Panel" in said and "sudo systemctl stop ninaivu-lite" in said
+
+
+# --- the first day's Start stays off while the import it started runs ------------------------
+
+FIRST_DAY_PAGE = """<!doctype html><meta charset="utf-8">
+<div id="first-day" hidden><ol id="fd-steps"></ol><button id="fd-skip-all"></button>
+<h2 id="fd-title"></h2><div id="fd-body"></div><p id="fd-note"></p>
+<button id="fd-back"></button><button id="fd-next"></button></div>
+<script type="module">
+import { FirstDay } from '/static/js/first-day.js';
+window.calls = [];
+window.running = false;
+const state = () => ({
+  done: false, people: 0,
+  library: { chosen: true, root: '/photos', roots: ['/photos'] },
+  import: { running: window.running, sources: ['/old'], destination: '/archive' },
+});
+const json = async (url, opts = {}) => {
+  window.calls.push(`${opts.method || 'GET'} ${url}`);
+  if (url === '/api/archive/start') { window.running = true; return { destination: '/archive' }; }
+  if (url === '/api/admin/first-day' && !opts.method) return state();
+  return {};
+};
+const fd = new FirstDay({ json, toast: () => {}, pickFolder: () => {}, openPage: () => {},
+                          refresh: () => {} });
+await fd.maybeOpen();
+window.ready = true;
+</script>"""
+
+
+def test_the_first_day_start_stays_off_until_the_import_has_finished():
+    """Start the import stayed pressable once the import had started, so a
+    second press started it again (or was refused with a cryptic answer)."""
+    sync_api = pytest.importorskip("playwright.sync_api")
+    import os
+    with sync_api.sync_playwright() as playwright:
+        try:
+            chromium = playwright.chromium.launch(
+                executable_path=os.environ.get("NINAIVU_TEST_CHROMIUM") or None)
+        except Exception as exc:  # noqa: BLE001
+            if os.environ.get("NINAIVU_BROWSER_TESTS") == "1":
+                raise
+            pytest.skip(f"no Chromium for Playwright: {exc.__class__.__name__}")
+        page = chromium.new_page()
+        problems: list[str] = []
+        page.on("pageerror", lambda error: problems.append(str(error)))
+
+        def answer(route):
+            path = route.request.url.split("fd.test", 1)[1].split("?", 1)[0]
+            if path == "/":
+                route.fulfill(body=FIRST_DAY_PAGE, content_type="text/html")
+            elif path.startswith("/static/"):
+                file = STATIC / path[len("/static/"):]
+                kind = "application/json" if file.suffix == ".json" else "text/javascript"
+                route.fulfill(body=file.read_bytes() if file.is_file() else b"{}",
+                              content_type=kind, status=200 if file.is_file() else 404)
+            else:
+                route.fulfill(body="{}", content_type="application/json")
+
+        page.route("http://fd.test/**", answer)
+        page.goto("http://fd.test/")
+        page.wait_for_function("window.ready === true")
+        start = page.locator("#fd-start-import")
+        assert start.is_enabled()
+        start.click()
+        page.wait_for_function("window.calls.includes('POST /api/archive/start')")
+        page.wait_for_function("document.querySelector('#fd-start-import').disabled")
+        # Still off on the next look, while the import runs...
+        page.wait_for_function(
+            "window.calls.filter((c) => c === 'GET /api/admin/first-day').length >= 3")
+        assert start.is_disabled()
+        assert page.evaluate("window.calls.filter((c) => c === 'POST /api/archive/start').length") == 1
+        # ...and on again once it has finished (or failed).
+        page.evaluate("window.running = false")
+        page.wait_for_function("!document.querySelector('#fd-start-import').disabled",
+                               timeout=10_000)
+        chromium.close()
+    assert not problems, problems
+
+
+# --- labels in sentence case, like the rest of the app --------------------------------------
+
+
+def test_the_family_app_labels_are_in_sentence_case():
+    en = json.loads((STATIC / "i18n" / "en.json").read_text(encoding="utf-8"))
+    ta = json.loads((STATIC / "i18n" / "ta.json").read_text(encoding="utf-8"))
+    for title, sentence in (("Delete Album", "Delete album"), ("Generate Link", "Generate link"),
+                            ("Create New Album", "Create new album"),
+                            ("Retry Connection", "Retry connection"),
+                            ("Share with Family & Friends", "Share with family & friends")):
+        assert title not in en and title not in ta
+        assert en[sentence] == sentence and sentence in ta
+    sources = "".join(p.read_text(encoding="utf-8") for p in (
+        STATIC / "js" / "app.js", ROOT / "ninaivu_lite" / "templates" / "index.html"))
+    assert "Delete Album" not in sources and "Generate Link" not in sources
+
+
+# --- a Live Photo whose motion this browser cannot play says what to do ----------------------
+
+
+def test_an_unplayable_live_photo_motion_names_a_browser_that_can():
+    """The clip of an iPhone Live Photo is HEVC, which Firefox and Chrome on
+    Windows cannot play; Ninaivu has no transcoder, so the viewer says the
+    photo stays and which browsers show the motion."""
+    key = ("This browser can’t play the motion of this Live Photo. "
+           "The photo stays; try Safari or Edge to see it move.")
+    viewer = (STATIC / "js" / "viewer.js").read_text(encoding="utf-8")
+    assert f"i18n.t('{key}')" in viewer and "could not be played" not in viewer
+    ta = json.loads((STATIC / "i18n" / "ta.json").read_text(encoding="utf-8"))
+    assert "Safari" in ta[key] and "Edge" in ta[key]
