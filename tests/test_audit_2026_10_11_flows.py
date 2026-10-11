@@ -99,7 +99,8 @@ def test_release_notes_take_the_version_section_with_or_without_a_date():
 
     def notes(version: str, changelog: str) -> str:
         return subprocess.run(["awk", "-v", f"v={version}", program], input=changelog,
-                              capture_output=True, text=True, check=True).stdout
+                              capture_output=True, text=True, encoding="utf-8",
+                              check=True).stdout
 
     log = "# Changelog\n\n## 1.13.0\n\nNew things.\n\n## 1.12.0 — 2026-10-10\n\nOld things.\n"
     assert notes("1.13.0", log).strip() == "New things."
