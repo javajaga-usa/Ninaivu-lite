@@ -89,6 +89,79 @@ installer. The photographs and videos are never moved, changed or deleted.
   signed by the Python Software Foundation), so a different file is refused before use, as
   the macOS and Linux builds already did. The build also shows the hash as a run notice.
 
+A sixth complete audit, of everything above together with 1.12.0 (A203-A245 and M43-M77, 78
+problems, one High): security, data safety, speed, the installers and flows, and the screens
+on desktop and phone in English and Tamil. The photographs and videos are still never moved,
+changed or deleted.
+
+- **A212 (High): iPhone HEIC photos indexed before this version are read again.** Earlier
+  installers could not read HEIC, so those photos were in the index as unreadable: plain
+  tiles, filed under the day they were copied, with no place. A scan never reads an unchanged
+  file again, so they would have stayed that way. After each start, the first full walk now
+  reads such rows (HEIC, HEIF, AVIF) again once this copy can read them; a visibility or turn
+  set by hand is kept.
+- **Security.** A203: a very long name typed at sign-in was kept whole in memory (40 tries
+  held 227 MB) and in the log, wiping the sign-in history. A204: with a proxy set on the
+  computer, the Control Panel asked the proxy about its own server, showed it stopped and sent
+  the proxy its stop key; local calls now never use a proxy. A205: names in a zip download
+  that a Windows unzipper reads as folders are made plain. A206: a guest's or share link's copy
+  of a video no longer keeps subtitle tracks, where drones and dashcams write their position.
+  A207-A209: a setup code or stop key in Tamil, a huge undo number and a huge Host header no
+  longer cause a server error or fill the log. A210: failed sign-ins are limited per address
+  too (40 in 5 minutes), whatever name is typed, and at most two passwords are checked at
+  once. A211: a request body over 2 MB is refused as soon as its headers arrive, before a byte
+  is stored, unless it is one of the two picture uploads from someone allowed to make them.
+- **Data safety.** A213: a Live Photo's short video kept in an album, as a favourite or behind
+  a share link no longer vanishes once paired: its photo takes its place. A214: a long video
+  saved over a Live Photo's short video shows again. A215: importing two phones no longer puts
+  one phone's short video beside the other's photo of the same name. A216: an import never
+  writes over a file that arrives at the chosen name meanwhile. A217: the before-update backup,
+  the way back to an older version, is always kept, however many backups follow. A218: a
+  backup cut short is cleared and never listed or counted. A219-A221: damaged GPS is not a
+  place; Photos taken nearby works across the 180° line; 29 February photos show on 28
+  February in other years. A222: a copy to a drive keeps a Live Photo's two files together
+  when the photo has to be renamed. A223: backups, index copies and logs are readable by their
+  owner only on Linux and macOS.
+- **Speed**, measured on 106,000 files. A224: opening a photo stops the gallery fetching
+  thumbnails ahead, so the photo arrives first on a slow link. A225: scrolling reads the page's
+  layout once a frame instead of once a tile (far fewer long pauses on a phone). A226: on a busy
+  computer or a Pi a steady scroll was taken for a jump and nothing was fetched ahead. A227,
+  A231: Duplicates and each scan pass read only files that share a size (0.57 s to under
+  0.1 s). A228: Live Photos are paired only in folders that changed (1.6 s to 1 ms a walk while
+  importing). A229: a HEIC is decoded once for both thumbnails (a first scan of iPhone photos
+  about twice as fast). A230: memory a large photo took is given back (about 790 MB to 340 MB
+  on Linux), which a 1 GB Pi needs.
+- **Installers and flows.** A232: the optional face straightening asks for OpenCV 4 again;
+  OpenCV 5 has no face finder, so it had stopped working. A233-A235, A240, A242, A243: builds
+  take wheels only; CI decodes a real HEIC; release notes for a heading without a date; the
+  browser test opens Duplicates; no pip warning under `sudo`; a release waits for the Docker
+  image. A236: an import says how many files under 24 KB it left out (it had said "0 files
+  archived" for a folder of small pictures). A237-A239, A245: the guides, README and
+  SECURITY.md cover On this day, Photos taken nearby, Live Photos, Duplicates and going back to
+  1.12.0; the guide PDFs are made again. A238: Mac users have a command for
+  `--reset-password` and `--restore`. A241, A244: an index from a newer version, and a restore
+  refused under the Linux service, say what to do. M43-M47: the console's preview said "as
+  undefined" before a folder was chosen; the first-day tour shows the new features; *Start the
+  import* can no longer be pressed twice; labels in sentence case; a Live Photo whose motion
+  the browser cannot play says so and suggests Safari or Edge.
+- **Screens on a computer.** M48: the gallery no longer announces a long-finished scan on every
+  visit (and loads once). M49: console dialogs keep the keyboard inside them. M50-M55: Tamil
+  day headers show their count; the date rail starts below the bars; On this day's chip says
+  "11 October"; a new language redraws the chips and the row; search tags and நினைவு in
+  Tamil. M56: search suggestions are read out by screen readers. M57: four texts made dark
+  enough to read. M58: Safari prefixes, the LIVE badge's included. M59: a mistyped address
+  gets a page in both languages with a way back. M60: the Control Panel's addresses open from
+  the keyboard. M61: the share page's Tamil line reads naturally.
+- **Screens on a phone.** M62: a long press keeps the photo under the finger and no longer
+  eats the next tap. M63: the selection bar is one line. M64: On this day fits a phone on its
+  side and the Pi's screen. M65: the viewer's buttons keep their size on small phones.
+  M66-M67: nothing sits under an iPhone's notch. M68-M73: Tamil day counts, the drawer closes
+  after a pick, the Search key searches, long paths wrap, first-day and profile buttons stay
+  on screen. M74, M77: every button has a 44 px tap area on a touch screen, with nothing drawn
+  changed. M75: sheets fit above Safari's toolbar. M76: pinch-zoom works again; text boxes use
+  16 px on touch screens, so an iPhone no longer zooms into them.
+- The full report, with before and after pictures, is kept with the project's audits.
+
 ## 1.12.0 — 2026-10-10
 
 **The index goes to version 10** (one new column, for Flip), so 1.11.1 and earlier cannot
