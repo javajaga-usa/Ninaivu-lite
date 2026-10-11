@@ -11,6 +11,16 @@ other changes made since are not in it). Stop Ninaivu Lite before installing, as
 Live Photos, a read-only list of copies, On this day, Photos taken nearby and HEIC in every
 installer. The photographs and videos are never moved, changed or deleted.
 
+- **Smoother scrolling through the gallery.** While the gallery scrolls, the thumbnails it is
+  about to reach are fetched ahead of it, as far as the scroll will travel in the next two and
+  a half seconds at its present speed: a fast flick looks up to 12 screens ahead, a slow scroll
+  a screen and a half, and a little is kept ready the other way so turning back finds
+  pictures waiting. Tiles still empty on screen are fetched first, a jump with the scrubber
+  fetches nothing on the way, and a phone set to save data looks half as far. The next part
+  of a long gallery is asked for sooner on a fast scroll, and scrolling does less work per
+  frame (tiles put on the page a few at a time, nothing restyled that has not changed, no
+  hover zoom on tiles passing under a still mouse), which a Raspberry Pi or an older phone
+  feels most.
 - **iPhone HEIC photos in every installer.** The Windows installer, the portable zip, the
   macOS and Linux installers and the Docker image now carry `pillow-heif`, so the HEIC photos
   an iPhone takes show as photographs instead of plain tiles, with no command to run. Running

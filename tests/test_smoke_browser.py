@@ -15,6 +15,7 @@ Chromium to use instead)."""
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -58,6 +59,45 @@ def call(base: str, path: str, token: str, payload: dict) -> dict:
         return json.loads(answer.read())
 
 
+@contextlib.contextmanager
+def serve(tmp: Path, photos: Path, data: Path, count: int):
+    """`python -m ninaivu_lite` on a free port over *photos*, once it has
+    indexed *count* of them: (address, their ids)."""
+    port = free_port()
+    base = f"http://127.0.0.1:{port}"
+    log = open(tmp / "server.log", "w", encoding="utf-8")
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "ninaivu_lite", "--no-browser", "--host", "127.0.0.1",
+         "--port", str(port), "--data", str(data), str(photos)],
+        cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
+    try:
+        ids: list[int] = []
+        deadline = time.monotonic() + 120
+        while time.monotonic() < deadline and len(ids) < count:
+            if proc.poll() is not None:
+                break
+            try:
+                urllib.request.urlopen(base + "/api/health", timeout=2).close()
+                conn = db.connect(data)
+                ids = [r[0] for r in conn.execute("SELECT id FROM assets ORDER BY id")]
+                conn.close()
+            except OSError:
+                pass
+            time.sleep(0.3)
+        if len(ids) < count:
+            log.flush()
+            pytest.fail("the server did not start and index the photos:\n"
+                        + (tmp / "server.log").read_text(encoding="utf-8")[-3000:])
+        yield base, ids
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        log.close()
+
+
 @pytest.fixture(scope="module")
 def server(tmp_path_factory):
     """`python -m ninaivu_lite` on a free port, over eight new photos, with an
@@ -75,31 +115,7 @@ def server(tmp_path_factory):
     token = auth.start_session(conn, admin.id)
     conn.close()
 
-    port = free_port()
-    base = f"http://127.0.0.1:{port}"
-    log = open(tmp / "server.log", "w", encoding="utf-8")
-    proc = subprocess.Popen(
-        [sys.executable, "-m", "ninaivu_lite", "--no-browser", "--host", "127.0.0.1",
-         "--port", str(port), "--data", str(data), str(photos)],
-        cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
-    try:
-        ids: list[int] = []
-        deadline = time.monotonic() + 60
-        while time.monotonic() < deadline and len(ids) < 8:
-            if proc.poll() is not None:
-                break
-            try:
-                urllib.request.urlopen(base + "/api/health", timeout=2).close()
-                conn = db.connect(data)
-                ids = [r[0] for r in conn.execute("SELECT id FROM assets ORDER BY id")]
-                conn.close()
-            except OSError:
-                pass
-            time.sleep(0.3)
-        if len(ids) < 8:
-            log.flush()
-            pytest.fail("the server did not start and index the photos:\n"
-                        + (tmp / "server.log").read_text(encoding="utf-8")[-3000:])
+    with serve(tmp, photos, data, 8) as (base, ids):
         album = call(base, "/api/albums", token, {"name": "Pongal 2019", "ids": ids[:5]})
         album_id = album["id"]
         shares = {
@@ -108,13 +124,6 @@ def server(tmp_path_factory):
                          "password": None})["token"]
             for scope, target in (("album", album_id), ("asset", ids[0]))}
         yield {"base": base, "token": token, "shares": shares}
-    finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=15)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-        log.close()
 
 
 @pytest.fixture(scope="module")
@@ -318,3 +327,77 @@ def test_every_stylesheet_parses_whole(browser, server):
         assert not problems, "\n".join(problems)
     finally:
         page.close()
+
+
+# -- Scrolling fetches ahead of itself -----------------------------------------
+
+@pytest.fixture(scope="module")
+def long_gallery(tmp_path_factory):
+    """A gallery long enough to scroll through: 360 small photos over 30 days."""
+    tmp = tmp_path_factory.mktemp("scroll")
+    photos, data = tmp / "Photos", tmp / "data"
+    for n in range(360):
+        make_jpeg(photos / "2020" / f"p{n:03d}.jpg",
+                  f"2020:{1 + n // 120:02d}:{1 + (n // 12) % 10:02d} 10:{n % 60:02d}:00",
+                  size=(160, 120), color=(n % 256, (n * 7) % 256, (n * 13) % 256))
+    conn = db.connect(data)
+    admin = auth.create_user(conn, "appa", password="admin passphrase", name="Appa",
+                             role="admin")
+    token = auth.start_session(conn, admin.id)
+    conn.close()
+    with serve(tmp, photos, data, 360) as (base, _ids):
+        yield {"base": base, "token": token}
+
+
+SCROLL = """async (speed) => {
+  const scroller = document.querySelector('#scroller');
+  const mounted = new Set();
+  const look = () => document.querySelectorAll('#grid .cell').forEach((c) => mounted.add(c.dataset.id));
+  look();
+  const started = performance.now();
+  let last = started, wasScrolling = false;
+  await new Promise((done) => {
+    const step = (now) => {
+      scroller.scrollTop += speed * (now - last) / 1000;
+      last = now;
+      look();
+      wasScrolling ||= document.querySelector('#grid').classList.contains('is-scrolling');
+      if (now - started < 700) requestAnimationFrame(step); else done();
+    };
+    requestAnimationFrame(step);
+  });
+  const ended = performance.now();
+  const fetched = new Set(performance.getEntriesByType('resource')
+    .filter((e) => e.name.includes('/api/thumb/') && e.startTime > started && e.startTime < ended)
+    .map((e) => new URL(e.name).pathname.split('/').pop()));
+  await new Promise((r) => setTimeout(r, 400));
+  return { ahead: [...fetched].filter((id) => !mounted.has(id)).length,
+           wasScrolling,
+           stillScrolling: document.querySelector('#grid').classList.contains('is-scrolling') };
+}"""
+
+
+def test_scrolling_fetches_thumbnails_ahead_by_speed(browser, long_gallery):
+    """While the gallery scrolls, the pictures it is about to reach are asked
+    for before their tiles are on the page, further ahead the faster it goes."""
+    found = {}
+    for speed in (600, 3000):
+        context = browser.new_context(viewport={"width": 390, "height": 780},
+                                      service_workers="block")
+        context.add_cookies([{"name": auth.SESSION_COOKIE, "value": long_gallery["token"],
+                              "url": long_gallery["base"]}])
+        watched = Watched(context, long_gallery["base"])
+        page = watched.page
+        try:
+            page.goto(long_gallery["base"] + "/")
+            page.wait_for_selector("#grid .cell img.ready")
+            settle(page)
+            page.evaluate("performance.setResourceTimingBufferSize(5000)")
+            found[speed] = page.evaluate(SCROLL, speed)
+            assert not watched.problems, watched.problems
+        finally:
+            context.close()
+    assert found[600]["ahead"] > 0, found
+    assert found[3000]["ahead"] > found[600]["ahead"], found
+    # Hover is held off while moving, and given back once it stops.
+    assert found[3000]["wasScrolling"] and not found[3000]["stillScrolling"], found
