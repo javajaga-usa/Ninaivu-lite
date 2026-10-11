@@ -838,6 +838,11 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 }
 .cell:hover img { transform: scale(1.035); }
 .cell img { transition: opacity .22s var(--ease), transform .35s var(--ease); }
+/* While the grid scrolls under a still mouse, the tiles passing the pointer
+   do not each start the hover zoom: that was a repaint per tile per frame. */
+@media (hover: hover) {
+  .grid.is-scrolling .cell { pointer-events: none; }
+}
 
 .cell .badge {
   position: absolute; z-index: 3; display: flex; align-items: center; gap: 3px;

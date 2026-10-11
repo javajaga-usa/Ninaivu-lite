@@ -33,6 +33,32 @@ const SETTLE_MS = 140;
 /** Screens fetched ahead of where a scroll stopped, in its direction. */
 const PREFETCH_SCREENS = 1.5;
 
+// Thumbnails fetched ahead of the scroll while it moves, beyond the tiles
+// already on the page: as far as the scroll will travel in the next few
+// seconds at its present speed, so a faster scroll looks further ahead and a
+// slow or stopped one less. A little is kept ready the other way too, so
+// turning back finds pictures waiting.
+/** How far ahead, in time, the pictures are fetched: speed × this. */
+const PRELOAD_SECONDS = 2.5;
+/** …never less than this many screens ahead, even standing still… */
+const PRELOAD_MIN_SCREENS = 1.5;
+/** …nor more than this many, however fast. */
+const PRELOAD_MAX_SCREENS = 12;
+/** The other way, in screens: less while flying past. */
+const PRELOAD_BEHIND_SCREENS = 0.75;
+const PRELOAD_BEHIND_FAST = 0.25;
+/** At most this many pictures waiting to be fetched ahead. */
+const PRELOAD_MAX = 160;
+/** How often the list ahead is worked out again while scrolling. */
+const PRELOAD_EVERY_MS = 120;
+/** Faster than this (px/ms) is a jump — the scrubber dragged, End pressed —
+ *  not a scroll: nothing on the way will be looked at, so nothing is fetched
+ *  until it lands. */
+const JUMP = 25;
+/** Tiles off the screen put on the page in one frame; the rest follow in the
+ *  next, so a fast scroll on a slow computer does not stall a frame. */
+const MOUNT_BUDGET = 24;
+
 const KIND_NAMES = ['picture', 'video', 'audio'];
 
 const LONG_PRESS_MS = 450;
@@ -64,10 +90,12 @@ class Prefetcher {
     this.done = new Set();
   }
 
-  want(urls) {
+  /** `keep`: pictures the page now shows itself — a download already under
+   *  way for one is left to finish rather than started again from nothing. */
+  want(urls, keep = null) {
     const wanted = new Set(urls);
     for (const [url, image] of this.active) {
-      if (!wanted.has(url)) {
+      if (!wanted.has(url) && !keep?.has(url)) {
         this.active.delete(url);
         image.removeAttribute('src');      // stops the download
       }
@@ -166,6 +194,12 @@ export class Grid extends EventTarget {
     this.fast = false;
     this.settleTimer = null;
     this.prefetcher = new Prefetcher();
+    this.scrolling = false;
+    this.lastPreload = 0;
+    // How far ahead of the screen, in px, pictures are being fetched (the app
+    // asks for the next piece of the gallery before the scroll reaches it).
+    this.lookahead = 0;
+    this.topUp = null;
 
     this.onScroll = this.onScroll.bind(this);
     this.scroller.addEventListener('scroll', this.onScroll, { passive: true });
@@ -310,6 +344,7 @@ export class Grid extends EventTarget {
       this.frame = null;
       this.measureSpeed();
       this.render();
+      this.preload();
       this.dispatchEvent(new CustomEvent('scroll', {
         detail: {
           top: this.scroller.scrollTop,
@@ -336,11 +371,16 @@ export class Grid extends EventTarget {
     }
     const direction = this.velocity < 0 ? -1 : this.velocity > 0 ? 1 : this.direction;
     // Turned round: what was fetched ahead is now behind.
-    if (direction !== this.direction) this.prefetcher.want([]);
+    const turned = direction !== this.direction;
     this.direction = direction;
     this.lastTop = top;
     this.lastTime = now;
+    if (turned) this.lastPreload = 0;
     this.fast = Math.abs(this.velocity) > FLING;
+    if (!this.scrolling) {
+      this.scrolling = true;
+      this.container.classList.add('is-scrolling');
+    }
     clearTimeout(this.settleTimer);
     this.settleTimer = setTimeout(() => this.settle(), SETTLE_MS);
   }
@@ -367,20 +407,90 @@ export class Grid extends EventTarget {
     this.velocity = 0;
     this.lastTime = 0;
     this.fast = false;
+    this.scrolling = false;
+    this.container.classList.remove('is-scrolling');
     this.render();
+    this.preload(true);
+  }
+
+  /**
+   * Fetch, into the browser's cache, the thumbnails the scroll is about to
+   * reach: beyond the tiles already on the page, as far as it will go in the
+   * next PRELOAD_SECONDS at its present speed, nearest first, and a little
+   * the other way. Run every PRELOAD_EVERY_MS while scrolling, and once when
+   * it stops (`now`), when the sharp pictures are fetched in place of the
+   * small ones a fast scroll gets.
+   */
+  preload(now = false) {
+    const clock = performance.now();
+    if (!now && clock - this.lastPreload < PRELOAD_EVERY_MS) return;
+    this.lastPreload = clock;
     const view = this.scroller.clientHeight;
+    const speed = Math.abs(this.velocity);
+    if (!view || speed > JUMP) {
+      this.lookahead = 0;
+      this.prefetcher.want([], this.shownUrls());
+      return;
+    }
     const top = this.scroller.scrollTop;
-    const [from, to] = this.direction >= 0
-      ? [top + view + OVERSCAN, top + view + OVERSCAN + view * PREFETCH_SCREENS]
-      : [top - OVERSCAN - view * PREFETCH_SCREENS, top - OVERSCAN];
-    const urls = [];
-    for (const cell of visibleRange(this.layout, from, to).cells) {
-      if (!this.mounted.has(cell.n)) {
-        const url = this.cellThumbUrl(cell);
-        if (url) urls.push(url);
+    const bottom = top + view;
+    const [bandTop, bandBottom] = this.band();
+    const down = this.direction >= 0;
+    // Measured from the screen's edge (where the scroll will have travelled),
+    // but always some way past the tiles already on the page.
+    const onPage = down ? bandBottom - bottom : top - bandTop;
+    // A phone that asked to save data gets half the reach.
+    const thrift = navigator.connection?.saveData ? 0.5 : 1;
+    const ahead = Math.max(
+      onPage + thrift * view * (this.scrolling ? PRELOAD_MIN_SCREENS : PREFETCH_SCREENS),
+      thrift * Math.min(view * PRELOAD_MAX_SCREENS, speed * PRELOAD_SECONDS * 1000));
+    const behind = thrift * view * (this.fast ? PRELOAD_BEHIND_FAST : PRELOAD_BEHIND_SCREENS);
+    this.lookahead = ahead;
+
+    const ranges = down
+      ? [[bandBottom, bottom + ahead, bottom, 1], [bandTop - behind, bandTop, top, 3]]
+      : [[top - ahead, bandTop, top, 1], [bandBottom, bandBottom + behind, bottom, 3]];
+    const picks = [];
+    for (const [from, to, edge, weight] of ranges) {
+      if (to <= from) continue;
+      for (const cell of visibleRange(this.layout, from, to).cells) {
+        if (this.mounted.has(cell.n)) continue;
+        const url = this.cellThumbUrl(cell, this.fast);
+        // The far side of the band ahead, or the near side behind: the
+        // distance the scroll has to travel to reach it. Behind counts for
+        // more, since the scroll is going the other way.
+        if (url) picks.push([Math.abs((cell.y + cell.h / 2) - edge) * weight, url]);
       }
     }
-    this.prefetcher.want(urls);
+    picks.sort((a, b) => a[0] - b[0]);
+    const urls = picks.slice(0, PRELOAD_MAX).map((pick) => pick[1]);
+    // Tiles on screen still waiting for their picture come first: while any
+    // is, only one picture ahead is fetched at a time.
+    let waiting = false;
+    for (const node of this.mounted.values()) {
+      const img = node.img;
+      if (img && !img.hidden && !img.complete && this.onScreenNode(node)) {
+        waiting = true;
+        break;
+      }
+    }
+    this.prefetcher.limit = waiting ? 1 : 4;
+    this.prefetcher.want(urls, this.shownUrls());
+  }
+
+  /** The pictures the tiles on the page are showing or fetching. */
+  shownUrls() {
+    const urls = new Set();
+    for (const node of this.mounted.values()) {
+      const src = node.img?.getAttribute('src');
+      if (src) urls.add(src);
+    }
+    return urls;
+  }
+
+  onScreenNode(node) {
+    const cell = this.layout.cells[Number(node.dataset.n)];
+    return !!cell && this.onScreen(cell);
   }
 
   onScreen(cell) {
@@ -394,15 +504,19 @@ export class Grid extends EventTarget {
    * about to be looked at are not queued behind ones a screen further on.
    */
   sharpen(node, cell) {
-    if (this.fast) return;
-    const img = node.querySelector('img');
+    if (this.fast || !node.blurry) return;
+    const img = node.img;
     const full = this.cellThumbUrl(cell);
-    if (!full || !img || img.hidden || img.getAttribute('src') === full) return;
+    if (!full || !img || img.hidden || img.getAttribute('src') === full) {
+      node.blurry = false;
+      return;
+    }
     const top = this.scroller.scrollTop;
     const view = this.scroller.clientHeight;
     if (cell.y + cell.h < top - view / 2 || cell.y > top + view * 1.5) return;
     img.fetchPriority = this.onScreen(cell) ? 'high' : 'auto';
     img.src = full;
+    node.blurry = false;
   }
 
   render() {
@@ -410,21 +524,37 @@ export class Grid extends EventTarget {
     const { cells, headers } = visibleRange(this.layout, top, bottom);
 
     const wanted = new Set();
+    let budget = MOUNT_BUDGET;
+    let deferred = false;
     for (const cell of cells) {
       wanted.add(cell.n);
       let node = this.mounted.get(cell.n);
       if (!node) {
+        // On screen always; further out, only so many a frame.
+        if (budget <= 0 && !this.onScreen(cell)) {
+          deferred = true;
+          continue;
+        }
+        budget -= 1;
         node = this.takeCell(cell);
         this.mounted.set(cell.n, node);
         this.container.appendChild(node);
         this.paintCell(node, cell);
       } else {
-        // Already mounted: reposition, and re-sync the state that can change
-        // without the cell being remounted (selection, keyboard cursor).
-        this.positionCell(node, cell);
+        // Already mounted, and where the layout put it (a new layout mounts
+        // everything afresh): re-sync only the state that can change without
+        // the cell being remounted (selection, keyboard cursor), and only when
+        // it has — every frame touching every tile's style was work a slow
+        // computer felt while scrolling.
         this.syncCellState(node, cell);
         this.sharpen(node, cell);
       }
+    }
+    if (deferred && !this.topUp) {
+      this.topUp = requestAnimationFrame(() => {
+        this.topUp = null;
+        this.render();
+      });
     }
     for (const [index, node] of this.mounted) {
       if (!wanted.has(index)) {
@@ -475,6 +605,7 @@ export class Grid extends EventTarget {
     node.setAttribute('role', 'gridcell');
     node.tabIndex = -1;
     const img = document.createElement('img');
+    node.img = img;
     img.decoding = 'async';
     img.draggable = false;
     img.alt = '';
@@ -603,10 +734,15 @@ export class Grid extends EventTarget {
     this.mountedHeads.clear();
   }
 
-  syncCellState(node, cell) {
-    node.classList.toggle('selected', this.selection.has(cell.id));
-    node.classList.toggle('cursor', this.cursor === cell.n);
-    node.setAttribute('aria-selected', String(this.selection.has(cell.id)));
+  syncCellState(node, cell, force = false) {
+    const selected = this.selection.has(cell.id);
+    const cursor = this.cursor === cell.n;
+    if (!force && node.isSelected === selected && node.isCursor === cursor) return;
+    node.isSelected = selected;
+    node.isCursor = cursor;
+    node.classList.toggle('selected', selected);
+    node.classList.toggle('cursor', cursor);
+    node.setAttribute('aria-selected', String(selected));
   }
 
   positionCell(node, cell) {
@@ -625,7 +761,8 @@ export class Grid extends EventTarget {
     const hasThumb = (cell.flags & 2) !== 0;
     const favorite = (cell.flags & 1) !== 0;
 
-    this.syncCellState(node, cell);
+    this.syncCellState(node, cell, true);
+    node.blurry = false;
     node.classList.toggle('audio-cell', !hasThumb);
     // A video with no picture: the app may have this browser make one.
     if (!hasThumb && kind === 'video') {
@@ -646,6 +783,7 @@ export class Grid extends EventTarget {
       const full = this.cellThumbUrl(cell);
       const url = img.getAttribute('src') === full || !this.fast
         ? full : this.cellThumbUrl(cell, true);
+      node.blurry = url !== full;
       // On screen first. Not "low" for the rest: the band ahead is where the
       // scroll is going, and a low hint let the browser hold those back until
       // they arrived on screen still empty.
@@ -979,6 +1117,7 @@ export class Grid extends EventTarget {
     this.scroller.removeEventListener('scroll', this.onScroll);
     this.resizeObserver.disconnect();
     clearTimeout(this.settleTimer);
+    if (this.topUp) cancelAnimationFrame(this.topUp);
     this.prefetcher.want([]);
   }
 }

@@ -1002,7 +1002,8 @@ async function loadMoreIfNear({ force = false } = {}) {
   if (!force && page.retryAt && Date.now() < page.retryAt) return false;
   const view = grid.scroller.clientHeight || 1;
   const remaining = grid.layout.height - (grid.scroller.scrollTop + view);
-  if (!force && remaining > view * 3) return false;
+  // As far ahead as the grid is fetching pictures: a fast scroll asks sooner.
+  if (!force && remaining > Math.max(view * 3, grid.lookahead + view)) return false;
 
   try {
     page.loading = api.segments(page.filters, page.signal, {
