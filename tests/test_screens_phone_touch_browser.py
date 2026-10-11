@@ -328,3 +328,31 @@ def test_the_first_day_steps_show_their_own_buttons_on_a_small_phone(browser, fi
         assert not errors, errors
     finally:
         context.close()
+
+
+def test_the_share_sheet_hints_fit_a_320px_phone_in_tamil(browser, server):  # noqa: F811
+    context, page, errors = phone(browser, server, 320, 568)
+    context.add_init_script("try { localStorage.setItem('ninaivu.lang', 'ta'); } catch {}")
+    try:
+        page.goto(server["base"] + "/")
+        page.wait_for_selector("#grid .cell img.ready")
+        settle(page)
+        page.locator("#grid .cell").first.tap()
+        page.wait_for_selector("#viewer:not([hidden])")
+        page.tap("#v-share")
+        page.wait_for_selector("#share-modal:not([hidden])")
+        page.wait_for_timeout(200)
+        cut = page.evaluate("""() => [...document.querySelectorAll('#share-modal input[placeholder]')]
+          .filter((i) => i.offsetWidth).map((i) => {
+            const cs = getComputedStyle(i);
+            const room = i.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+            const pen = document.createElement('canvas').getContext('2d');
+            pen.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+            return { hint: i.placeholder, room, width: pen.measureText(i.placeholder).width };
+          }).filter((f) => f.width > f.room)""")
+        assert page.evaluate("document.documentElement.lang") == "ta"
+        # PHONE8: "வேண்டாமென்றால் காலியாக விடுங்கள்" was 260 px in a 220 px field.
+        assert cut == [], cut
+        assert not errors, errors
+    finally:
+        context.close()
