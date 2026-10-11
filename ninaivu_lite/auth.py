@@ -464,6 +464,19 @@ def session_counts(conn: sqlite3.Connection) -> dict[int, int]:
 
 # --- limits -------------------------------------------------------------------------------
 
+#: A throttle key longer than this is kept as its start and a digest: a key
+#: holds a name somebody typed, and a megabyte-long "username" per sign-in
+#: attempt used to be kept whole, a few hundred attempts enough to fill a Pi.
+THROTTLE_KEY_CHARS = 200
+
+
+def _throttle_key(key: str) -> str:
+    if len(key) <= THROTTLE_KEY_CHARS:
+        return key
+    digest = hashlib.sha256(key.encode("utf-8", "surrogatepass")).hexdigest()
+    return f"{key[:THROTTLE_KEY_CHARS - 66]}…{digest}"
+
+
 class Throttle:
     """After *limit* failures for a key within *window* seconds, refuse that key
     until the window has passed. In memory: a restart forgives, which is fine."""
@@ -476,9 +489,13 @@ class Throttle:
     def blocked(self, *keys: str) -> bool:
         now = time.time()
         with self._lock:
-            for key in keys:
+            for key in map(_throttle_key, keys):
                 kept = [t for t in self._fails.get(key, []) if now - t < self.window]
-                self._fails[key] = kept
+                if kept:
+                    self._fails[key] = kept
+                else:
+                    # Asking about a key never stores it: only failures do.
+                    self._fails.pop(key, None)
                 if len(kept) >= self.limit:
                     return True
         return False
@@ -496,12 +513,12 @@ class Throttle:
                     for stale in sorted(self._fails, key=lambda k: self._fails[k][-1])[:5_000]:
                         if len(self._fails[stale]) < self.limit:
                             del self._fails[stale]
-            for key in keys:
+            for key in map(_throttle_key, keys):
                 self._fails.setdefault(key, []).append(now)
 
     def forget(self, *keys: str) -> None:
         with self._lock:
-            for key in keys:
+            for key in map(_throttle_key, keys):
                 self._fails.pop(key, None)
 
 

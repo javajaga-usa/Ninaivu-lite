@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 import logging
+import math
 import os
 import shutil
 import subprocess
@@ -79,6 +80,16 @@ def _number(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError, ZeroDivisionError):
         return None
+
+
+#: Photographs Pillow reads only with a plugin or a newer version: one of
+#: these indexed as unreadable may be readable after an update.
+LATE_READERS = frozenset({"heic", "heif", "avif"})
+
+
+def can_read(ext: str) -> bool:
+    """Whether Pillow, as installed, opens files with this extension (no dot)."""
+    return f".{ext}" in Image.registered_extensions()
 
 
 def kind_of(name: str) -> str | None:
@@ -167,7 +178,10 @@ def read_photo(path: str) -> dict[str, Any]:
                         lat = -lat
                     if str(gps.get(3, "E")).upper().startswith("W"):
                         lon = -lon
-                    info["lat"], info["lon"] = round(lat, 6), round(lon, 6)
+                    # A damaged tag (a zero denominator, 233 degrees) is no place.
+                    if math.isfinite(lat) and math.isfinite(lon) \
+                            and abs(lat) <= 90 and abs(lon) <= 180:
+                        info["lat"], info["lon"] = round(lat, 6), round(lon, 6)
             except Exception:  # noqa: BLE001
                 pass
     info["width"], info["height"] = width, height
@@ -467,8 +481,10 @@ def strip_video(path: str, out: str) -> bool:
                                f"{os.path.splitext(out)[1]}")
     try:
         proc = subprocess.run(
+            # No subtitle or data streams: a drone or a dashcam writes where it
+            # was, second by second, into one (a .mkv keeps it, copied as is).
             [FFMPEG, "-v", "quiet", "-y", "-i", dates.long_path(path), "-map_metadata", "-1",
-             "-map_metadata:s", "-1", "-c", "copy", "-movflags", "+faststart", tmp],
+             "-map_metadata:s", "-1", "-sn", "-dn", "-c", "copy", "-movflags", "+faststart", tmp],
             capture_output=True, timeout=300, check=False,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if proc.returncode == 0 and os.path.getsize(tmp) > 0:

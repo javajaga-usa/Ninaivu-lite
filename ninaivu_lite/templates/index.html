@@ -114,8 +114,9 @@
 
   <div class="searchbar" role="search">
     <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-    <input id="search" type="search" autocomplete="off" spellcheck="false"
+    <input id="search" type="search" autocomplete="off" spellcheck="false" enterkeyhint="search"
            placeholder="Search" aria-label="Search" data-i18n-label="Search"
+           role="combobox" aria-autocomplete="list"
            aria-controls="suggestions" aria-expanded="false">
     <button class="clear-search icon-btn" id="clear-search" hidden aria-label="Clear search" data-i18n-label="Clear search">
       <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
@@ -344,6 +345,9 @@
       </button>
       <strong id="sel-count">0 selected</strong>
       <div class="spacer"></div>
+      <!-- One row that scrolls sideways on a phone, rather than four lines of
+           buttons over the photographs being chosen. -->
+      <div class="sel-actions">
       <button class="btn ghost small" id="sel-all" data-i18n="Select all">Select all</button>
       <button class="btn ghost small" id="sel-fav" data-i18n="Favourite">Favourite</button>
       <button class="btn ghost small" id="sel-unfav" data-i18n="Unfavourite">Unfavourite</button>
@@ -361,6 +365,7 @@
         <button class="btn ghost small" data-sel-vis="public" data-i18n="Everyone">Everyone</button>
         <button class="btn ghost small" data-sel-vis="family" data-i18n="Family">Family</button>
         <button class="btn ghost small" data-sel-vis="hidden" data-i18n="Nobody">Nobody</button>
+      </div>
       </div>
     </div>
 
@@ -532,7 +537,7 @@
 <div class="modal" id="album-modal" hidden role="dialog" aria-modal="true" aria-labelledby="album-modal-title">
   <div class="modal-card narrow">
     <div style="display:flex; justify-content:space-between; align-items:center;">
-      <h2 id="album-modal-title" data-i18n="Add to Album">Add to Album</h2>
+      <h2 id="album-modal-title" data-i18n="Add to album">Add to album</h2>
       <button class="icon-btn" id="album-modal-close-x" aria-label="Close" data-i18n-label="Close"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <p class="hint" id="album-modal-subtitle" data-i18n="Choose an existing album or create a new one.">Choose an existing album or create a new one.</p>
@@ -541,7 +546,7 @@
       <button class="btn primary small" id="album-create-btn" data-i18n="Create">Create</button>
     </div>
     <div class="album-modal-list-wrap">
-      <h4 class="hint" style="margin: 14px 0 8px; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em;" data-i18n="Existing Albums">Existing Albums</h4>
+      <h4 class="hint" style="margin: 14px 0 8px; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em;" data-i18n="Existing albums">Existing albums</h4>
       <div class="album-modal-list" id="album-modal-list"></div>
     </div>
     <div class="modal-foot">
@@ -554,7 +559,7 @@
 <!-- Share Modal -->
 <div class="modal" id="share-modal" hidden role="dialog" aria-modal="true" aria-labelledby="share-title">
   <div class="modal-card narrow">
-    <h2 id="share-title" data-i18n="Share with Family & Friends">Share with Family & Friends</h2>
+    <h2 id="share-title" data-i18n="Share with family & friends">Share with family & friends</h2>
     <p class="hint" data-i18n="Create an expiring, secure link to share this item without needing a permanent login.">Create an expiring, secure link to share this item without needing a permanent login.</p>
     <div class="share-link-box" id="share-link-result" hidden>
       <input type="text" class="share-url-input" id="share-url-text" readonly>
@@ -570,14 +575,14 @@
         </select>
       </label>
       <label class="field">
-        <span data-i18n="Optional Password / PIN">Optional Password / PIN</span>
+        <span data-i18n="Optional password / PIN">Optional password / PIN</span>
         <input type="password" class="input" id="share-password" placeholder="Leave blank for none" data-i18n-placeholder="Leave blank for none">
       </label>
     </div>
     <div class="modal-foot">
       <div class="spacer"></div>
       <button class="btn ghost" id="share-close" data-i18n="Close">Close</button>
-      <button class="btn primary" id="share-create-btn" data-i18n="Generate Link">Generate Link</button>
+      <button class="btn primary" id="share-create-btn" data-i18n="Generate link">Generate link</button>
     </div>
   </div>
 </div>

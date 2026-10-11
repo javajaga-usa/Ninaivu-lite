@@ -145,7 +145,9 @@ def groups(conn: sqlite3.Connection, offset: int, limit: int) -> list[dict[str, 
                        a.thumb, a.thumb_v, a.visibility, a.content_hash, f.path AS root
                 FROM assets a JOIN folders f ON f.id = a.folder_id
                 WHERE a.content_hash IN ({','.join('?' * len(hashes))})
-                  AND {SHOWN_A}
+                  -- by the hashes' own index: "+" keeps SQLite from walking
+                  -- every shown row by (missing, live_of) to find twenty
+                  AND +a.missing = 0 AND +a.live_of IS NULL
                 ORDER BY f.path, a.dir, a.name, a.id""", hashes):
         copies[row["content_hash"]].append(row)
     return [{"size": r["size"], "count": len(copies[r["content_hash"]]),

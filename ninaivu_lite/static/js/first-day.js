@@ -21,6 +21,8 @@ function el(tag, cls, text) {
 }
 
 const STEPS = ['library', 'import', 'people', 'tour'];
+/** How often a running import is asked whether it has finished. */
+const IMPORT_POLL_MS = 1500;
 
 /** The gallery's features, as a family would list them. Written as keys so
  *  the locale guard sees them; shown on the first day's last step. */
@@ -32,6 +34,8 @@ const TOUR = [
   [i18n.key('Share links'), i18n.key('One photo or an album, with a password and an expiry if you like; the visitor\'s copy carries no location.')],
   [i18n.key('Sudar, the photo studio'), i18n.key('Light, colour, detail, crops and looks in the browser, or say it in plain words; the original is never touched.')],
   [i18n.key('Sideways photos put right'), i18n.key('The camera\'s tag, then the faces in a photo, decide which way is up during the scan; a turn by hand in the viewer corrects any.')],
+  [i18n.key('On this day, and nearby'), i18n.key('Above the timeline, the photos taken on this date in earlier years; in a photo\'s details, the ones taken near it.')],
+  [i18n.key('Live Photos and copies'), i18n.key('An iPhone\'s Live Photo shows once and moves when LIVE is pressed; Duplicates, in the console, shows a file kept in more than one place.')],
   [i18n.key('Import old drives'), i18n.key('Sweep cards, phone backups and old disks into one archive filed by date, every copy checked, duplicates left in place.')],
   [i18n.key('Tamil and English'), i18n.key('Every screen in either language, chosen by each person.')],
   [i18n.key('Backups and the Control Panel'), i18n.key('A backup of settings, people and albums whenever you ask; a small window starts, stops and watches Ninaivu Lite.')],
@@ -105,7 +109,24 @@ export class FirstDay {
     this.render();
   }
 
+  /* While an import runs, ask now and then whether it still does: Start
+     stays off until it has finished or failed, so it is not started twice. */
+  watchImport() {
+    if (this.importTimer) return;
+    this.importTimer = setInterval(async () => {
+      await this.reload();
+      if (this.state.import?.running) return;
+      clearInterval(this.importTimer);
+      this.importTimer = null;
+      this.importRunning = false;
+      const box = $('#first-day');
+      if (box && !box.hidden && STEPS[this.step] === 'import') this.render();
+    }, IMPORT_POLL_MS);
+  }
+
   async finish(skipped) {
+    clearInterval(this.importTimer);
+    this.importTimer = null;
     try { await this.json('/api/admin/first-day', { method: 'POST', body: {} }); } catch { /* it will ask again */ }
     $('#first-day').hidden = true;
     this.toast(skipped ? i18n.t('You can do all of this from the pages on the left, any time.')
@@ -244,14 +265,16 @@ export class FirstDay {
         : i18n.t('Choose a folder on a drive with room for everything. It is added to the library when the import starts.'))));
 
     const run = el('div', 'row');
-    const start = el('button', 'btn primary', i18n.t('Start the import'));
+    const busy = this.importRunning || !!this.state.import?.running;
+    if (busy) this.watchImport();
+    const start = el('button', 'btn primary', busy ? i18n.t('Importing…') : i18n.t('Start the import'));
     start.id = 'fd-start-import';
     start.type = 'button';
-    start.disabled = !this.sources.length || !this.destination || !!this.state.import?.running;
+    start.disabled = !this.sources.length || !this.destination || busy;
     start.onclick = () => this.startImport(start);
     run.append(start);
     body.append(run);
-    $('#fd-note').textContent = this.state.import?.running
+    $('#fd-note').textContent = busy
       ? i18n.t('The import is running. Watch it on Import, under Library.')
       : i18n.t('Skipping is fine: Import, under Library, does the same at any time.');
   }
@@ -280,6 +303,7 @@ export class FirstDay {
       // The archive joins the library now, so what the import brings in is
       // indexed as it lands rather than waiting for somebody to add it.
       this.importStarted = true;
+      this.importRunning = true;
       try {
         await this.json('/api/archive/adopt', { method: 'POST', body: { path: this.destination } });
         this.toast(i18n.t('Import started. Watch it on Import, under Library.'));

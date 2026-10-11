@@ -223,10 +223,23 @@ export class Grid extends EventTarget {
     // press on a tile starts selecting, as it does in every photo app.
     this.container.addEventListener('pointerdown', (event) => this.onPressStart(event));
     this.container.addEventListener('pointermove', (event) => this.onPressMove(event));
-    this.container.addEventListener('pointerup', () => this.onPressEnd());
-    this.container.addEventListener('pointercancel', () => this.onPressEnd());
+    // On the window: the tile under the finger may have been redrawn (and
+    // its node moved) by the time the finger lifts.
+    this.onLift = () => this.onPressEnd(true);
+    window.addEventListener('pointerup', this.onLift);
+    window.addEventListener('pointercancel', this.onLift);
+    // That click lands wherever the finger is when it lifts, and the selection
+    // bar that has just appeared moves what is above the grid (On this day)
+    // under it: it is stopped anywhere on the page, not only on a tile.
+    this.onAnyClick = (event) => {
+      if (!this.swallowing()) return;
+      this.swallowUntil = 0;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    window.addEventListener('click', this.onAnyClick, true);
     this.container.addEventListener('contextmenu', (event) => {
-      if (this.press || this.swallowClick) event.preventDefault();
+      if (this.press || this.swallowing()) event.preventDefault();
     });
   }
 
@@ -299,7 +312,29 @@ export class Grid extends EventTarget {
     this.relayout(true);
   }
 
-  /** Keeps the item under the viewport top anchored across relayouts. */
+  /**
+   * How wide a packed day's header must be for its count and "Select all" to
+   * share the second line whole, in the language on screen. The Tamil
+   * "Select all" alone is about 140 px, and a 170 px header cut the count
+   * down to "1…". Measured once per language.
+   */
+  packedHeadWidth() {
+    const lang = i18n.language();
+    if (this.packedHeadFor === lang) return this.packedHead;
+    const probe = this.createHeader();
+    probe.classList.add('packed');
+    probe.style.cssText = 'visibility:hidden;width:auto;left:-10000px;top:0';
+    probe.querySelector('.sub').textContent = formatSection('2000-01-01', 88).sub;
+    this.container.appendChild(probe);
+    const sub = probe.querySelector('.sub').scrollWidth;
+    const button = probe.querySelector('[data-select-section]').getBoundingClientRect().width;
+    probe.remove();
+    // Two px of padding each side and the 6 px column gap.
+    this.packedHead = sub && button ? Math.ceil(sub + button + 10) : 0;
+    this.packedHeadFor = lang;
+    return this.packedHead;
+  }
+
   /** Rewrite the headings on screen in the language just chosen. */
   relabel() {
     for (const node of this.mountedHeads.values()) {
@@ -313,6 +348,10 @@ export class Grid extends EventTarget {
       const select = node.querySelector('[data-select-section]');
       if (select) select.textContent = i18n.t('Select all');
     }
+    // A language whose count and "Select all" need wider packed headers.
+    const before = this.packedHead;
+    this.packedHeadFor = null;
+    if (this.width && this.packedHeadWidth() !== before) this.relayout(true);
   }
 
   relayout(preserveAnchor = false) {
@@ -335,6 +374,7 @@ export class Grid extends EventTarget {
       mode: this.mode,
       zoom: this.zoom,
       gap: this.mode === 'film' ? 2 : 6,
+      packMin: this.packedHeadWidth(),
     });
     this.container.style.height = `${this.layout.height}px`;
 
@@ -649,6 +689,8 @@ export class Grid extends EventTarget {
         const { title, sub } = formatSection(head.key, head.count);
         node.querySelector('.title').textContent = title;
         node.querySelector('.sub').textContent = sub;
+        // A pooled header may have been made in the language used before.
+        node.querySelector('[data-select-section]').textContent = i18n.t('Select all');
         node.dataset.head = head.key;
         node.dataset.firstCell = String(head.firstCell);
         // A packed day's header is only as wide as its own photographs; a
@@ -727,8 +769,13 @@ export class Grid extends EventTarget {
     const node = document.createElement('div');
     node.className = 'section-head';
     node.innerHTML = '<span class="title"></span><span class="sub"></span>'
-      + '<button type="button" data-select-section></button>';
-    node.querySelector('[data-select-section]').textContent = i18n.t('Select all');
+      + `<button type="button" data-select-section>${ICON.check}<span class="label"></span></button>`;
+    // A narrow day shows only the tick (style.css), so the button carries its
+    // name for a screen reader and a pointer either way.
+    const button = node.querySelector('[data-select-section]');
+    button.querySelector('.label').textContent = i18n.t('Select all');
+    button.setAttribute('aria-label', i18n.t('Select all'));
+    button.title = i18n.t('Select all');
     return node;
   }
 
@@ -976,7 +1023,10 @@ export class Grid extends EventTarget {
       x: event.clientX, y: event.clientY,
       timer: setTimeout(() => {
         this.press = null;
-        this.swallowClick = true;           // the click that follows the press
+        // The click some browsers send when the finger lifts. Chrome on
+        // Android sends none after a long press, so the swallow ends shortly
+        // after the lift (onPressEnd) instead of eating the next real tap.
+        this.swallowUntil = Infinity;
         if (this.selection.has(id)) this.selection.delete(id);
         else this.selection.add(id);
         this.lastAnchor = index;
@@ -995,15 +1045,21 @@ export class Grid extends EventTarget {
     }
   }
 
-  onPressEnd() {
+  /** A click now is the one that ends a long press. */
+  swallowing() {
+    return performance.now() < (this.swallowUntil || 0);
+  }
+
+  onPressEnd(lifted = false) {
+    if (lifted && this.swallowUntil === Infinity) this.swallowUntil = performance.now() + 400;
     if (!this.press) return;
     clearTimeout(this.press.timer);
     this.press = null;
   }
 
   onClick(event, isDouble = false) {
-    if (this.swallowClick) {
-      this.swallowClick = false;
+    if (this.swallowing()) {
+      this.swallowUntil = 0;
       return;
     }
     const sectionButton = event.target.closest('[data-select-section]');
@@ -1190,6 +1246,9 @@ export class Grid extends EventTarget {
 
   destroy() {
     this.scroller.removeEventListener('scroll', this.onScroll);
+    window.removeEventListener('pointerup', this.onLift);
+    window.removeEventListener('pointercancel', this.onLift);
+    window.removeEventListener('click', this.onAnyClick, true);
     this.resizeObserver.disconnect();
     clearTimeout(this.settleTimer);
     if (this.topUp) cancelAnimationFrame(this.topUp);

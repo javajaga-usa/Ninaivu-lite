@@ -145,7 +145,9 @@ Write-Host "Noto Sans Tamil in $fonts"
 $wheels = Join-Path $here "wheels"
 if (Test-Path $wheels) { Remove-Item -Recurse -Force $wheels }
 New-Item -ItemType Directory $wheels | Out-Null
-python -m pip wheel --wheel-dir $wheels -r (Join-Path $root "requirements-installer.txt"); Check "pip wheel (requirements)"
+# Wheels only: a package with none for this Python stops the build here, by name,
+# rather than being compiled (pillow-heif cannot be without libheif).
+python -m pip wheel --only-binary=:all: --wheel-dir $wheels -r (Join-Path $root "requirements-installer.txt"); Check "pip wheel (requirements)"
 python -m pip wheel --wheel-dir $wheels --no-deps $root; Check "pip wheel (Ninaivu Lite)"
 
 # Tk, for the Control Panel. The embeddable Python pynsist bundles has no

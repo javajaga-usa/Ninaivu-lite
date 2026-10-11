@@ -553,7 +553,7 @@ export class Viewer extends EventTarget {
         video.onerror = () => {
           stop();
           badge.disabled = true;
-          this.toast?.(i18n.t('The motion of this Live Photo could not be played.'));
+          this.toast?.(i18n.t('This browser can’t play the motion of this Live Photo. The photo stays; try Safari or Edge to see it move.'));
         };
         badge.before(video);
         this.liveVideo = video;

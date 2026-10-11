@@ -462,17 +462,31 @@ class Exporter:
             # A name with : or ? (fine in a Linux library) would fail on the
             # pendrive at every export: it goes under a name the drive takes.
             fat = fat_like(os.path.dirname(root) or root)
+            # A Live Photo's still is placed before its short video, and a
+            # still given another name ("IMG_1 (2).HEIC", a different file
+            # of its name being there) gives its video the same one: left
+            # as IMG_1.MOV, the video would go with the other photograph,
+            # or be taken as there already beside it.
+            plan.sort(key=_live_order)
+            renamed: dict[tuple[str, str], str] = {}
             for src, dest, size in plan:
                 if self.cancel.is_set():
                     raise InterruptedError
                 if fat:
                     dest = fat_name(dest, root)
+                folder, name = os.path.split(dest)
+                stem, ext = os.path.splitext(name)
+                key = (os.path.normcase(folder), stem.casefold())
+                if ext.lower() in LIVE_CLIP_EXTS and key in renamed:
+                    dest = os.path.join(folder, renamed[key] + ext)
                 try:
                     place = _place(dest, size, claimed, there)
                 except OSError as exc:
                     log.warning("export: could not check %s: %s", dest, exc)
                     self._error()
                     continue
+                if ext.lower() in LIVE_STILL_EXTS and place and place != dest:
+                    renamed[key] = os.path.splitext(os.path.basename(place))[0]
                 if place:
                     todo.append((src, place, size))
                 else:
@@ -640,6 +654,18 @@ def fat_name(dest: str, root: str) -> str:
         safe = part.translate(_NOT_ON_FAT).rstrip(". ") or "_"
         parts.append(safe)
     return os.path.join(root, *parts)
+
+
+#: A Live Photo: a still and its short video of the same name (see scanner._pair_live).
+LIVE_STILL_EXTS = {".heic", ".heif", ".jpg", ".jpeg"}
+LIVE_CLIP_EXTS = {".mov", ".mp4"}
+
+
+def _live_order(item: tuple[str, str, int]) -> tuple[str, str, bool, str]:
+    """The export's order: by folder and name, a still before its video."""
+    folder, name = os.path.split(item[1])
+    stem, ext = os.path.splitext(name)
+    return folder, stem.casefold(), ext.lower() in LIVE_CLIP_EXTS, name
 
 
 def _place(dest: str, size: int, claimed: set[str] | None = None,

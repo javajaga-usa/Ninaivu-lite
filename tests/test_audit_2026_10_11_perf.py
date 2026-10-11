@@ -7,8 +7,8 @@ and the memory a large picture took is given back."""
 from __future__ import annotations
 
 import random
+import re
 import sqlite3
-import time
 from datetime import datetime
 from pathlib import Path
 
@@ -70,14 +70,19 @@ def _library_of(app, count: int, seed: int = 7) -> sqlite3.Connection:
     return conn
 
 
-def _took(work, times: int = 3) -> float:
-    """The quickest of a few runs of *work*, in seconds."""
-    best = float("inf")
-    for _ in range(times):
-        began = time.perf_counter()
+def _plans(conn: sqlite3.Connection, work) -> list[str]:
+    """The query plan of every statement *work* runs, one line per step."""
+    statements: list[str] = []
+    conn.set_trace_callback(statements.append)
+    try:
         work()
-        best = min(best, time.perf_counter() - began)
-    return best
+    finally:
+        conn.set_trace_callback(None)
+    lines = []
+    for sql in statements:
+        if sql.lstrip().upper().startswith("SELECT"):
+            lines += [r[3] for r in conn.execute("EXPLAIN QUERY PLAN " + sql)]
+    return lines
 
 
 def test_the_copies_queries_answer_as_before(app):
@@ -95,14 +100,16 @@ def test_the_copies_queries_do_not_read_every_row(app):
     """Opening Library → Duplicates, and every scan, read every row of the
     index to find the few files whose size another has (100,000 rows: 0.6 s
     for the page here, several seconds on a Raspberry Pi)."""
-    conn = _library_of(app, 30_000)
+    conn = _library_of(app, 2000)
     read = lambda sql, params: [tuple(r) for r in conn.execute(sql, params)]  # noqa: E731
-    new = _took(lambda: (copies.groups(conn, 0, 20), copies.totals(read),
-                         copies.to_content_hash(conn)))
-    old = _took(lambda: (conn.execute(
-        f"SELECT * FROM ({OLD_GROUPS}) ORDER BY size * (n - 1) DESC LIMIT 20").fetchall(),
-        conn.execute(OLD_PENDING).fetchall(), conn.execute(OLD_TO_CONTENT).fetchall()))
-    assert new * 2 < old, (new, old)
+    lines = _plans(conn, lambda: (copies.groups(conn, 0, 20), copies.totals(read),
+                                  copies.to_content_hash(conn), copies.to_quick_hash(conn)))
+    reads = [line for line in lines
+             if re.match(r"(SCAN|SEARCH) (assets|a)\b", line) and "COVERING INDEX" not in line]
+    assert reads
+    # Every step that reads rows of the table reads only those of one size or
+    # one hash: the walks of every row (by missing=? and live_of alone) are gone.
+    assert all("size=?" in line or "content_hash=?" in line for line in reads), reads
 
 
 # --- Live Photos: paired where files changed ------------------------------------------------
@@ -251,3 +258,36 @@ def test_giving_memory_back_never_fails(monkeypatch):
     media._give_back_memory()
     monkeypatch.setattr(media, "_LIBC", None)
     media._give_back_memory()
+
+
+def test_a_photo_read_again_counts_as_changed_for_pairing(app, library, monkeypatch):
+    """A HEIC indexed before this computer could read it is read again after a
+    start; its folder is paired again with the rest of what changed."""
+    root, _ = library
+    path = root / "iphone" / "IMG_5.HEIC"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (400, 300), (10, 200, 30)).save(path, "HEIF")
+    make_clip(root / "iphone" / "IMG_5.MOV", datetime(2024, 1, 15, 4, 30), 2.5)
+    real = Image.open
+
+    def no_heif(fp, *args, **kwargs):
+        if str(fp).lower().endswith(".heic"):
+            raise OSError("cannot identify image file")
+        return real(fp, *args, **kwargs)
+
+    monkeypatch.setattr(media.Image, "open", no_heif)
+    rescan(app)
+    monkeypatch.setattr(media.Image, "open", real)
+    s = app.config["SCANNER"]
+    s._reread = set()                 # as after a start, with the library paired since
+    asked = []
+    pair = s._pair_live
+    monkeypatch.setattr(s, "_pair_live", lambda conn, folders=None: asked.append(folders)
+                        or pair(conn, folders))
+    rescan(app)
+    folder = conn_of(app).execute("SELECT id FROM folders").fetchone()[0]
+    assert asked == [{(folder, "iphone")}]
+    found = ids(app)
+    row = conn_of(app).execute("SELECT error, live_id FROM assets WHERE id = ?",
+                               (found["IMG_5.HEIC"],)).fetchone()
+    assert row["error"] is None and row["live_id"] == found["IMG_5.MOV"]

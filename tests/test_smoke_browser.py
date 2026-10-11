@@ -19,6 +19,7 @@ import contextlib
 import json
 import os
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -40,7 +41,7 @@ REQUIRED = os.environ.get("NINAIVU_BROWSER_TESTS") == "1"
 
 LANGUAGES = ["en", "ta"]
 SCREENS = {"phone": (360, 780), "laptop": (1280, 800)}
-ADMIN_PAGES = ["overview", "library", "archive", "people", "visibility", "settings"]
+ADMIN_PAGES = ["overview", "library", "duplicates", "archive", "people", "visibility", "settings"]
 
 
 def free_port() -> int:
@@ -101,13 +102,17 @@ def serve(tmp: Path, photos: Path, data: Path, count: int):
 @pytest.fixture(scope="module")
 def server(tmp_path_factory):
     """`python -m ninaivu_lite` on a free port, over eight new photos, with an
-    administrator (signed in, for the tests) and one family profile."""
+    administrator (signed in, for the tests) and one family profile; one photo is
+    also kept in a second folder, for the Duplicates page."""
     tmp = tmp_path_factory.mktemp("browser")
     photos, data = tmp / "Photos", tmp / "data"
     for n in range(8):
         size = (480, 640) if n % 3 == 0 else (640, 480)
         make_jpeg(photos / "2019" / f"photo-{n}.jpg", f"2019:05:{10 + n:02d} 10:00:00",
                   size=size, color=(30 * n, 110, 200 - 20 * n))
+    # One photo kept twice, so the console's Duplicates page has a group to draw.
+    (photos / "copies").mkdir()
+    shutil.copy2(photos / "2019" / "photo-1.jpg", photos / "copies" / "photo-1.jpg")
     conn = db.connect(data)
     admin = auth.create_user(conn, "appa", password="admin passphrase", name="Appa",
                              role="admin")
@@ -115,7 +120,7 @@ def server(tmp_path_factory):
     token = auth.start_session(conn, admin.id)
     conn.close()
 
-    with serve(tmp, photos, data, 8) as (base, ids):
+    with serve(tmp, photos, data, 9) as (base, ids):
         album = call(base, "/api/albums", token, {"name": "Pongal 2019", "ids": ids[:5]})
         album_id = album["id"]
         shares = {

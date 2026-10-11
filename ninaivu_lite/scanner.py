@@ -111,6 +111,9 @@ class Scanner:
         self._paired = False
         #: Folders whose files came, changed or went in the walk under way.
         self._touched: set[tuple[int, str]] = set()
+        #: Library folders whose unreadable files were read again since this
+        #: scanner started (see _walk_folder).
+        self._reread: set[str] = set()
         #: Goes up whenever the index changes, so cached answers know they are stale.
         self.generation = 0
         self.status: dict[str, Any] = {
@@ -256,9 +259,18 @@ class Scanner:
             where += " AND (" + " OR ".join(["dir = ? OR (dir >= ? AND dir < ?)"] * len(under)) + ")"
             for u in under:
                 args += [u, u + "/", u + "0"]
-        known = {(r["dir"], r["name"]): (r["id"], r["size"], r["mtime"], r["missing"])
+        # A photograph that could not be read for want of a reader this
+        # computer has now (pillow-heif installed since, so an iPhone's HEIC
+        # photographs were indexed as unreadable, under the day they were
+        # copied and without a thumbnail) is read again, once after every
+        # start, for its date, place and picture.
+        readable = {ext for ext in media.LATE_READERS if media.can_read(ext)} \
+            if root not in self._reread else set()
+        known = {(r["dir"], r["name"]): (r["id"], r["size"], r["mtime"], r["missing"],
+                                         r["error"] is not None and r["ext"] in readable)
                  for r in conn.execute(
-                     f"SELECT id, dir, name, size, mtime, missing FROM assets WHERE {where}", args)
+                     "SELECT id, dir, name, ext, size, mtime, missing, error FROM assets "
+                     f"WHERE {where}", args)
                  if under is None or any(r["dir"] == u or r["dir"].startswith(u + "/")
                                          for u in under)}
         seen: set[int] = set()
@@ -395,7 +407,8 @@ class Scanner:
                     continue
                 self.status["found"] += 1
                 row = known.get((rel_dir, name))
-                if row and row[1] == st.st_size and abs(row[2] - st.st_mtime) < 1:
+                if row and row[1] == st.st_size and abs(row[2] - st.st_mtime) < 1 \
+                        and not row[4]:
                     seen.add(row[0])
                     if row[3]:
                         self._touched.add((folder_id, rel_dir))  # back: its pair may be too
@@ -423,6 +436,8 @@ class Scanner:
         flush()
         if self._stop.is_set():
             return
+        if under is None:
+            self._reread.add(root)
         # A folder that could not be read this time (permissions, a flaky
         # disk) says nothing about the photographs in it: they keep their
         # place until a walk that can read it finds them really gone.
@@ -577,8 +592,11 @@ class Scanner:
             clip = min(clips, key=lambda r: (r["live_of"] is None, r["ext"] != "mov", r["id"]))
             still = min(stills, key=lambda r: (r["id"] != clip["live_of"],
                                                r["ext"] not in ("heic", "heif"), r["id"]))
+            # Read again for a clip already paired too: a duration of 0 is
+            # one forgotten when the file changed, and a long video saved
+            # over the clip is a video of its own.
             seconds = clip["duration"] or 0
-            if not seconds and clip["live_of"] != still["id"]:
+            if not seconds:
                 seconds = dates.container_duration(
                     full_path(clip["root"], clip["dir"], clip["name"])) or 0
                 if seconds:
@@ -588,11 +606,37 @@ class Scanner:
         clip_of = {still: clip for clip, still in still_of.items()}
         changes = [(still_of.get(r["id"]), clip_of.get(r["id"]), r["id"]) for r in rows
                    if (r["live_of"], r["live_id"]) != (still_of.get(r["id"]), clip_of.get(r["id"]))]
+        before = {r["id"]: r["live_of"] for r in rows}
+        joined = [(still, clip) for clip, still in still_of.items() if before.get(clip) != still]
+        if joined:
+            # Only the few clips somebody kept somewhere (each table read once).
+            kept = {r[0] for r in conn.execute(
+                "SELECT asset_id FROM album_items UNION SELECT cover_id FROM albums "
+                "UNION SELECT asset_id FROM user_assets WHERE favorite = 1 "
+                "UNION SELECT target_id FROM shares WHERE scope = 'asset'")}
+            joined = [(still, clip) for still, clip in joined if clip in kept]
         if changes or lengths:
             with conn:
                 conn.executemany("UPDATE assets SET duration = ? WHERE id = ? AND size = ? "
                                  "AND mtime = ?", lengths)
                 conn.executemany("UPDATE assets SET live_of = ?, live_id = ? WHERE id = ?", changes)
+                # A clip put in an album, made a favourite or shared while it
+                # was a video of its own (before index version 11, or before
+                # its still was there) goes on being found there: its still,
+                # which plays it, takes its place. The clip's own rows are
+                # kept, for when the pair is undone.
+                for still, clip in joined:
+                    conn.execute("INSERT OR IGNORE INTO album_items (album_id, asset_id, added_at) "
+                                 "SELECT album_id, ?, added_at FROM album_items WHERE asset_id = ?",
+                                 (still, clip))
+                    conn.execute("UPDATE albums SET cover_id = ? WHERE cover_id = ?", (still, clip))
+                    conn.execute("INSERT INTO user_assets (user_id, asset_id, favorite) "
+                                 "SELECT user_id, ?, 1 FROM user_assets "
+                                 "WHERE asset_id = ? AND favorite = 1 "
+                                 "ON CONFLICT (user_id, asset_id) DO UPDATE SET favorite = 1",
+                                 (still, clip))
+                    conn.execute("UPDATE shares SET target_id = ? WHERE scope = 'asset' "
+                                 "AND target_id = ?", (still, clip))
             self.generation += 1
         if changes:
             log.info("Live Photos: %d paired, %d changed", len(still_of), len(changes))

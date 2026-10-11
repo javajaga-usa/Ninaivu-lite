@@ -234,7 +234,10 @@ function applyHomeName(authState) {
 
   // The profile sheet shows the household name as its placeholder, so an
   // empty box reads as "using the household name" rather than "unset".
-  if (profileSheet) profileSheet.houseName = (authState && authState.house_name) || '';
+  // Ninaivu's own name (nobody named the home) is left out, so the sheet
+  // writes it in the page's language (நினைவு) rather than "Ninaivu".
+  const house = (authState && authState.house_name) || '';
+  if (profileSheet) profileSheet.houseName = house === 'Ninaivu' ? '' : house;
 }
 
 // Nobody has named this home, so what the tab and the frame say is Ninaivu's
@@ -310,6 +313,9 @@ function watchSearchHint() {
     renderLibraryName();
     renderFolders();
     syncChips();
+    // The filter chips and the On this day row are built here too.
+    renderFilterBar();
+    onThisDay?.refresh(true);
     // "6 items · 398.1 KB" is built here too, so it would keep the old language.
     if (state.lastCounts) renderCounts(state.lastCounts);
   });
@@ -468,7 +474,7 @@ function setServerOffline(reason = i18n.t('Cannot reach the Ninaivu server.')) {
     const action = $('#empty-action');
     if (action) {
       action.hidden = false;
-      action.textContent = i18n.t('Retry Connection');
+      action.textContent = i18n.t('Retry connection');
       action.onclick = () => checkConnection(true);
     }
   }
@@ -531,7 +537,7 @@ async function checkConnection(manual = false) {
     isCheckingConnection = false;
     if (retryBtn) retryBtn.textContent = i18n.t('Retry now');
     if (emptyAction && $('#empty')?.classList.contains('offline')) {
-      emptyAction.textContent = i18n.t('Retry Connection');
+      emptyAction.textContent = i18n.t('Retry connection');
     }
   }
 }
@@ -1153,7 +1159,11 @@ function wireChrome() {
   document.querySelector('.shell')?.addEventListener('click', (event) => {
     const shell = document.querySelector('.shell');
     if (!shell?.classList.contains('mobile-open')) return;
-    if (event.target.closest('.sidebar') || event.target.closest('#sidebar-toggle')) return;
+    // A view picked in the drawer (a filter, an album, a year, a folder) is
+    // what the person wants to see: the drawer gets out of its way, as a
+    // tap beside it does. Other controls in it (+ album, sort) keep it open.
+    const picked = event.target.closest('.side-item, .album-card, #year-list .chip, #folder-list button');
+    if (!picked && (event.target.closest('.sidebar') || event.target.closest('#sidebar-toggle'))) return;
     shell.classList.remove('mobile-open');
     $('#sidebar-toggle')?.setAttribute('aria-expanded', 'false');
   });
@@ -1514,8 +1524,19 @@ function wireSearch() {
         ? Math.min(options.length - 1, index + 1)
         : Math.max(0, index - 1);
       options.forEach((li, i) => li.setAttribute('aria-selected', String(i === next)));
+      // Said out loud: the focus stays in the box, so a screen reader hears
+      // which suggestion is picked only through the box's active descendant.
+      input.setAttribute('aria-activedescendant', options[next].id);
     } else if (event.key === 'Enter' && active) {
       active.click();
+    } else if (event.key === 'Enter') {
+      // A phone's Search key: search now, and take the suggestions and the
+      // keyboard off the results (they covered most of a phone's screen).
+      clearTimeout(searchTimer);
+      list.hidden = true;
+      state.filters.q = input.value.trim();
+      reload({ resetScroll: true });
+      if (window.matchMedia('(hover: none) and (pointer: coarse)').matches) input.blur();
     } else if (event.key === 'Escape') {
       list.hidden = true;
       input.blur();
@@ -1523,6 +1544,11 @@ function wireSearch() {
   });
 
   input.addEventListener('blur', () => setTimeout(() => (list.hidden = true), 140));
+  // Whichever of the several places hides or shows the list, the box says so.
+  new MutationObserver(() => {
+    input.setAttribute('aria-expanded', String(!list.hidden));
+    if (list.hidden) input.removeAttribute('aria-activedescendant');
+  }).observe(list, { attributes: true, attributeFilter: ['hidden'] });
   $('#clear-search').onclick = () => {
     clearTimeout(searchTimer);
     input.value = '';
@@ -1532,6 +1558,13 @@ function wireSearch() {
     reload({ resetScroll: true });
   };
 }
+
+/** What a suggestion is, in the page's language (it was the raw "folder"). */
+const SUGGESTION_KINDS = {
+  folder: i18n.key('Folder'),
+  camera: i18n.key('Camera'),
+  concept: i18n.key('Search'),
+};
 
 async function updateSuggestions(value) {
   const list = $('#suggestions');
@@ -1552,6 +1585,7 @@ async function updateSuggestions(value) {
   ].slice(0, 10);
 
   list.innerHTML = '';
+  $('#search').removeAttribute('aria-activedescendant');
   if (!entries.length) {
     list.hidden = true;
     return;
@@ -1559,9 +1593,11 @@ async function updateSuggestions(value) {
   for (const entry of entries) {
     const li = document.createElement('li');
     li.setAttribute('role', 'option');
+    li.id = `suggestion-${list.childElementCount}`;
+    li.setAttribute('aria-selected', 'false');
     const kind = document.createElement('span');
     kind.className = 'kind';
-    kind.textContent = entry.type;
+    kind.textContent = i18n.t(SUGGESTION_KINDS[entry.type] || entry.type);
     const label = document.createElement('span');
     label.textContent = entry.value;
     li.append(kind, label);
@@ -1591,6 +1627,18 @@ async function updateSuggestions(value) {
 
 /* -- filter bar --------------------------------------------------------- */
 
+/** "11 October" (or its Tamil) for an On this day filter's YYYY-MM-DD: the
+ *  chip read "10-11", which is neither language's way of writing a day. */
+function dayOfYear(day) {
+  const [y, m, d] = day.split('-').map(Number);
+  try {
+    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(i18n.locale(),
+      { day: 'numeric', month: 'long', timeZone: 'UTC' });
+  } catch {
+    return day.slice(5);
+  }
+}
+
 function renderFilterBar() {
   const bar = $('#active-filters');
   bar.innerHTML = '';
@@ -1606,7 +1654,7 @@ function renderFilterBar() {
     state.filters.from = '';
     state.filters.to = '';
   }]);
-  if (state.filters.onThisDay) chips.push([i18n.t('On this day'), state.filters.onThisDay.slice(5), () => (state.filters.onThisDay = '')]);
+  if (state.filters.onThisDay) chips.push([i18n.t('On this day'), dayOfYear(state.filters.onThisDay), () => (state.filters.onThisDay = '')]);
   if (state.filters.near) chips.push([i18n.t('Taken nearby'), state.filters.nearName || i18n.t('Taken nearby'), () => {
     state.filters.near = 0;
     state.filters.nearName = '';
@@ -1648,7 +1696,7 @@ function renderFilterBar() {
       const delBtn = document.createElement('button');
       delBtn.className = 'btn ghost small';
       delBtn.style.color = 'var(--danger)';
-      delBtn.textContent = i18n.t('Delete Album');
+      delBtn.textContent = i18n.t('Delete album');
       delBtn.onclick = async () => {
         if (!confirm(i18n.t('Delete album “{name}”? Photographs inside will not be deleted.', { name: album.name }))) return;
         try {
@@ -1801,7 +1849,7 @@ function openAlbumModal(ids = []) {
     title.textContent = ids.length === 1 ? i18n.t('Add 1 photo to album') : i18n.t('Add {count} photos to album', { count: ids.length });
     subtitle.textContent = i18n.t('Choose an album or enter a name to create a new one:');
   } else {
-    title.textContent = i18n.t('Create New Album');
+    title.textContent = i18n.t('Create new album');
     subtitle.textContent = i18n.t('Enter a name for the new album:');
   }
 
@@ -2158,6 +2206,25 @@ function wireScrubber() {
   const thumb = $('#scrubber-thumb');
   let dragging = false;
 
+  // The rail runs beside the grid itself, not beside the bars above it. Over
+  // the selection bar or the On this day row, its marker sat at the top of
+  // the page, half hidden behind the bar's blur, and the marks did not line
+  // up with the grid they stand for.
+  const scroller = $('#scroller');
+  let railTop = -1;
+  let railHeight = -1;
+  const fit = () => {
+    const top = scroller.offsetTop;
+    const height = scroller.clientHeight;
+    if (top === railTop && height === railHeight) return;
+    railTop = top;
+    railHeight = height;
+    scrubber.style.top = `${top + 8}px`;
+    if (grid?.layout && !scrubber.hidden) buildScrubber();
+  };
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(scroller);
+  fit();
+
   const seek = (clientY) => {
     const rect = scrubber.getBoundingClientRect();
     grid.scrollToRatio((clientY - rect.top) / rect.height);
@@ -2192,8 +2259,15 @@ function wireGrid() {
 
   grid.addEventListener('selection', (event) => {
     const count = event.detail.ids.length;
+    // The bar comes and goes above the grid. On a phone it is two lines tall,
+    // and the long press that brings it would otherwise slide the photograph
+    // out from under the finger: the grid scrolls by what the bar took.
+    const scroller = $('#scroller');
+    const before = scroller.getBoundingClientRect().top;
     $('#selection-bar').hidden = count === 0;
     $('#sel-count').textContent = i18n.t('{count} selected', { count });
+    const moved = scroller.getBoundingClientRect().top - before;
+    if (moved) scroller.scrollTop += moved;
   });
 
   grid.addEventListener('scroll', (event) => {
@@ -2483,6 +2557,13 @@ function onActivity(activity) {
   if (!scan) return;
   // Refresh the gallery when a phase completes, not on every tick.
   const phase = `${scan.status}:${scan.added}:${scan.removed}`;
+  // A scan that had already finished when this page opened is old news: the
+  // page has just loaded what it found. Every visit used to say "116 added,
+  // 0 removed." again, hours later, and load the gallery a second time.
+  if (lastPhase === null) {
+    lastPhase = phase;
+    if (scan.status === 'done' || scan.status === 'error') return;
+  }
   if (phase !== lastPhase && (scan.status === 'done' || scan.status === 'error')) {
     lastPhase = phase;
     refreshStatus();
@@ -2576,7 +2657,7 @@ function openShareModal(item) {
   if (item?.type === 'album') {
     $('#share-title').textContent = i18n.t('Share album: {name}', { name: item.name });
   } else {
-    $('#share-title').textContent = i18n.t('Share with Family & Friends');
+    $('#share-title').textContent = i18n.t('Share with family & friends');
   }
   $('#share-modal').hidden = false;
 }

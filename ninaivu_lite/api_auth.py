@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
 import re
+import threading
 import time
+from contextlib import contextmanager
 
 from flask import Blueprint, jsonify, request, send_file
 
@@ -31,6 +34,17 @@ throttle_short = auth.Throttle(limit=8, window=300)
 throttle_long = auth.Throttle(limit=20, window=1800)
 throttle_day = auth.Throttle(limit=60, window=86400)
 throttle_setup = auth.Throttle(limit=10, window=300)
+#: And per address whatever the account: a different made-up username each
+#: time used to cost a full password check every time, without end. Forty
+#: in five minutes is far more than a household behind one router gets
+#: wrong, and keeps one address to a check every few seconds.
+throttle_address = auth.Throttle(limit=40, window=300)
+#: Password checks at once (each is scrypt: a core and 16 MB for about 50 ms
+#: on a PC, longer on a Pi): the rest wait their turn, so sign-ins from many
+#: addresses at once cannot take every core.
+CHECKS_AT_ONCE = 2
+CHECK_WAIT = 10.0
+_checks = threading.BoundedSemaphore(CHECKS_AT_ONCE)
 
 COLOR_RE = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 LANG_RE = re.compile(r"^[a-z]{2,3}(-[a-z0-9]{2,8})?$")
@@ -104,7 +118,8 @@ def auth_setup():
     if not _is_local():
         code = str(data.get("setup_code") or "").strip().upper()
         import hmac
-        if not hmac.compare_digest(code, auth.setup_code()):
+        # As bytes: compare_digest refuses text that is not ASCII (a 500).
+        if not hmac.compare_digest(code.encode("utf-8"), auth.setup_code().encode("ascii")):
             throttle_setup.fail(key, "setup:all")
             fail(403, "Enter the setup code shown where Ninaivu Lite was started.",
                  setup_code_required=True)
@@ -125,19 +140,49 @@ def auth_setup():
     return _signed_in(who)
 
 
+def address_key() -> str:
+    """The sender, for the per-address limit: an IPv6 device picks any
+    address in its /64 at will, so the /64 is what counts."""
+    text = (request.remote_addr or "").split("%", 1)[0]
+    try:
+        ip = ipaddress.ip_address(text)
+    except ValueError:
+        return f"addr|{text[:64]}"
+    if ip.version == 6 and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    if ip.version == 6:
+        return f"addr|{ipaddress.ip_network(f'{ip}/64', strict=False)}"
+    return f"addr|{ip}"
+
+
 def _too_many(account: str) -> bool:
     """Whether this address, or anybody but this computer, has used up the
-    tries for *account*."""
+    tries for *account*, or this address its tries for any account."""
     if throttle_short.blocked(f"{request.remote_addr}|{account}"):
         return True
-    return not _is_local() and (throttle_long.blocked(account) or throttle_day.blocked(account))
+    return not _is_local() and (throttle_long.blocked(account) or throttle_day.blocked(account)
+                                or throttle_address.blocked(address_key()))
 
 
 def _failed(account: str) -> None:
-    log.warning("sign-in failed for %r from %s", account, request.remote_addr)
+    # Never the whole of what was typed: one long "username" filled the log
+    # file, and its rotation then dropped every line that came before.
+    log.warning("sign-in failed for %r from %s", account[:100], request.remote_addr)
     throttle_short.fail(f"{request.remote_addr}|{account}")
     throttle_long.fail(account)
     throttle_day.fail(account)
+    throttle_address.fail(address_key())
+
+
+@contextmanager
+def password_check():
+    """One of the :data:`CHECKS_AT_ONCE` password checks, or a 503."""
+    if not _checks.acquire(timeout=CHECK_WAIT):
+        fail(503, "Busy checking other sign-ins. Try again in a moment.")
+    try:
+        yield
+    finally:
+        _checks.release()
 
 
 @bp.post("/api/auth/login")
@@ -149,7 +194,8 @@ def auth_login():
     account = f"account|{known.id}" if known else f"name|{username}"
     if _too_many(account):
         fail(429, "Too many attempts. Wait a few minutes and try again.")
-    who = auth.authenticate(conn(), username, password)
+    with password_check():
+        who = auth.authenticate(conn(), username, password)
     if who is None:
         _failed(account)
         fail(401, "That username and password don't match.")
@@ -171,7 +217,8 @@ def auth_enter():
     account = f"account|{user_id}"
     if _too_many(account):
         fail(429, "Too many attempts. Wait a while and try again.")
-    who = auth.enter_profile(conn(), user_id, str(data.get("secret") or ""))
+    with password_check():
+        who = auth.enter_profile(conn(), user_id, str(data.get("secret") or ""))
     if who is None:
         _failed(account)
         fail(401, "That PIN isn't right." if target.has_pin else "That password isn't right.")

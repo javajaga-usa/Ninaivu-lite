@@ -54,10 +54,14 @@ def setup_logging(data_dir: str) -> None:
         root.addHandler(console)
     try:
         from .control import log_path
+        from .db import owner_only
         folder = Path(data_dir) / "logs"
-        folder.mkdir(parents=True, exist_ok=True)
+        folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+        # The log names people's photographs and folders: its owner's alone.
+        owner_only(folder, folder=True)
         path = log_path(data_dir)
         handler = RotatingFileHandler(path, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+        owner_only(path)
         if path.parent != folder:
             # Only the current log at the top of a portable folder; the older ones in logs/.
             handler.namer = lambda name: str(folder / Path(name).name)
@@ -149,8 +153,8 @@ def restore_backup(data_dir: str | None, bundle: str) -> int:
     if (lock.held_elsewhere(folder)
             or net.already_running(state_port(folder, DEFAULT_PORT), lock.known_instance(folder))
             or not lock.acquire(folder)):
-        print(f"  {APP_NAME} is running. Stop it (Control Panel, Stop) and run this again.",
-              file=sys.stderr)
+        print(f"  {APP_NAME} is running. Stop it (Control Panel, Stop; on a Linux server, "
+              "sudo systemctl stop ninaivu-lite) and run this again.", file=sys.stderr)
         return 2
     try:
         aside = backups.restore(folder, bundle)
@@ -218,20 +222,37 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def serve(app, host: str, port: int) -> None:
     try:
-        from waitress import serve as waitress_serve
+        server = make_server(app, host, port)
     except ImportError:
         logging.getLogger(__name__).warning(
             "waitress is not installed; using Flask's built-in server")
         app.run(host=host, port=port, threaded=True, use_reloader=False)
         return
-    from . import parallel
+    server.print_listen("Serving on http://{}:{}")
+    server.run()
+
+
+def make_server(app, host: str, port: int):
+    """The waitress server for *app* (ImportError without waitress)."""
+    from waitress import create_server
+    from waitress.server import BaseWSGIServer
+
+    from . import early, parallel
     from .app import MAX_REQUEST_BYTES
     # Sixteen threads for a household, the heavy work on them limited
     # (parallel.Slots) so a few are always free; a body larger than any route
     # takes is refused by waitress before Flask sees it; a connection that
     # sends nothing for a minute is dropped rather than holding a thread.
-    waitress_serve(app, host=host, port=port, threads=parallel.SERVER_THREADS, ident=APP_NAME,
-                   max_request_body_size=MAX_REQUEST_BYTES, channel_timeout=60)
+    server = create_server(app, host=host, port=port, threads=parallel.SERVER_THREADS,
+                           ident=APP_NAME, max_request_body_size=MAX_REQUEST_BYTES,
+                           channel_timeout=60)
+    # And a body larger than a JSON call is read only for a route that takes
+    # a picture, from someone signed in who may send one (see early).
+    channel = early.channel_class(app.config["LITE"].data_dir)
+    for listener in [server, *getattr(server, "map", {}).values()]:
+        if isinstance(listener, BaseWSGIServer):
+            listener.channel_class = channel
+    return server
 
 
 def main(argv: list[str] | None = None) -> int:

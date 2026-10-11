@@ -61,6 +61,8 @@ LOCAL_SUFFIXES = ("", ".local", ".lan", ".home", ".home.arpa", ".internal", ".lo
 
 
 _hosts_refused: set[str] = set()
+#: At most this much of a name from a request is kept or logged.
+LOGGED_CHARS = 200
 
 
 def refuse_host(host: str):
@@ -68,6 +70,8 @@ def refuse_host(host: str):
     NAS's name, after 1.6.0 started checking): said once in the log, with the
     name to add, and as a page a person can read, not raw JSON."""
     name = host.rsplit(":", 1)[0] if not host.endswith("]") else host
+    # A name is short; a header can be a quarter of a megabyte, kept and logged.
+    name = name[:LOGGED_CHARS]
     if name not in _hosts_refused and len(_hosts_refused) < 100:
         _hosts_refused.add(name)
         log.warning("refused a request for %r: add it to allowed_hosts in settings.json "
@@ -453,10 +457,23 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
                    500: "Something went wrong on the server."}.get(code, "Something went wrong.")
         if request.path.startswith("/api/"):
             return ApiError(code, message).get_response()
+        if code == 404 and request.method in ("GET", "HEAD"):
+            # A mistyped address or an old bookmark: Werkzeug's own page was
+            # English only, unstyled, with no way back to the gallery.
+            return app.response_class(
+                "<!doctype html><meta charset=utf-8>"
+                "<meta name=viewport content='width=device-width,initial-scale=1'>"
+                "<meta name=color-scheme content='light dark'><title>Ninaivu Lite</title>"
+                "<main style='font:16px/1.6 system-ui,sans-serif;margin:3rem auto;"
+                "max-width:30rem;padding:0 16px'>"
+                "<p>That page isn't here. / அந்தப் பக்கம் இங்கே இல்லை.</p>"
+                "<p><a href='/'>Open the gallery / கேலரியைத் திற</a></p></main>",
+                404, mimetype="text/html")
         if isinstance(exc, HTTPException) and code != 500:
             return exc
         return app.response_class(
-            "<!doctype html><meta charset=utf-8><title>Ninaivu Lite</title>"
+            "<!doctype html><meta charset=utf-8>"
+            "<meta name=color-scheme content='light dark'><title>Ninaivu Lite</title>"
             "<p style='font:16px system-ui;margin:3rem auto;max-width:30rem'>"
             "Something went wrong. Please go back and try again. "
             "/ ஏதோ தவறு நடந்துவிட்டது. பின்சென்று மீண்டும் முயலவும்.</p>",
