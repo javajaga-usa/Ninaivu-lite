@@ -307,7 +307,7 @@ def test_a51_the_console_is_told_of_family_profiles_without_a_pin(app, admin):
     en = json.loads((static / "i18n" / "en.json").read_text(encoding="utf-8"))
     ta = json.loads((static / "i18n" / "ta.json").read_text(encoding="utf-8"))
     key = next(k for k in en if k.startswith("Visitors must sign in, but anyone"))
-    assert key in (static / "js" / "admin.js").read_text(encoding="utf-8")
+    assert key in (static / "js" / "console" / "library.js").read_text(encoding="utf-8")
     assert "{names}" in ta[key] and ta[key] != key
 
 

@@ -130,7 +130,7 @@ def test_only_the_heart_is_filled_when_lit():
 # -- Tamil ---------------------------------------------------------------------
 
 def test_the_preview_names_a_role_in_the_page_language():
-    admin = read(JS / "admin.js")
+    admin = read(JS / "console" / "overview.js")
     assert "i18n.t(data.role_label || data.as)" in admin
     ta = json.loads(read(STATIC / "i18n" / "ta.json"))
     for role in ("Guest", "Family member"):

@@ -556,7 +556,7 @@ def test_a77_removing_a_folder_says_assignments_are_kept(app, admin, library, tm
     r = admin.delete("/api/admin/libraries", query_string={"path": str(more)})
     assert r.status_code == 409
     assert "forgets" not in r.get_json()["error"]
-    js = read("ninaivu_lite/static/js/admin.js")
+    js = read("ninaivu_lite/static/js/console/library.js")
     assert "assignments cleared" not in js and "clear those assignments" not in js
     assert "see nothing until you reassign them" in js
     for lang in ("en", "ta"):

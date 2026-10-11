@@ -208,7 +208,7 @@ def test_a84_the_undo_strip_undoes_the_change_it_names(app, admin):
     vis = dict(c.execute("SELECT name, visibility FROM assets WHERE name IN "
                          "('beach.jpg', 'sunset.jpg')").fetchall())
     assert vis == {"beach.jpg": db.VIS_FAMILY, "sunset.jpg": db.VIS_HIDDEN}
-    admin_js = read(JS / "admin.js")
+    admin_js = read(JS / "console" / "visibility.js")
     assert "strip.dataset.batch = String(last.id)" in admin_js
     undo = admin_js[admin_js.index("async function undoLastVisibility()"):]
     assert "adminApi.undoVisibility(named)" in undo[:undo.index("\n}\n")]
