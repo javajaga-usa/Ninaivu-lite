@@ -237,6 +237,12 @@ export class Viewer extends EventTarget {
     });
 
     this.stage.addEventListener('wheel', (event) => this.onWheel(event), { passive: false });
+    // Pinch on the photograph zooms the photograph (onPointerMove), not the
+    // page. The page may be pinch-zoomed elsewhere; Safari on an iPhone asks
+    // through its own gesture events, which touch-action alone does not stop.
+    for (const type of ['gesturestart', 'gesturechange']) {
+      this.stage.addEventListener(type, (event) => event.preventDefault(), { passive: false });
+    }
     this.stage.addEventListener('pointerdown', (event) => this.onPointerDown(event));
     this.stage.addEventListener('pointermove', (event) => this.onPointerMove(event));
     this.stage.addEventListener('pointerup', (event) => this.onPointerUp(event));

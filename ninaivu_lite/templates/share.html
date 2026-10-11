@@ -183,6 +183,17 @@
     form { margin-top: 0; padding: 16px 22px; gap: 8px; }
     form::before { width: 34px; height: 34px; border-radius: 11px; background-size: 20px 20px; }
   }
+  /* Touch: Open, LIVE and the video's buttons are drawn at 24-41 px. Each
+     takes taps over at least 44 px each way, centred on it, without growing
+     what is drawn (:where keeps LIVE placed where it is). */
+  @media (hover: none) and (pointer: coarse) {
+    :where(button) { position: relative; }
+    button::after {
+      content: ""; position: absolute; left: 50%; top: 50%;
+      width: 100%; height: 100%; min-width: 44px; min-height: 44px;
+      transform: translate(-50%, -50%);
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
     main, form, .grid a { animation: none; }
     .grid a, .grid img, button { transition: none; }
