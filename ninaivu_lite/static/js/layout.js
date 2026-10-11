@@ -409,17 +409,21 @@ export function sectionAt(layout, offset) {
   if (!list.length) return null;
   let lo = 0;
   let hi = list.length - 1;
-  let found = list[0];
+  let at = 0;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
     if (list[mid].y <= offset) {
-      found = list[mid];
+      at = mid;
       lo = mid + 1;
     } else {
       hi = mid - 1;
     }
   }
-  return found;
+  // DESK1: small days share a row (packed), each header at the row's height.
+  // The row is the first of its days, the one read first: the last of them
+  // had Jump to say "Jul 2026" over a top row that starts in September.
+  while (at > 0 && list[at - 1].y === list[at].y) at -= 1;
+  return list[at];
 }
 
 export { HEADER_H };

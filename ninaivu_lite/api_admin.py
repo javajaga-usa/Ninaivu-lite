@@ -277,20 +277,24 @@ def _shortcuts() -> list[dict[str, str]]:
             continue
         seen.add(_norm(root))
         name = os.path.basename(root.rstrip("\\/")) or root
-        out.append({"name": f"{name} (current)" if root == c.active_folder else name,
-                    "path": root})
+        shortcut = {"name": f"{name} (current)" if root == c.active_folder else name,
+                    "path": root}
+        if root == c.active_folder:
+            # DESK6: the page words "(current)" in its own language; "name"
+            # stays as it was for anything that reads it whole.
+            shortcut.update(current=True, base=name)
+        out.append(shortcut)
     for point in folders.starting_points():
         path = point["path"]
         if _norm(path) in seen:
             continue
         seen.add(_norm(path))
+        shortcut = {"name": point["name"], "path": path}
         if _norm(path) == home:
-            label = "Home"
+            shortcut.update(name="Home", home=True)
         elif len(path) <= 3 and path[1:2] == ":":
-            label = f"{path[0].upper()}: drive"
-        else:
-            label = point["name"]
-        out.append({"name": label, "path": path})
+            shortcut.update(name=f"{path[0].upper()}: drive", drive=path[0].upper())
+        out.append(shortcut)
     return out[:14]
 
 

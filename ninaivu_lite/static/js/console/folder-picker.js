@@ -18,6 +18,16 @@ let browseSelectable = false;
  */
 let picker = null;
 
+/** A shortcut's name in the page's language (DESK6): the server said
+ *  "Photos (current)", "Home" and "C: drive" in English on a Tamil page. A
+ *  folder's own name is left as it is on the disk. */
+function shortcutName(shortcut) {
+  if (shortcut.current) return i18n.t('{name} (current)', { name: shortcut.base });
+  if (shortcut.home) return i18n.t('Home folder');
+  if (shortcut.drive) return i18n.t('{letter}: drive', { letter: shortcut.drive });
+  return shortcut.name || shortcut.path;
+}
+
 export function openFolderPicker(options = {}) {
   picker = {
     start: options.start ?? (state.overview?.library?.root || ''),
@@ -77,7 +87,7 @@ async function loadBrowse(path) {
   if (data.shortcuts?.length) {
     const bar = el('div', 'fm-shortcuts');
     for (const shortcut of data.shortcuts) {
-      const chip = el('button', 'chip', shortcut.name || shortcut.path);
+      const chip = el('button', 'chip', shortcutName(shortcut));
       chip.type = 'button';
       chip.title = shortcut.path;
       chip.onclick = () => loadBrowse(shortcut.path);

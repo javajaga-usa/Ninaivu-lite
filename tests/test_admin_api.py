@@ -130,7 +130,8 @@ def test_browse(admin, library, tmp_path):
     assert [d["name"] for d in data["dirs"]] == ["2019", "family"]     # hidden skipped
     assert data["dirs"][0]["path"] == str(root / "2019")
     assert data["selectable"] is True
-    assert {"name": "Photos (current)", "path": str(root)} in data["shortcuts"]
+    assert {"name": "Photos (current)", "path": str(root),
+            "current": True, "base": "Photos"} in data["shortcuts"]
     data = admin.get("/api/library/browse", query_string={"path": str(root / "family")})
     assert [d["name"] for d in data.get_json()["dirs"]] == ["pongal"]
     r = admin.get("/api/library/browse", query_string={"path": str(tmp_path / "nope")})
