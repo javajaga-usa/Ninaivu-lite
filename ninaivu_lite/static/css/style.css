@@ -851,6 +851,8 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 .cell .kind { left: 6px; bottom: 6px; padding: 3px; }
 .cell .vis { left: 6px; bottom: 6px; padding: 3px; }
 .cell .kind ~ .vis { left: 32px; }
+.cell .live { left: 6px; bottom: 6px; padding: 3px; }
+.cell .live ~ .vis { left: 32px; }
 .cell .fav { right: 6px; top: 6px; padding: 3px; color: #ff6b8a; }
 .cell .fav svg { fill: currentColor; stroke: none; }
 
@@ -1977,6 +1979,29 @@ body[data-role="guest"] .segmented button[data-layout="film"] { display: none; }
   0% { transform: scale(0.9); opacity: 0.8; }
   50% { transform: scale(1.3); opacity: 1; }
   100% { transform: scale(0.9); opacity: 0.8; }
+}
+/* In the viewer the badge is the control: press to see the motion once,
+   hold to keep it moving. Above the picture, below the top bar. The dot
+   pulses only while it plays. */
+.viewer-stage > .live-badge {
+  top: 70px; left: max(16px, env(safe-area-inset-left)); right: auto; z-index: 6;
+  pointer-events: auto; cursor: pointer;
+  font: inherit; font-size: 11px; font-weight: 750;
+  padding: 5px 9px; gap: 6px; border-radius: 8px;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.viewer-stage > .live-badge svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+.viewer-stage > .live-badge:hover, .viewer-stage > .live-badge:focus-visible { background: rgba(0, 0, 0, .85); }
+.viewer-stage > .live-badge:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.viewer-stage > .live-badge .live-dot { display: none; }
+.viewer-stage > .live-badge.playing .live-dot { display: block; animation: pulse-live 1.5s infinite; }
+/* The motion plays over the still, in the same place and the same size. */
+.viewer-stage > img, .viewer-stage > video.live-motion { grid-area: 1 / 1; }
+.viewer-stage > video.live-motion { pointer-events: none; opacity: 0; transition: opacity .15s var(--ease); }
+.viewer-stage > video.live-motion.playing { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .viewer-stage > .live-badge.playing .live-dot { animation: none; }
 }
 
 /* ── Duplicates review ─────────────────────────────────────────────────── */

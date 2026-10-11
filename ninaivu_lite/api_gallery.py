@@ -47,6 +47,7 @@ from .common import (
     importer as engine,
     json_sent,
     library_exists,
+    motion_of,
     remembered_page,
     require_admin,
     require_family,
@@ -231,7 +232,7 @@ def root_label(who: auth.User) -> str:
 
 #: library_stats' columns, in the order its query reads them.
 STATS_COLUMNS = ("count", "bytes", "favorites", "pictures", "videos", "hidden", "public",
-                 "first_date", "last_date")
+                 "live", "first_date", "last_date")
 
 
 def library_stats(who: auth.User) -> dict[str, Any]:
@@ -243,6 +244,7 @@ def library_stats(who: auth.User) -> dict[str, Any]:
                    COALESCE(SUM(a.kind = 'video'), 0) AS videos,
                    COALESCE(SUM(a.visibility = 2), 0) AS hidden,
                    COALESCE(SUM(a.visibility = 0), 0) AS public,
+                   COALESCE(SUM(a.live_id IS NOT NULL), 0) AS live,
                    MIN(NULLIF(a.date_key, '')) AS first_date,
                    MAX(NULLIF(a.date_key, '')) AS last_date
             FROM assets a
@@ -251,7 +253,7 @@ def library_stats(who: auth.User) -> dict[str, Any]:
     out = dict(zip(STATS_COLUMNS, row, strict=True))
     out["first_date"] = out["first_date"] or ""
     out["last_date"] = out["last_date"] or ""
-    out.update(live=0, audio=0, duplicate_groups=0, nsfw=0, embedded=0)
+    out.update(audio=0, duplicate_groups=0, nsfw=0, embedded=0)
     return out
 
 
@@ -463,7 +465,7 @@ def grid_page(who: auth.User, where: str, args: list[Any], sort: str, limit: int
     total = cur.execute(f"SELECT COUNT(*) FROM assets a WHERE {where}", args).fetchone()[0]
     rows = cur.execute(
         f"""SELECT a.id, a.width, a.height, a.kind, a.visibility, a.duration, a.thumb,
-                   a.thumb_v, a.color, a.date_key
+                   a.thumb_v, a.color, a.date_key, a.live_id
             FROM assets a WHERE {where} ORDER BY {SORTS[sort]} LIMIT ? OFFSET ?""",
         [*args, limit, offset]).fetchall()
     favs = favourite_ids(who) if rows else set()
@@ -471,11 +473,12 @@ def grid_page(who: auth.User, where: str, args: list[Any], sort: str, limit: int
     out: list[dict[str, Any]] = []
     current_key: str | None = None
     items: list[list[Any]] = []
-    for aid, width, height, kind, vis, duration, thumb, thumb_v, color, day in rows:
+    for aid, width, height, kind, vis, duration, thumb, thumb_v, color, day, live in rows:
         aspect = round(width / height * 100) if width and height else 100
         aspect = 30 if aspect < 30 else 400 if aspect > 400 else aspect
         has_thumb = thumb != db.THUMB_NONE
         flags = ((1 if aid in favs else 0) | (2 if has_thumb else 0)
+                 | (4 if live else 0)   # a Live Photo
                  | (64 if vis == db.VIS_PUBLIC else 0) | (128 if vis == db.VIS_HIDDEN else 0))
         key = day or "unknown"
         if key != current_key:
@@ -732,8 +735,15 @@ def set_visibility():
                                                affected, exposed)
                VALUES (?, ?, 'items', ?, ?, ?)""",
             (time.time(), who.id, level, len(ids), exposed)).lastrowid
+        # A Live Photo's short video goes with its still (and comes back with
+        # it on undo): it is never chosen on its own, so it never would.
+        changed = list(ids)
         for start in range(0, len(ids), IN_CHUNK):
             piece = ids[start:start + IN_CHUNK]
+            changed += [r[0] for r in c.execute(
+                f"SELECT id FROM assets WHERE live_of IN ({','.join('?' * len(piece))})", piece)]
+        for start in range(0, len(changed), IN_CHUNK):
+            piece = changed[start:start + IN_CHUNK]
             marks = ",".join("?" * len(piece))
             c.execute(
                 f"""INSERT INTO visibility_undo (batch_id, asset_id, visibility, vis_source)
@@ -960,7 +970,9 @@ def guarded_file(row: sqlite3.Row, who: auth.User) -> Response:
 
 @bp.get("/api/file/<int:asset_id>")
 def file(asset_id: int):
-    return guarded_file(visible_asset(asset_id), user())
+    # A Live Photo's short video is not in the grid, but is played from its
+    # still: sent to whoever may see that still, and nobody else.
+    return guarded_file(visible_asset(asset_id, motion=True), user())
 
 
 @bp.get("/api/preview/<int:asset_id>")
@@ -1097,7 +1109,7 @@ def download_zip():
     for start in range(0, len(seen), IN_CHUNK):
         piece = seen[start:start + IN_CHUNK]
         for row in conn().execute(
-                f"SELECT a.id, a.dir, a.name, f.path AS root FROM assets a "
+                f"SELECT a.id, a.folder_id, a.dir, a.name, a.live_id, f.path AS root FROM assets a "
                 f"JOIN folders f ON f.id = a.folder_id WHERE a.id IN "
                 f"({','.join('?' * len(piece))})", piece):
             rows[row["id"]] = row
@@ -1107,17 +1119,21 @@ def download_zip():
     entries: list[tuple[str, str]] = []
     missing: list[str] = []
     for asset_id in seen:
-        row = rows[asset_id]
-        name = unique_name(taken, row["name"])
-        try:
-            path = asset_path(row)
-        except ApiError:
-            missing.append(name)
-            continue
-        if os.path.isfile(long_path(path)):
-            entries.append((name, path))
-        else:
-            missing.append(name)
+        # A Live Photo goes with its short video, as the phone made it.
+        motion = motion_of(rows[asset_id]) if rows[asset_id]["live_id"] else None
+        for row in (rows[asset_id], motion):
+            if row is None:
+                continue
+            name = unique_name(taken, row["name"])
+            try:
+                path = asset_path(row)
+            except ApiError:
+                missing.append(name)
+                continue
+            if os.path.isfile(long_path(path)):
+                entries.append((name, path))
+            else:
+                missing.append(name)
     if not entries:
         fail(404, "None of those files can be read right now.")
     if len(seen) == 1:

@@ -166,6 +166,15 @@ Public photograph; choose one you are happy to show.
   picture and its thumbnail show the new way everywhere, share links included. A whole
   selection turns at once with *Rotate left* / *Rotate right* on the selection bar. The file
   itself is never changed.
+- **Live Photos** — an iPhone keeps a Live Photo as two files side by side, `IMG_1234.HEIC`
+  (or `.JPG`) and a short `IMG_1234.MOV`. The scan pairs them: the photo shows once, with a
+  small ◎ mark on its tile, and its short video is not shown, counted or found on its own. In
+  the viewer press **LIVE** to see it move once, or hold it to keep it moving (a mouse resting
+  on it plays it too); a share link plays it the same way, and a download of the photo as a
+  zip carries its video. A video longer than four seconds beside a photo of the same name is
+  a video of its own and stays in the timeline. Motion kept inside the photo itself (a Pixel's
+  `.MP.jpg`, a Samsung motion photo) is not played: it shows as a photo. Both files stay where
+  they are, untouched.
 
 ### Import: old drives into one archive
 
@@ -243,6 +252,14 @@ later. The visitor does not see the file's name.
   computer, where the photo folders are somewhere else, use **Moved?** beside each folder
   *Library settings* cannot find. Your photos are not in the zip: they are your own files, so back
   them up as you always do.
+- **Duplicates** — *Library → Duplicates* in the console lists the photos and videos kept in
+  more than one place in the library, byte for byte: a thumbnail, each copy's folder, size and
+  date, and *Open in gallery*, under a total ("3 photos and videos have copies elsewhere,
+  150.3 KB in the extra copies"). The scan finds them in its quiet pass after the thumbnails,
+  reading only files exactly as large as another one, and each of those once. The list only
+  shows: Ninaivu Lite never moves or deletes a file. To tidy up, delete the copies you do not
+  want in the folders themselves (or in Ninaivu); the next scan updates the list.
+  Administrators only.
 - **Data folder** — `%LOCALAPPDATA%\Ninaivu-lite` on Windows, `~/Library/Application
   Support/Ninaivu-lite` on macOS, `~/.local/share/ninaivu-lite` on Linux; the `data` folder
   beside the program for the portable zip; `/var/lib/ninaivu-lite` for Linux installed with
@@ -283,7 +300,9 @@ later. The visitor does not see the file's name.
   1.11.1 and older cannot open (they say so and do not start): going back from one of them to
   1.11.1 or older means installing the older version and restoring, with `--restore`, the copy
   the update kept, `backups/before-update-from-index-9-…zip` (what was changed since, a turn
-  or a new album, is not in it). Going back from 1.11.1 to 1.11.0, 1.10.0, 1.9.0, 1.8.0 or
+  or a new album, is not in it). The versions with *Live Photos* and *Duplicates* bring the
+  index to version 11, which 1.12.0 and older cannot open: going back to 1.12.0 means
+  restoring `backups/before-update-from-index-10-…zip` the same way. Going back from 1.11.1 to 1.11.0, 1.10.0, 1.9.0, 1.8.0 or
   1.7.0 needs nothing special. Going back to 1.6.0 or older means restoring a backup made before the update: 1.6.0
   cannot open the index of 1.7.0 or later.
 - **Linux, installed with `sudo`** — Ninaivu Lite runs as a service under its own

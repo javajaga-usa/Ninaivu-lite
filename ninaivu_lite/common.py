@@ -267,11 +267,13 @@ def subtree(alias: str, rel: str) -> tuple[str, list[Any]]:
 
 
 def visible(who: auth.User | None = None, alias: str = "a") -> tuple[str, list[Any]]:
-    """SQL and parameters for "rows this person may see": not missing, within
-    their visibility ceiling, and inside their assigned folder if they have one."""
+    """SQL and parameters for "rows this person may see": not missing, not a
+    Live Photo's short video (played from its still, never shown on its
+    own), within their visibility ceiling, and inside their assigned folder
+    if they have one."""
     who = who or user()
     p = f"{alias}." if alias else ""
-    sql = f"{p}missing = 0 AND {p}visibility <= ?"
+    sql = f"{p}missing = 0 AND {p}live_of IS NULL AND {p}visibility <= ?"
     params: list[Any] = [who.max_visibility]
     if who.assigned_library:
         place = split_library(who.assigned_library)
@@ -284,15 +286,48 @@ def visible(who: auth.User | None = None, alias: str = "a") -> tuple[str, list[A
     return sql, params
 
 
-def visible_asset(asset_id: int, who: auth.User | None = None) -> sqlite3.Row:
-    """The row, if this person may see it; 404 otherwise (never 403)."""
+def visible_asset(asset_id: int, who: auth.User | None = None,
+                  motion: bool = False) -> sqlite3.Row:
+    """The row, if this person may see it; 404 otherwise (never 403). With
+    *motion*, a Live Photo's short video too, for whoever may see its still."""
     where, params = visible(who)
     row = conn().execute(
         f"SELECT a.*, f.path AS root FROM assets a JOIN folders f ON f.id = a.folder_id "
         f"WHERE a.id = ? AND {where}", [asset_id, *params]).fetchone()
+    if row is None and motion:
+        paired = conn().execute("SELECT live_of FROM assets WHERE id = ? AND live_of IS NOT NULL",
+                                (asset_id,)).fetchone()
+        if paired is not None:
+            row = motion_of(visible_asset(paired[0], who), who)
+            if row is not None and row["id"] != asset_id:
+                row = None
     if row is None:
         fail(404, "Not found.")
     return row
+
+
+def motion_of(still: sqlite3.Row, who: auth.User | None = None,
+              ceiling: int | None = None) -> sqlite3.Row | None:
+    """A Live Photo's short video, for a *still* somebody may see: there,
+    paired with this still, in the same folder, and itself within their
+    ceiling (or *ceiling*, a share link's). None for any other photograph."""
+    if not still["live_id"]:
+        return None
+    if ceiling is None:
+        ceiling = (who or user()).max_visibility
+    return conn().execute(
+        "SELECT a.*, f.path AS root FROM assets a JOIN folders f ON f.id = a.folder_id "
+        "WHERE a.id = ? AND a.live_of = ? AND a.missing = 0 AND a.visibility <= ? "
+        "AND a.folder_id = ? AND a.dir = ?",
+        (still["live_id"], still["id"], ceiling, still["folder_id"], still["dir"])).fetchone()
+
+
+def motion_playable(who: auth.User | None) -> bool:
+    """Whether a Live Photo's video can be sent: a guest (or a stranger with
+    a link, *who* None) is sent a video without its metadata, which needs
+    ffmpeg, unless the administrator chose to send videos as they are."""
+    return (who is not None and not who.is_guest) or bool(media.FFMPEG) \
+        or cfg().video_originals
 
 
 def asset_path(row: sqlite3.Row) -> str:
@@ -401,6 +436,12 @@ def asset_public(row: sqlite3.Row, who: auth.User | None = None) -> dict[str, An
         "nsfw": 0,
         "quality": [],
     }
+    motion = motion_of(row, who) if row["live_id"] and motion_playable(who) else None
+    if motion is not None:
+        # A Live Photo: its short video, from the gallery's own file route,
+        # which sends it only to whoever may see this still.
+        out["is_live"] = True
+        out["live_src"] = f"/api/file/{motion['id']}"
     if who.family_or_more:
         # Where and how a photo was taken is for the family, not for guests.
         out.update({

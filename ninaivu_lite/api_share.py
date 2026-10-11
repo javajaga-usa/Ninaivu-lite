@@ -34,8 +34,8 @@ from .api_gallery import (
     thumb_response,
     viewing_response,
 )
-from .common import (body, conn, fail, json_sent, playable, require_family, turn_query,
-                     visible, visible_asset)
+from .common import (body, conn, fail, json_sent, motion_of, motion_playable, playable,
+                     require_family, turn_query, visible, visible_asset)
 
 bp = Blueprint("api_share", __name__)
 
@@ -269,6 +269,11 @@ def shared_item(row: sqlite3.Row, token: str) -> dict[str, Any]:
         "view": src if can_play or row["kind"] != "picture"
         else f"/api/share/{token}/preview/{row['id']}{turn}",
     })
+    # A Live Photo plays its short video, through the link (without its metadata).
+    motion = motion_of(row, ceiling=db.VIS_FAMILY) if row["live_id"] else None
+    if motion is not None and motion_playable(None):
+        item["is_live"] = True
+        item["live_src"] = f"/api/share/{token}/file/{motion['id']}"
     return item
 
 
@@ -325,7 +330,14 @@ def shared_asset(token: str, asset_id: int) -> sqlite3.Row:
         fail(401, "This link needs its password.", password_required=True)
     rows = share_rows(share, only=asset_id)
     if not rows:
-        fail(404, "Not found.")
+        # A Live Photo's short video goes with the still the link shows.
+        paired = conn().execute("SELECT live_of FROM assets WHERE id = ? AND live_of IS NOT NULL",
+                                (asset_id,)).fetchone()
+        still = share_rows(share, only=paired[0]) if paired is not None else []
+        motion = motion_of(still[0], ceiling=db.VIS_FAMILY) if still else None
+        if motion is None or motion["id"] != asset_id:
+            fail(404, "Not found.")
+        return motion
     return rows[0]
 
 

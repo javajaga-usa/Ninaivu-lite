@@ -132,8 +132,55 @@ function renderOne(item) {
     }
   }
   else { node.alt = i18n.t('Shared photograph'); }
-  stage.appendChild(node);
+  stage.appendChild(item.is_live && item.live_src ? livePhoto(node, item.live_src) : node);
   main.replaceChildren(stage);
+}
+
+/**
+ * A Live Photo: the still, with a LIVE button that plays its short video
+ * over it, muted. A press plays it once; held, it keeps moving until let go.
+ * As in the gallery's viewer.
+ */
+function livePhoto(img, src) {
+  const wrap = el('div', 'live-wrap');
+  const button = el('button', 'live-btn', i18n.t('LIVE'));
+  button.type = 'button';
+  button.setAttribute('aria-label', i18n.t('Play the Live Photo'));
+  button.title = i18n.t('Press to see it move, or hold to keep it moving');
+  let video = null;
+  let holding = false;
+  let timer = null;
+  const stop = () => { if (video) { video.classList.remove('playing'); video.pause(); } };
+  const play = () => {
+    if (!video) {
+      video = document.createElement('video');
+      video.muted = true; video.defaultMuted = true; video.playsInline = true;
+      video.setAttribute('aria-hidden', 'true');
+      video.src = src;
+      video.onplaying = () => video.classList.add('playing');
+      video.onended = () => { if (!holding) stop(); };
+      video.onerror = () => { stop(); button.disabled = true; };
+      img.after(video);
+    }
+    video.loop = holding;
+    try { video.currentTime = 0; } catch { /* starts at 0 anyway */ }
+    video.play().catch(stop);
+  };
+  const letGo = () => { clearTimeout(timer); if (holding) { holding = false; stop(); } };
+  button.addEventListener('pointerdown', (event) => {
+    if (event.button > 0) return;
+    event.preventDefault();
+    button.setPointerCapture?.(event.pointerId);
+    holding = false;
+    timer = setTimeout(() => { holding = true; if (video) video.loop = true; }, 350);
+    play();
+  });
+  button.addEventListener('pointerup', letGo);
+  button.addEventListener('pointercancel', letGo);
+  button.addEventListener('click', (event) => { if (event.detail === 0) play(); });
+  button.addEventListener('contextmenu', (event) => event.preventDefault());
+  wrap.append(img, button);
+  return wrap;
 }
 
 const clock = (seconds) => {

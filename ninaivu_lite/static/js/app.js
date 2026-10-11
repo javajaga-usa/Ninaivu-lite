@@ -627,11 +627,37 @@ async function start(user) {
   await Promise.all([reload(), refreshFacets()]);
   bootStep('photographs');
   bootDone();
+  openAskedFor();
 
   if (state.user.must_change) {
     profileSheet.open(state.user);
     toast(i18n.t('Choose your own password to finish setting up.'));
   }
+}
+
+/* A photograph named in the address (`/?photo=123`, the console's "Open in
+   gallery" beside each copy it lists) opens in the viewer once the gallery is
+   up: among the photographs around it when it is in the grid, else alone.
+   The server answers only for someone who may see it. */
+async function openAskedFor() {
+  const params = new URLSearchParams(window.location.search);
+  const id = Number(params.get('photo'));
+  if (!Number.isSafeInteger(id) || id <= 0) return;
+  params.delete('photo');
+  const rest = params.toString();
+  history.replaceState(history.state, '', `${window.location.pathname}${rest ? `?${rest}` : ''}${window.location.hash}`);
+  const index = grid.ids.indexOf(id);
+  if (index >= 0) {
+    viewer.open(grid.ids, index, grid.thumbedIds());
+    return;
+  }
+  try {
+    await viewer.fetchItem(id);
+  } catch {
+    toast(i18n.t('That photo is not in the library any more.'));
+    return;
+  }
+  viewer.open([id], 0);
 }
 
 /* ========================================================================

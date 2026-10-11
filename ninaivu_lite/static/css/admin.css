@@ -341,6 +341,40 @@ body.admin .ios-install-banner {
 .li-actions { display: flex; gap: 6px; flex: none; }
 
 .select.wide { min-width: 200px; max-width: 280px; }
+
+/* Duplicates: each group a picture and where every copy of it is. Nothing
+   on this page changes a file, so there is nothing red and no delete. */
+.dup-total { font-size: 15px; font-weight: 620; }
+.dup-summary { display: flex; flex-direction: column; gap: 4px; }
+.dup-summary .hint { margin: 0; }
+.dup-list { display: flex; flex-direction: column; gap: 10px; }
+.dup-group {
+  display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 14px;
+  padding: 12px 14px; border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--border-soft);
+}
+.dup-thumb {
+  width: 96px; height: 96px; border-radius: var(--r-sm); overflow: hidden;
+  background: var(--surface);
+}
+.dup-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.dup-body { min-width: 0; }
+.dup-head { font-size: 13.5px; font-weight: 620; margin: 0 0 6px; }
+.dup-copies { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.dup-copy { display: flex; align-items: center; gap: 10px; }
+.dup-copy + .dup-copy { border-top: 1px solid var(--border-soft); padding-top: 6px; }
+.dup-where { flex: 1; min-width: 0; }
+.dup-where .li-path { margin-top: 0; }
+.dup-copy > .btn { flex: none; }
+.dup-pager { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.dup-pager[hidden] { display: none; }
+@media (max-width: 560px) {
+  .dup-group { grid-template-columns: 64px minmax(0, 1fr); gap: 10px; padding: 10px; }
+  .dup-thumb { width: 64px; height: 64px; }
+  .dup-copy { flex-wrap: wrap; gap: 4px 10px; }
+  .dup-where { flex-basis: 100%; }
+  .dup-where .li-path { white-space: normal; overflow-wrap: anywhere; }
+}
 .field:has(.select.wide) { min-width: 210px; }
 
 

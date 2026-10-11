@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+**The index goes to version 11** (four new columns and the grid's indexes made again, for Live
+Photos and copies), so 1.12.0 and earlier cannot open this version's data folder. The first
+start keeps the index as it was in `backups/before-update-from-index-10-<time>.zip`; to go back
+to 1.12.0, install it and restore that zip with `--restore <zip>` (favourites, albums and
+other changes made since are not in it). Stop Ninaivu Lite before installing, as always.
+
+Live Photos, and a read-only list of copies in the console. The photographs and videos are
+never moved, changed or deleted.
+
+- **Live Photos are one photo that moves.** An iPhone keeps a Live Photo as `IMG_1234.HEIC` (or
+  `.JPG`) and a short `IMG_1234.MOV` side by side; an export from Google Photos as
+  `MVIMG_1234.jpg` and `.mp4`. The scan pairs them (same folder, same name in any case, a
+  video of at most four seconds by its own header): the photo shows once, with a small mark
+  on its tile, and the short video is left out of the timeline, every count, search, the
+  folder and year lists, *Jump to*, albums and share links. In the viewer, **LIVE** plays the
+  motion once, muted; held, it keeps moving until it is let go; a mouse resting on it plays
+  it too. A share link plays it the same way. The video is sent only to someone who may see
+  the photo (a guest and a share link get it without its location, as for any video); hiding
+  the photo hides its video with it, and *Undo* brings both back. A zip download of the photo
+  carries its video. A longer video beside a photo of the same name stays a video of its own;
+  a photo taken away leaves its video in the timeline again. Motion kept inside the photo
+  itself (a Pixel's `.MP.jpg`, a Samsung motion photo) is not taken out: it shows as a photo.
+- **Duplicates, in the console (Library → Duplicates).** The same photo or video, byte for
+  byte, in more than one place in the library: a thumbnail, each copy's folder, size and
+  date, and *Open in gallery*, twenty groups a page, under "N photos and videos have copies
+  elsewhere, X in the extra copies". Found in the scan's quiet pass after the thumbnails, at
+  its lower priority and one file at a time: only files exactly as large as another are read
+  (the size, the first and last 64 KiB), and only those that still agree are read whole. Each
+  answer is kept in the index, so a file is read once, and again only when it changes; a
+  rescan asked for stops the reading and it carries on next time. Read-only: removing a copy
+  is done in the folders themselves, or in Ninaivu. Administrators only.
+- The gallery opens a photo named in its address (`/?photo=<id>`), for *Open in gallery*.
+- The export for Ninaivu says which short video goes with which photo (`live_photos[]`, see
+  `docs/UPGRADE.md`).
+- The Control Panel and the console count a Live Photo once, as the gallery does.
+
 ## 1.12.0 — 2026-10-10
 
 **The index goes to version 10** (one new column, for Flip), so 1.11.1 and earlier cannot
