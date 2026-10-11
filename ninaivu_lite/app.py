@@ -346,10 +346,10 @@ def create_app(cfg: Config | None = None, *, addresses: list[str] | None = None,
     app.json.sort_keys = False
     app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BYTES
 
-    from . import (api_admin, api_auth, api_drives, api_gallery, api_import, api_share,
-                   api_sudar, pages)
-    for module in (pages, api_auth, api_gallery, api_share, api_admin, api_import, api_drives,
-                   api_sudar):
+    from . import (api_admin, api_albums, api_auth, api_drives, api_gallery, api_import,
+                   api_share, api_sudar, gallery_files, pages)
+    for module in (pages, api_auth, api_gallery, gallery_files, api_albums, api_share, api_admin,
+                   api_import, api_drives, api_sudar):
         app.register_blueprint(module.bp)
 
     asset_cache: dict[str, str] = {}

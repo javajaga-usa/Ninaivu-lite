@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from ninaivu_lite import api_gallery, common, control, db, drives, media, parallel
+from ninaivu_lite import common, control, db, drives, gallery_files, media, parallel
 from ninaivu_lite import scanner as scanner_module
 from ninaivu_lite.scanner import Scanner
 
@@ -46,7 +46,7 @@ def test_a130_the_server_always_has_threads_to_spare():
     assert 2 <= parallel.REQUEST_WORK <= 6
     busy = parallel.REQUEST_WORK + parallel.REQUEST_WAITING
     assert parallel.SERVER_THREADS - busy >= parallel.SERVER_SPARE
-    assert api_gallery.TILES.width == parallel.REQUEST_WORK
+    assert gallery_files.TILES.width == parallel.REQUEST_WORK
 
 
 def test_a130_the_web_server_gets_the_threads(monkeypatch):
@@ -164,10 +164,10 @@ def test_a130_a_tile_past_the_waiting_room_is_told_to_ask_again(app, admin, monk
     db.connect(app.config["LITE"].data_dir).execute(
         "UPDATE assets SET thumb = 0 WHERE id = ?", (item,)).connection.commit()
     full = parallel.Slots(1, 0)
-    monkeypatch.setattr(api_gallery, "TILES", full)
+    monkeypatch.setattr(gallery_files, "TILES", full)
     with full.slot():
         r = admin.get(f"/api/thumb/{item}?s=256")
-    assert r.status_code == 503 and r.headers["Retry-After"] == str(api_gallery.TILE_RETRY)
+    assert r.status_code == 503 and r.headers["Retry-After"] == str(gallery_files.TILE_RETRY)
     assert "no-store" in r.headers["Cache-Control"]
     r = admin.get(f"/api/thumb/{item}?s=256")   # asked again: made
     assert r.status_code == 200 and r.mimetype == "image/webp"
@@ -186,7 +186,7 @@ def test_a130_viewing_copies_take_turns(app, guest, monkeypatch):
     real = media.viewing_copy
 
     def copy(*args, **kwargs):
-        used.append(api_gallery.VIEWS.in_use)
+        used.append(gallery_files.VIEWS.in_use)
         return real(*args, **kwargs)
 
     monkeypatch.setattr(media, "viewing_copy", copy)

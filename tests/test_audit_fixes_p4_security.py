@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from ninaivu_lite import api_auth, api_gallery, auth, db, media
+from ninaivu_lite import api_auth, api_gallery, auth, db, gallery_files, media
 
 from conftest import ids, make_jpeg, sign_in
 
@@ -199,16 +199,16 @@ def test_a48_busy_ffmpeg_answers_503_rather_than_waiting(app, guest, monkeypatch
     called = []
     monkeypatch.setattr(media, "strip_video", lambda *a: called.append(a) or False)
     for _ in range(2):
-        assert api_gallery.FFMPEG_SLOTS.acquire(blocking=False)
+        assert gallery_files.FFMPEG_SLOTS.acquire(blocking=False)
     try:
         r = guest.get(f"/api/file/{aid}")
     finally:
         for _ in range(2):
-            api_gallery.FFMPEG_SLOTS.release()
+            gallery_files.FFMPEG_SLOTS.release()
     assert r.status_code == 503 and not called
     # The same video already being copied: wait a little, then say busy.
-    monkeypatch.setattr(api_gallery, "STRIP_WAIT", 0.05)
-    lock = api_gallery._strip_locks.setdefault(aid, threading.Lock())
+    monkeypatch.setattr(gallery_files, "STRIP_WAIT", 0.05)
+    lock = gallery_files._strip_locks.setdefault(aid, threading.Lock())
     with lock:
         assert guest.get(f"/api/file/{aid}").status_code == 503
     assert not called
@@ -244,10 +244,10 @@ def test_a48_views_are_kept_under_their_cap(app, monkeypatch):
         stamp = time.time() - 1000 + n
         os.utime(path, (stamp, stamp))
         made.append(path)
-    monkeypatch.setattr(api_gallery, "VIEWS_MAX_BYTES", 3000)
-    monkeypatch.setattr(api_gallery, "_views_checked_at", 0.0)
+    monkeypatch.setattr(gallery_files, "VIEWS_MAX_BYTES", 3000)
+    monkeypatch.setattr(gallery_files, "_views_checked_at", 0.0)
     with app.test_request_context():
-        api_gallery.trim_views(made[0])
+        gallery_files.trim_views(made[0])
     left = sorted(p.name for p in views.iterdir())
     assert sum(p.stat().st_size for p in views.iterdir()) <= 3000
     assert made[0].name in left and made[-1].name in left and made[1].name not in left
