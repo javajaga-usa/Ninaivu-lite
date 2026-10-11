@@ -74,6 +74,10 @@ installer. The photographs and videos are never moved, changed or deleted.
   installer, the portable zip, the Mac disk image, the Linux installer (as a person, as a
   service, and into a folder of its own with `--prefix`) and the Docker image must also
   answer `/` and `/admin`. (`.github/workflows/release.yml`)
+- **A174 closed:** the SHA-256 of the embeddable Python the Windows installer carries is now
+  in `installers/PYTHON_SHA256SUMS` (taken from a build that had checked its programs are
+  signed by the Python Software Foundation), so a different file is refused before use, as
+  the macOS and Linux builds already did. The build also shows the hash as a run notice.
 
 ## 1.12.0 — 2026-10-10
 
