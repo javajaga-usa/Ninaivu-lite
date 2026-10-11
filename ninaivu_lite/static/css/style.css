@@ -770,6 +770,8 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
    labels took the clicks meant for Clear all and the last selection button (M42). */
 .filter-bar, .selection-bar, .on-this-day { position: relative; z-index: 21; }
 .selection-bar { background: var(--accent-weak); border-bottom-color: var(--accent); }
+/* "Show to" on the blue wash: --text-3 was 4.1:1 there in the light theme. */
+.selection-bar .hint { color: var(--text-2); }
 .truncated-notice {
   padding: 8px 16px; font-size: 13px; color: var(--text-2);
   background: var(--surface-2); border-bottom: 1px solid var(--border-soft);
@@ -947,7 +949,7 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
 }
 .scrubber-track span {
   position: absolute; right: 8px; font-size: 10px; color: var(--text-3);
-  transform: translateY(-50%); user-select: none;
+  transform: translateY(-50%); -webkit-user-select: none; user-select: none;
 }
 /* The year where it changes, a little stronger than the months around it; a
    mark the position marker sits on gives way to the marker's own label. */
@@ -1064,7 +1066,7 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
   /* Give object-fit the whole stage, including for small images and quarter
      turns. fitScale() measures this box when fitting rotated photographs. */
   width: 100%; height: 100%;
-  object-fit: contain; user-select: none; -webkit-user-drag: none;
+  object-fit: contain; -webkit-user-select: none; user-select: none; -webkit-user-drag: none;
   will-change: transform;
 }
 .viewer-stage img { cursor: zoom-in; }
@@ -1178,11 +1180,14 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
   margin-bottom: 12px; }
 .viewer-info-head #v-info-close { width: 26px; height: 26px; margin: -4px -6px -4px 0; }
 .viewer-info h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .07em;
-  color: var(--text-3); margin-bottom: 0; }
+  color: var(--text-2); margin-bottom: 0; }
 .viewer-info h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
-  color: var(--text-3); margin: 18px 0 8px; }
+  color: var(--text-2); margin: 18px 0 8px; }
 .viewer-info dl { display: grid; grid-template-columns: 88px 1fr; gap: 7px 10px; font-size: 12.5px; }
-.viewer-info dt { color: var(--text-3); }
+/* --text-2, not --text-3: the panel is 92% opaque over the black viewer
+   (see color-mix below), so in the light theme it is darker than --bg-elev
+   and --text-3 was 4.2:1 there. */
+.viewer-info dt { color: var(--text-2); }
 .viewer-info dd { color: var(--text); word-break: break-word; }
 .info-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 16px; }
 .similar-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
@@ -1469,7 +1474,7 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
   display: inline-grid; place-items: center; flex: none;
   border-radius: 50%; overflow: hidden;
   color: #fff; font-weight: 650; letter-spacing: .02em;
-  user-select: none; line-height: 1;
+  -webkit-user-select: none; user-select: none; line-height: 1;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);
 }
 .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -1490,7 +1495,8 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
                color: var(--accent); border-color: color-mix(in srgb, var(--accent) 34%, transparent); }
 @supports (color: color-mix(in srgb, red 50%, blue)) { .role-admin { background: color-mix(in srgb, var(--accent) 16%, transparent); } }
 .role-family {
-               color: #1f9d5b; border-color: color-mix(in srgb, #2fbf71 34%, transparent); }
+               /* #1f9d5b was 3.0:1 on its own green tint; this is 4.8:1 or better. */
+               color: #15703f; border-color: color-mix(in srgb, #2fbf71 34%, transparent); }
 @supports (color: color-mix(in srgb, red 50%, blue)) { .role-family { background: color-mix(in srgb, #2fbf71 16%, transparent); } }
 .role-guest  { background: var(--surface-2); color: var(--text-3); border-color: var(--border); }
 :root[data-theme="dark"] .role-family { color: #52d896; }
@@ -1988,7 +1994,7 @@ body[data-role="guest"] .segmented button[data-layout="film"] { display: none; }
   position: absolute; top: 8px; left: 8px;
   background: rgba(12, 15, 20, 0.75); color: #fff;
   font-size: 10.5px; font-weight: 700; padding: 3px 7px;
-  border-radius: 999px; backdrop-filter: blur(8px);
+  border-radius: 999px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   letter-spacing: .02em;
 }
 .memory-meta {
@@ -2005,7 +2011,7 @@ body[data-role="guest"] .segmented button[data-layout="film"] { display: none; }
   position: absolute; top: 8px; right: 8px; z-index: 2;
   background: rgba(0, 0, 0, 0.7); color: #fff;
   font-size: 10px; font-weight: 750; text-transform: uppercase;
-  padding: 3px 6px; border-radius: 6px; backdrop-filter: blur(6px);
+  padding: 3px 6px; border-radius: 6px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   letter-spacing: .06em; pointer-events: none;
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
@@ -3160,7 +3166,8 @@ input[type=checkbox]:disabled, input[type=radio]:disabled { cursor: not-allowed;
   padding: 5px 8px; border-radius: var(--r-md); text-align: left;
   font-size: 14.5px; font-weight: 700; font-variant-numeric: tabular-nums;
 }
-.jump-year-btn small { font-size: 11px; font-weight: 500; color: var(--text-3); }
+/* --text-2: on the current year's blue wash --text-3 was 4.3:1. */
+.jump-year-btn small { font-size: 11px; font-weight: 500; color: var(--text-2); }
 .jump-year-btn:hover, .jump-year-btn.current { background: var(--accent-weak); color: var(--accent); }
 .jump-months {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 6px;

@@ -289,7 +289,29 @@ export class Grid extends EventTarget {
     this.relayout(true);
   }
 
-  /** Keeps the item under the viewport top anchored across relayouts. */
+  /**
+   * How wide a packed day's header must be for its count and "Select all" to
+   * share the second line whole, in the language on screen. The Tamil
+   * "Select all" alone is about 140 px, and a 170 px header cut the count
+   * down to "1…". Measured once per language.
+   */
+  packedHeadWidth() {
+    const lang = i18n.language();
+    if (this.packedHeadFor === lang) return this.packedHead;
+    const probe = this.createHeader();
+    probe.classList.add('packed');
+    probe.style.cssText = 'visibility:hidden;width:auto;left:-10000px;top:0';
+    probe.querySelector('.sub').textContent = formatSection('2000-01-01', 88).sub;
+    this.container.appendChild(probe);
+    const sub = probe.querySelector('.sub').scrollWidth;
+    const button = probe.querySelector('[data-select-section]').getBoundingClientRect().width;
+    probe.remove();
+    // Two px of padding each side and the 6 px column gap.
+    this.packedHead = sub && button ? Math.ceil(sub + button + 10) : 0;
+    this.packedHeadFor = lang;
+    return this.packedHead;
+  }
+
   /** Rewrite the headings on screen in the language just chosen. */
   relabel() {
     for (const node of this.mountedHeads.values()) {
@@ -303,6 +325,10 @@ export class Grid extends EventTarget {
       const select = node.querySelector('[data-select-section]');
       if (select) select.textContent = i18n.t('Select all');
     }
+    // A language whose count and "Select all" need wider packed headers.
+    const before = this.packedHead;
+    this.packedHeadFor = null;
+    if (this.width && this.packedHeadWidth() !== before) this.relayout(true);
   }
 
   relayout(preserveAnchor = false) {
@@ -325,6 +351,7 @@ export class Grid extends EventTarget {
       mode: this.mode,
       zoom: this.zoom,
       gap: this.mode === 'film' ? 2 : 6,
+      packMin: this.packedHeadWidth(),
     });
     this.container.style.height = `${this.layout.height}px`;
 
@@ -577,6 +604,8 @@ export class Grid extends EventTarget {
         const { title, sub } = formatSection(head.key, head.count);
         node.querySelector('.title').textContent = title;
         node.querySelector('.sub').textContent = sub;
+        // A pooled header may have been made in the language used before.
+        node.querySelector('[data-select-section]').textContent = i18n.t('Select all');
         node.dataset.head = head.key;
         node.dataset.firstCell = String(head.firstCell);
         // A packed day's header is only as wide as its own photographs; a

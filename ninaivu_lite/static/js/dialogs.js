@@ -19,7 +19,8 @@ const OVERLAYS = '.viewer, .modal, .sheet, .gate, .palette';
 //: The page behind them. Nothing else is touched: a toast made inert would
 //: never be read out, a <dialog> opened with showModal() looks after itself,
 //: and the field copyText() adds for a moment has to take the focus.
-const PAGE = '.skip-link, .topbar, .shell, .ios-install-banner';
+//: (.admin-bar and .admin-main are the console's.)
+const PAGE = '.skip-link, .topbar, .shell, .ios-install-banner, .admin-bar, .admin-main';
 //: What the focus goes to first. A dialog with no field takes the focus
 //: itself, so Tab starts at its first control, and Space or Enter does not
 //: press a toolbar button the person never chose (in the viewer, Space is

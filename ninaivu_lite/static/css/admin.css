@@ -1318,7 +1318,7 @@ body.admin .admin-bar .brand span:not(.console-tag) { display: inline; }
 @supports (color: color-mix(in srgb, red 50%, blue)) { ::highlight(sv-find) { background-color: color-mix(in srgb, var(--gold) 35%, transparent); } }
 ::highlight(sv-find-current) { background-color: var(--gold); color: #111; }
 
-.sv-switch { position: relative; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; flex: none; user-select: none; }
+.sv-switch { position: relative; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; flex: none; -webkit-user-select: none; user-select: none; }
 .sv-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .sv-switch-track {
   position: relative; width: 44px; height: 24px; border-radius: 999px;
