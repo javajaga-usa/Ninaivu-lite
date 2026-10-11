@@ -224,7 +224,7 @@ jobs:
           $packed = (Get-FileHash installers\windows\build\uninstaller-final\uninstall.exe).Hash
           if ((Get-FileHash (Join-Path $dir "uninstall.exe")).Hash -ne $packed) { throw "the installed uninstaller is not the packed one" }
           # The Control Panel's window opens with the private Python (Tk is inside), and the app's packages load.
-          & $python -c "import tkinter, flask, PIL, waitress, ninaivu_lite.panel, ninaivu_lite.app; r = tkinter.Tk(); r.update(); r.destroy(); import ninaivu_lite; print('Ninaivu Lite', ninaivu_lite.__version__, 'Tk', tkinter.TkVersion)"
+          & $python -c "import tkinter, flask, PIL, waitress, pillow_heif, ninaivu_lite.panel, ninaivu_lite.app; r = tkinter.Tk(); r.update(); r.destroy(); import ninaivu_lite; print('Ninaivu Lite', ninaivu_lite.__version__, 'Tk', tkinter.TkVersion)"
           if ($LASTEXITCODE) { throw "the installed Python could not open the Control Panel" }
           Start-Process -FilePath (Join-Path $dir "Python\pythonw.exe") -ArgumentList "-m", "ninaivu_lite", "--no-browser", "--data", "`"$data`""
           $up = $false
@@ -455,6 +455,7 @@ jobs:
         run: |
           sh installers/linux/build/*.sh --quiet --no-service
           ~/.local/bin/ninaivu-lite --version
+          ~/.local/lib/ninaivu-lite/python/bin/python3 -c "import pillow_heif"   # iPhone HEIC photos
           ~/.local/bin/ninaivu-lite --no-browser > server.log 2>&1 &
           up=0
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8080/api/health && { up=1; break; }; sleep 1; done
