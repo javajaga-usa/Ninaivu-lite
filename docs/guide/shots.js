@@ -154,6 +154,9 @@ stages.first = async () => {
   await page.click('#fd-next');
   await sleep(800);
   await shot(page, 'f08-tour', { el: '#first-day .modal-card', pad: 16 });
+  // the tour scrolls inside its card: the rest of it
+  await page.evaluate(() => { const b = document.querySelector('#fd-body'); b.scrollTop = b.scrollHeight; });
+  await shot(page, 'f08b-tour-more', { el: '#first-day .modal-card', pad: 16 });
   await page.click('#fd-next');
   await sleep(1500);
   await page.close();
@@ -212,6 +215,20 @@ stages.console = async () => {
     if (r.data && (r.data.backups || []).some((b) => !b.before)) break;
     await sleep(1000);
   }
+  await page.close();
+
+  // Duplicates: the copies in "Phone backup 2019", found by the scan's
+  // quiet pass after the thumbnails.
+  page = await consolePage(null);
+  for (let i = 0; i < 120; i++) {
+    const r = await api(page, '/api/admin/duplicates?page=1');
+    if (r.data && r.data.total_groups) break;
+    await sleep(1000);
+  }
+  await page.close();
+  page = await consolePage('duplicates', { width: 1280, height: 900 });
+  await page.waitForSelector('#dup-list > *', { timeout: 15000 });
+  await shot(page, 'c12b-duplicates', { wait: 1000, tall: 1500 });
   await page.close();
 
   page = await consolePage('people', { width: 1280, height: 900 });
@@ -314,7 +331,9 @@ async function galleryPage(viewport) {
 
 stages.gallery = async () => {
   let page = await galleryPage();
+  await page.waitForSelector('#on-this-day:not([hidden]) .otd-list > *', { timeout: 15000 });
   await shot(page, 'g20-timeline', { wait: 1500 });
+  await shot(page, 'g20a-onthisday', { el: '#on-this-day', pad: 12 });
   // Jump to: only the years and months there are photographs in
   await page.click('#jump-btn');
   await page.waitForSelector('.jump-month');
@@ -340,7 +359,7 @@ stages.gallery = async () => {
   page = await galleryPage();
   await page.click('#folder-list >> text=Trips');
   await sleep(1500);
-  await page.locator('.section-head [data-select-section]').first().click();
+  await page.locator('.section-head [data-select-section]').nth(1).click();  // a day of photos (the first is a video)
   await sleep(800);
   await shot(page, 'g22-selected');
   await page.click('#sel-album');
@@ -376,9 +395,30 @@ stages.viewer = async () => {
   await shot(page, 'v25-viewer');
   await page.click('#v-info');
   await sleep(1000);
+  // a photo that knows where it was taken, so Details offers "Photos taken nearby"
+  for (let i = 0; i < 8 && !(await page.locator('#viewer-info .info-nearby').isVisible()); i++) {
+    await page.keyboard.press('ArrowRight');
+    await sleep(900);
+  }
+  await page.mouse.move(640, 400);
   await shot(page, 'v26-info');
+  // the details panel, down to its last row
+  const panel = await page.locator('#viewer-info').boundingBox();
+  const last = await page.locator('#viewer-info .info-nearby').boundingBox();
+  await shot(page, 'v26b-nearby', { clip: { x: panel.x, y: panel.y, width: panel.width, height: last.y + last.height + 28 - panel.y } });
+  await page.click('#viewer-info .info-nearby');
+  await page.waitForSelector('#viewer', { state: 'hidden' });
+  await sleep(1500);
+  // the photo was opened from its folder: take that chip off, so only "Taken nearby" is left
+  const pills = page.locator('.pill');
+  if (await pills.count() > 1) { await pills.first().locator('button').click(); await sleep(1500); }
+  await page.evaluate(() => document.querySelector('#sidebar')?.scrollTo(0, 0));
+  await sleep(500);
+  await shot(page, 'v26c-nearby-grid');
+  await page.close();
+  page = await galleryPage();
+  await openPhoto(page, 'Kanyakumari', 0);
   // a few more favourites, for Favourites
-  await page.click('#v-info-close');
   for (let i = 0; i < 4; i++) { await page.keyboard.press('ArrowRight'); await sleep(700); if (i % 2 === 0) await page.click('#v-fav'); }
   await page.close();
 
@@ -386,6 +426,19 @@ stages.viewer = async () => {
   await page.click('#sidebar >> text=' + (TA ? 'பிடித்தவை' : 'Favourites'));
   await sleep(1500);
   await shot(page, 'g24-favourites');
+  await page.close();
+};
+
+/* A Live Photo: the still with its LIVE badge (the pair is in Temples). */
+stages.live = async () => {
+  const page = await galleryPage();
+  await page.click('#folder-list >> text=Temples');
+  await sleep(1500);
+  await page.locator('#grid .cell:has(.badge.live)').first().click();
+  await page.waitForSelector('#viewer:not([hidden]) .live-badge', { timeout: 15000 });
+  await sleep(1500);
+  await page.mouse.move(640, 400);
+  await shot(page, 'v26d-live');
   await page.close();
 };
 
@@ -497,7 +550,7 @@ stages.phone = async () => {
   browser = await chromium.launch();
   const want = process.argv.slice(2);
   const ORDER = ['first', 'people', 'import', 'visibility', 'console', 'drives', 'gallery', 'viewer',
-    'share', 'sudar', 'profile', 'phone'];
+    'live', 'share', 'sudar', 'profile', 'phone'];
   for (const name of (want.length ? want : ORDER)) {
     console.log('stage', name);
     await stages[name]();
