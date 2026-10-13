@@ -128,9 +128,15 @@ def test_the_page_read_in_one_step_is_the_page_read_row_by_row(app):
     cur.row_factory = None
     sql = _sql()
     one = api_gallery.page_in_one_step(cur, sql, [100, 0], api_gallery.GRID_COLUMNS)
-    assert one == [list(r) for r in cur.execute(sql, [100, 0])]
-    assert len(one) >= 5
-    assert 12.345678901234567 in [r[5] for r in one]
+    rows = [list(r) for r in cur.execute(sql, [100, 0])]
+    assert len(one) == len(rows) >= 5
+    for got, want in zip(one, rows, strict=True):
+        # A REAL to its last digit or one step from it: the SQLite that comes
+        # with Python 3.10 on Windows and macOS rounds the 17th digit its own
+        # way (the gallery shows a video's length in whole seconds anyway).
+        assert [round(v, 12) if isinstance(v, float) else v for v in got] == \
+            [round(v, 12) if isinstance(v, float) else v for v in want]
+    assert any(isinstance(r[5], float) and abs(r[5] - 12.345678901234567) < 1e-12 for r in one)
     assert api_gallery.page_in_one_step(cur, sql, [100, 1000], api_gallery.GRID_COLUMNS) == []
 
 
