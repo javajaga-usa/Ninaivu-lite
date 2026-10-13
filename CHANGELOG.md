@@ -1,9 +1,13 @@
 # Changelog
 
-## Unreleased
+## 1.15.0 — 2026-10-13
 
-Fixes and the new scrolling from Ninaivu's changes of 10 to 12 October 2026. The index
-stays at version 11. The photographs and videos are never moved, changed or deleted.
+The gallery scrolls like a phone's own photo app, each view remembers its place, and the fixes
+from Ninaivu's changes of 10 to 12 October 2026 that apply to Ninaivu Lite. The index stays at
+version 11, so 1.13.0 and 1.14.0 can open this version's data folder. Before installing 1.15.0,
+stop Ninaivu Lite: in the Control Panel press **Stop**, then close it (on a Linux server, `sudo
+systemctl stop ninaivu-lite`); the photos, people, settings, index and backups are kept. The
+photographs and videos are never moved, changed or deleted.
 
 ### Scrolling like a phone's own photo app (from Ninaivu 1.10.10)
 
