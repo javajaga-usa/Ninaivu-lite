@@ -250,6 +250,16 @@ export function wireJump({ grid, filters, hasMore, loadMore }) {
     const target = event.target.closest('[data-jump]');
     if (target) jumpTo(target.dataset.jump, { keyboard: event.detail === 0 });
   });
+  // Pointed at, a month (or a year) that has arrived starts fetching its
+  // pictures before it is chosen, so the jump lands on a screen already
+  // drawn. (From Ninaivu 1.10.10.)
+  body.addEventListener('pointerover', (event) => {
+    if (event.pointerType !== 'mouse') return;
+    const target = event.target.closest('[data-jump]');
+    if (!target || target.contains(event.relatedTarget)) return;
+    const head = headingFor(target.dataset.jump);
+    if (head) grid.prefetchAround?.(Math.max(0, head.y - 4));
+  });
 
   document.addEventListener('click', (event) => {
     if (isOpen() && !panel.contains(event.target) && !button.contains(event.target)) close();

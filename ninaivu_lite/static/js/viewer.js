@@ -87,6 +87,9 @@ export class Viewer extends EventTarget {
     // The neighbours' pictures being fetched ahead (id -> Image), so the ones
     // paged past can be let go of.
     this.warming = new Map();
+    // Neighbours whose full picture has arrived, the most recent last: not
+    // asked for again while they are here. A few dozen, then the oldest go.
+    this.warmed = new Set();
     this.slideshow = null;
     this.slideshowDelay = 4000;
     this.slideshowLoop = true;
@@ -423,12 +426,20 @@ export class Viewer extends EventTarget {
     this.coolDown(new Set([id, ...ahead.map((offset) => this.ids[index + offset])]));
     for (const offset of ahead) {
       const neighbour = this.ids[index + offset];
-      if (neighbour != null && !this.cache.has(neighbour)) {
+      // Already looked up is not the same as its picture being ready: one
+      // paged past was let go of (coolDown), and coming back to it found
+      // nothing warming. So the picture is asked for whenever it is neither
+      // on its way nor here already. (From Ninaivu 1.10.10.)
+      if (neighbour != null && !this.warming.has(neighbour) && !this.warmed.has(neighbour)) {
         this.fetchItem(neighbour).then((data) => {
           if (data?.kind !== 'picture' || !this.isOpen || this.warming.has(neighbour)) return;
           if (this.ids[this.index] !== id) return;      // paged on meanwhile
           const image = new Image();
-          const finished = () => { if (this.warming.get(neighbour) === image) this.warming.delete(neighbour); };
+          const finished = () => {
+            if (this.warming.get(neighbour) !== image) return;
+            this.warming.delete(neighbour);
+            if (image.complete && image.naturalWidth) this.remember(neighbour);
+          };
           image.onload = finished;
           image.onerror = finished;
           this.warming.set(neighbour, image);
@@ -448,6 +459,13 @@ export class Viewer extends EventTarget {
       if (!img.complete) img.removeAttribute('src');
     }
     this.stage.innerHTML = '';
+  }
+
+  /** A neighbour's full picture has arrived: kept in mind, the latest last. */
+  remember(id) {
+    this.warmed.delete(id);
+    this.warmed.add(id);
+    while (this.warmed.size > 40) this.warmed.delete(this.warmed.values().next().value);
   }
 
   /** Stop fetching ahead the pictures of anything not in `keep`. */
@@ -499,21 +517,26 @@ export class Viewer extends EventTarget {
       return;
     }
 
-    // A photograph the browser cannot decode is converted on first view, and
-    // a 12-megapixel HEIC takes a few seconds the first time. The thumbnail
-    // already exists and is a real picture rather than a blur, so it stands in
-    // until the full copy arrives — after which the copy is cached and this
-    // never happens again for that photograph.
-    const placeholder = (!item.playable && item.thumb_v !== undefined)
-      ? thumbUrl(item.id, 640, item.thumb_v)
-      : blurhashUrl(item.blurhash);
+    // The gallery's own picture of it stands in until the full one arrives,
+    // as a phone's photo app opens a photograph: sharp at once, then sharper,
+    // and in the very box the photograph will take, so nothing moves when it
+    // comes. It is usually in the browser already, from the grid. Only a
+    // photograph with no thumbnail falls back to the blurred colour sketch.
+    // For a HEIC, converted on first view, this is what covers the wait.
+    // (From Ninaivu 1.10.10.)
+    const sharp = item.has_thumb !== false && item.thumb_v !== undefined;
+    const placeholder = sharp ? thumbUrl(item.id, 640, item.thumb_v) : blurhashUrl(item.blurhash);
     if (placeholder) {
       const ghost = document.createElement('img');
-      ghost.className = 'placeholder';
+      ghost.className = sharp ? 'placeholder sharp' : 'placeholder';
       ghost.src = placeholder;
       ghost.alt = '';
-      ghost.style.width = `${Math.min(item.width || 800, window.innerWidth * 0.92)}px`;
-      ghost.style.aspectRatio = `${item.width || 4} / ${item.height || 3}`;
+      if (!sharp) {
+        // The colour sketch is drawn at the photograph's own shape; the
+        // thumbnail already has it, and sits where the photograph will.
+        ghost.style.width = `${Math.min(item.width || 800, window.innerWidth * 0.92)}px`;
+        ghost.style.aspectRatio = `${item.width || 4} / ${item.height || 3}`;
+      }
       this.stage.appendChild(ghost);
     }
 

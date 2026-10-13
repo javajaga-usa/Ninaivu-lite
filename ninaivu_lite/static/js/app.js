@@ -24,6 +24,7 @@ import { clearFilters, watchSearchHint, wireSearch } from './gallery/filters.js'
 import { forgetCachedShell, registerServiceWorker, setupAndroidInstallPrompt, setupIOSInstallPrompt } from './gallery/install.js';
 import { wireKeyboard } from './gallery/keyboard.js';
 import { wireMenu } from './gallery/menus.js';
+import { forgetShown, wirePlaces } from './gallery/places.js';
 import { buildScrubber, labelScrubber, positionScrubber, wireScrubber } from './gallery/scrubber.js';
 import { wireSelection } from './gallery/selection.js';
 import { wireSharing } from './gallery/sharing.js';
@@ -166,6 +167,7 @@ async function init() {
  * the last person's photographs.
  */
 function forgetPerson() {
+  forgetShown();
   if (viewer?.isOpen) viewer.close();
   viewer?.cache?.clear();
   if (viewer?.filmstrip) viewer.filmstrip.innerHTML = '';
@@ -658,6 +660,8 @@ function wireGrid() {
   });
 
   grid.addEventListener('layout', () => buildScrubber());
+  // Each view's place, kept on this device (places.js).
+  wirePlaces();
   grid.addEventListener('poster', (event) => posters.offer(event.detail.id));
 }
 

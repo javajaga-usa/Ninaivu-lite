@@ -131,4 +131,20 @@ export function wireScrubber() {
     if (event.target === thumb || thumb.contains(event.target)) return;
     seek(event.clientY);
   });
+  // A mouse resting on the rail is about to take the grid there: the
+  // pictures around that place are fetched while it rests, so the jump lands
+  // on a screen already drawn. (From Ninaivu 1.10.10.)
+  let hoverTimer = 0;
+  scrubber.addEventListener('pointermove', (event) => {
+    if (dragging || event.pointerType !== 'mouse') return;
+    clearTimeout(hoverTimer);
+    const y = event.clientY;
+    hoverTimer = setTimeout(() => {
+      const rect = scrubber.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (y - rect.top) / Math.max(1, rect.height)));
+      const max = Math.max(0, grid.layout.height - grid.scroller.clientHeight);
+      grid.prefetchAround(max * ratio);
+    }, 150);
+  });
+  scrubber.addEventListener('pointerleave', () => clearTimeout(hoverTimer));
 }

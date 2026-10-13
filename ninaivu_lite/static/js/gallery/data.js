@@ -7,6 +7,7 @@ import { renderIdentity } from '../app.js';
 import { loadAlbums } from './albums.js';
 import { isNetworkFailure, serverIsOffline, setServerOffline } from './connection.js';
 import { clearFilters, renderFilterBar, renderFolders, renderYears } from './filters.js';
+import { leavingView, placeLoaded } from './places.js';
 import { kickActivity, noteCountsAsked } from './progress.js';
 import { buildScrubber } from './scrubber.js';
 import { $, grid, onThisDay, state } from './state.js';
@@ -203,6 +204,7 @@ export async function reload({ resetScroll = false } = {}) {
   searchController = new AbortController();
   const signal = searchController.signal;
   const filters = currentFilters();
+  if (resetScroll) leavingView();
   // An in-place refresh must hand back as much as was already held, or the
   // grid shrinks under a person scrolled deep into it and loses their place.
   const held = resetScroll ? 0 : grid.layout.cells.length;
@@ -224,6 +226,9 @@ export async function reload({ resetScroll = false } = {}) {
     state.semantic = false;
     paging.next = next;
     grid.setData(segments, { resetScroll });
+    // A view opened again, or the app opened again, comes back where it was
+    // left, as a phone's photo app does (places.js).
+    placeLoaded(filters, resetScroll);
     buildScrubber();
     showTruncation({ ...data, next_offset: next });
 
