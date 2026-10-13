@@ -23,9 +23,14 @@ from flask import Flask, Response, request
 TEXT_TYPES = ("text/", "application/json", "application/javascript", "image/svg+xml",
               "application/manifest+json")
 MIN_BYTES = 1024
-#: Nothing larger than this is compressed on the fly: an original photograph
+#: No file larger than this is compressed on the fly: an original photograph
 #: served as "text" by mistake would otherwise be read whole into memory.
 MAX_BYTES = 4 * 1024 * 1024
+#: An answer already built in memory (the gallery's layout, a long list) is
+#: compressed up to this size: the ceiling above is for files, and applied to
+#: these too it sent a large library's whole layout to a phone uncompressed.
+#: (From Ninaivu 1.10.8.)
+MAX_BUILT_BYTES = 64 * 1024 * 1024
 STATIC_MAX_AGE = 365 * 24 * 60 * 60
 _CACHE_LIMIT = 48
 
@@ -43,7 +48,13 @@ def _compressible(response: Response) -> bool:
     if not any(mimetype.startswith(t) for t in TEXT_TYPES):
         return False
     length = response.content_length
-    return length is None or MIN_BYTES <= length <= MAX_BYTES
+    return length is None or MIN_BYTES <= length <= _ceiling(response)
+
+
+def _ceiling(response: Response) -> int:
+    """The largest body worth compressing: a file read from disk stops at
+    MAX_BYTES; an answer the app built in memory may be larger."""
+    return MAX_BYTES if response.direct_passthrough or response.is_streamed else MAX_BUILT_BYTES
 
 
 def _gzip(data: bytes, level: int) -> bytes:
@@ -73,9 +84,10 @@ def shrink(response: Response) -> Response:
         response.headers["Cache-Control"] = f"public, max-age={STATIC_MAX_AGE}, immutable"
     if not _compressible(response):
         return response
+    ceiling = _ceiling(response)
     response.direct_passthrough = False
     data = response.get_data()
-    if not MIN_BYTES <= len(data) <= MAX_BYTES:
+    if not MIN_BYTES <= len(data) <= ceiling:
         return response
     etag = response.get_etag()[0] or ""
     packed = _static_gzipped(request.path, etag, data) if static else _gzip(data, 5)

@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import calendar
 import io
+import json
 import math
 import re
+import sqlite3
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -447,6 +449,37 @@ def segments():
     return current_app.response_class(body, mimetype="application/json")
 
 
+#: The columns of a gallery page, in the order grid_page reads them.
+GRID_COLUMNS = ("id", "width", "height", "kind", "visibility", "duration", "thumb", "thumb_v",
+                "color", "date_key", "live_id")
+
+
+def page_in_one_step(cur: sqlite3.Cursor, page_sql: str, params: Sequence[Any],
+                     columns: Sequence[str]) -> list[Any]:
+    """The rows of *page_sql* as lists, read as one JSON value rather than
+    one step a row.
+
+    sqlite3 lets go of the GIL on every row it steps and waits to take it
+    back behind whichever thread holds it. With a scan busy in Python in the
+    same process, fetching the gallery's 25,000 rows one at a time took
+    seconds instead of a fraction of one. Built as one value inside SQLite it
+    is a single step, as quick while a scan runs as when it does not. The
+    order is the subquery's: SQLite feeds an aggregate the rows of an ordered
+    subquery in that order. A column holding bytes has no JSON form: then the
+    rows are read one by one, as before. (From Ninaivu 1.10.8.)
+    """
+    # A REAL in all 17 digits: json_array writes 15, which would move a
+    # number by its last bits.
+    wanted = ", ".join(f"CASE typeof(p.{name}) WHEN 'real' THEN json(printf('%!.17g', p.{name})) "
+                       f"ELSE p.{name} END" for name in columns)
+    try:
+        text = cur.execute(f"SELECT json_group_array(json_array({wanted})) FROM ({page_sql}) p",
+                           params).fetchone()[0]
+    except sqlite3.OperationalError:
+        return cur.execute(page_sql, params).fetchall()
+    return json.loads(text) if text else []
+
+
 def grid_page(who: auth.User, where: str, args: list[Any], sort: str, limit: int,
               offset: int) -> dict[str, Any]:
     pageable = sort != "random"
@@ -456,11 +489,12 @@ def grid_page(who: auth.User, where: str, args: list[Any], sort: str, limit: int
     cur = c.cursor()
     cur.row_factory = None
     total = cur.execute(f"SELECT COUNT(*) FROM assets a WHERE {where}", args).fetchone()[0]
-    rows = cur.execute(
+    rows = page_in_one_step(
+        cur,
         f"""SELECT a.id, a.width, a.height, a.kind, a.visibility, a.duration, a.thumb,
                    a.thumb_v, a.color, a.date_key, a.live_id
             FROM assets a WHERE {where} ORDER BY {SORTS[sort]} LIMIT ? OFFSET ?""",
-        [*args, limit, offset]).fetchall()
+        [*args, limit, offset], GRID_COLUMNS)
     favs = favourite_ids(who) if rows else set()
 
     out: list[dict[str, Any]] = []

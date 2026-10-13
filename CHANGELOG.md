@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased
+
+Fixes from Ninaivu's changes of 10 to 12 October 2026 that apply to Ninaivu Lite. The index
+stays at version 11. The photographs and videos are never moved, changed or deleted.
+
+- **The top of the screen is no longer blurred on an iPhone or iPad (Safari on iOS 26).** Safari
+  draws a soft blur over the top of a page unless something fixed there gives it a colour, and
+  it smeared the logo, the buttons and the avatar in the gallery and the console. Both pages
+  now start with a solid strip the colour of their bars, as tall as the status bar (at least
+  6px in a Safari tab), on touch screens and narrow windows only; the page's root has a colour
+  of its own too, since Safari takes a transparent one for white.
+- **The gallery stays quick while a scan is busy.** Reading a page of the gallery handed
+  Python's lock back and forth once per photograph, and a busy scan held it each time, so the
+  first page could take seconds instead of a fraction of one. The page now comes out of SQLite
+  as one value (falling back to the row-by-row read where that cannot be done).
+- **The index's write-ahead log shrinks after a burst.** A first scan or a large import grew it
+  to hundreds of megabytes and it stayed that size on disk; it is now cut back to 64 MB the
+  next time it starts over.
+- **Large answers are compressed.** An answer built in memory over 4 MB (the whole layout of a
+  large library) went out uncompressed; such answers are now gzipped up to 64 MB. Files keep
+  the 4 MB ceiling.
+- **Paging quickly in the viewer no longer queues downloads.** Holding an arrow key through
+  forty photographs left their full-size pictures downloading ahead of the one on screen;
+  pictures fetched ahead are now let go of once paged past, and a photograph left before it
+  arrived stops downloading.
+- **Adding to a large album is quicker**: the album's new count is one query instead of reading
+  every photograph in it back.
+- **First-time setup makes exactly one administrator**, even when two browsers send the setup
+  form in the same instant.
+
 ## 1.14.0 — 2026-10-11
 
 The seventh complete audit (32 problems fixed, 2 of them High), albums that scroll like a film

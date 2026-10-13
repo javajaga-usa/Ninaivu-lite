@@ -84,6 +84,9 @@ export class Viewer extends EventTarget {
     this.index = -1;
     this.item = null;
     this.cache = new Map();
+    // The neighbours' pictures being fetched ahead (id -> Image), so the ones
+    // paged past can be let go of.
+    this.warming = new Map();
     this.slideshow = null;
     this.slideshowDelay = 4000;
     this.slideshowLoop = true;
@@ -328,7 +331,8 @@ export class Viewer extends EventTarget {
     this.toggleSlidePop(false);
     this.closeMoreMenu();
     this.root.hidden = true;
-    this.stage.innerHTML = '';
+    this.clearStage();
+    this.coolDown();
     document.body.style.overflow = '';
     this.dispatchEvent(new CustomEvent('close', { detail: { id: this.item?.id } }));
   }
@@ -413,11 +417,22 @@ export class Viewer extends EventTarget {
     const going = Math.sign(moved);
     this.previousIndex = index;
     const ahead = going < 0 ? [-1, -2, -3, 1] : going > 0 ? [1, 2, 3, -1] : [1, -1, 2];
+    // A neighbour paged past is let go of: holding the arrow key through
+    // forty photographs left forty originals downloading ahead of the one on
+    // screen, on the few connections a browser allows. (From Ninaivu 1.10.8.)
+    this.coolDown(new Set([id, ...ahead.map((offset) => this.ids[index + offset])]));
     for (const offset of ahead) {
       const neighbour = this.ids[index + offset];
       if (neighbour != null && !this.cache.has(neighbour)) {
         this.fetchItem(neighbour).then((data) => {
-          if (data?.kind === 'picture') new Image().src = data.view || data.src;
+          if (data?.kind !== 'picture' || !this.isOpen || this.warming.has(neighbour)) return;
+          if (this.ids[this.index] !== id) return;      // paged on meanwhile
+          const image = new Image();
+          const finished = () => { if (this.warming.get(neighbour) === image) this.warming.delete(neighbour); };
+          image.onload = finished;
+          image.onerror = finished;
+          this.warming.set(neighbour, image);
+          image.src = data.view || data.src;
         }).catch(() => {});
       }
     }
@@ -426,8 +441,26 @@ export class Viewer extends EventTarget {
 
   /* -- rendering ------------------------------------------------------ */
 
-  renderStage(item) {
+  /** Empty the stage. A photograph paged past before it arrived stops
+   * downloading too, rather than holding a connection the next one needs. */
+  clearStage() {
+    for (const img of this.stage.querySelectorAll('img')) {
+      if (!img.complete) img.removeAttribute('src');
+    }
     this.stage.innerHTML = '';
+  }
+
+  /** Stop fetching ahead the pictures of anything not in `keep`. */
+  coolDown(keep = new Set()) {
+    for (const [id, image] of this.warming) {
+      if (keep.has(id)) continue;
+      this.warming.delete(id);
+      image.removeAttribute('src');
+    }
+  }
+
+  renderStage(item) {
+    this.clearStage();
     this.liveVideo = null;
 
     if (item.kind === 'video') {

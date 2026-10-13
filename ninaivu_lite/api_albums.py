@@ -74,6 +74,15 @@ def album_item_ids(album_id: int, who: auth.User) -> list[int]:
         [album_id, *params])]
 
 
+def album_count(album_id: int, who: auth.User) -> int:
+    """How many of the album's items this person may see, counted by SQLite:
+    reading every id back to count them took most of an addition to a large
+    album. (From Ninaivu 1.10.8.)"""
+    where, params = visible(who)
+    return conn().execute(f"SELECT COUNT(*) FROM {ITEMS} WHERE ai.album_id = ? AND {where}",
+                          [album_id, *params]).fetchone()[0]
+
+
 def album_shape(row: sqlite3.Row, who: auth.User) -> dict[str, Any]:
     items = album_item_ids(row["id"], who)
     cover = row["cover_id"]
@@ -224,4 +233,4 @@ def album_items(album_id: int):
             now = time.time()
             c.executemany("INSERT OR IGNORE INTO album_items (album_id, asset_id, added_at) "
                           "VALUES (?, ?, ?)", [(album_id, i, now) for i in ids])
-    return jsonify({"ok": True, "count": len(album_item_ids(album_id, who))})
+    return jsonify({"ok": True, "count": album_count(album_id, who)})
