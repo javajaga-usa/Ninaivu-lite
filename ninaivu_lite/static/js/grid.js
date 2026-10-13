@@ -10,9 +10,20 @@
 import { computeLayout, visibleRange, sectionAt, targetSize } from './layout.js';
 import { thumbUrl } from './api.js';
 import * as i18n from './i18n.js';
+import {
+  AdaptivePreloader, FLING_PX_MS, connectionProfile, interleaveDirectional, predictionMs,
+} from './preload-policy.js';
 
 const OVERSCAN = 900;      // px rendered above and below the viewport
-const POOL_LIMIT = 400;
+/** Tiles kept, with their pictures, after they leave the screen: scrolling
+ *  back to them is instant, with nothing to fetch or decode. More on a
+ *  computer; a phone or tablet has less memory to keep them in, and a device
+ *  with 2 GB or less keeps the 400 it always did. (From Ninaivu 1.10.10.) */
+const POOL_LIMIT = (() => {
+  if (Number(globalThis.navigator?.deviceMemory || 4) <= 2) return 400;
+  const touch = typeof matchMedia === 'function' && matchMedia('(hover: none)').matches;
+  return touch ? 600 : 1200;
+})();
 /** How long a thumbnail may take before the tile admits to loading. */
 const SHIMMER_DELAY = 120;
 
@@ -26,35 +37,39 @@ const MAX_AHEAD_SCREENS = 3;
 /** The band left behind a fast scroll. */
 const TRAILING = 300;
 /** Faster than this (px/ms: 5,000 px a second) is flying past rather than
- *  looking: the band behind it shrinks and less is kept ready that way. */
-const FLING = 5;
+ *  looking: the band behind it shrinks, and nothing is fetched ahead. */
+const FLING = FLING_PX_MS;
 /** No scroll for this long and it has stopped: sharpen, and look ahead. */
 const SETTLE_MS = 140;
 /** A picture arriving within this of its tile being made is shown at once,
  *  with no fade: it was already here, or as good as. Only a tile that waited
  *  fades its picture in. */
 const INSTANT_MS = 90;
-/** Screens fetched ahead of where a scroll stopped, in its direction. */
-const PREFETCH_SCREENS = 1.5;
+/** Thumbnails kept ready on each side of where the screen stopped, or of
+ *  where the pointer is about to take it (the date rail, Jump to): counted in
+ *  photographs, not screens, so small tiles get as many as large ones. Like a
+ *  phone's own photo app, the next few hundred either way are already there.
+ *  The small pictures, 256 px: 600 of them are a few megabytes. Half on a
+ *  device short of memory; a lean link (Data Saver, 2G) gets a screen and a
+ *  half on and nothing behind. (From Ninaivu 1.10.10.) */
+const PREFETCH_COUNT = 300;
 
-// Thumbnails fetched ahead of the scroll while it moves, beyond the tiles
-// already on the page: as far as the scroll will travel in the next few
-// seconds at its present speed, so a faster scroll looks further ahead and a
-// slow or stopped one less. A little is kept ready the other way too, so
-// turning back finds pictures waiting.
-/** How far ahead, in time, the pictures are fetched: speed × this. */
+// While the scroll moves: the next stretch the way it is going, beyond the
+// tiles already on the page, further the slower it goes (predictionMs), and
+// nothing during a fling, when what is already on its way may still land.
+/** The stretch fetched ahead while scrolling: never more than this many
+ *  screens… */
+const WARM_MAX_SCREENS = 3;
+/** …and how far ahead the next piece of the gallery is asked for, on a fling
+ *  too (the app asks for it before the scroll gets there, see lookahead). */
 const PRELOAD_SECONDS = 2.5;
-/** …never less than this many screens ahead, even standing still… */
-const PRELOAD_MIN_SCREENS = 1.5;
-/** …nor more than this many, however fast. */
 const PRELOAD_MAX_SCREENS = 12;
-/** The other way, in screens: less while flying past. */
-const PRELOAD_BEHIND_SCREENS = 0.75;
-const PRELOAD_BEHIND_FAST = 0.25;
-/** At most this many pictures waiting to be fetched ahead. */
-const PRELOAD_MAX = 160;
 /** How often the list ahead is worked out again while scrolling. */
-const PRELOAD_EVERY_MS = 120;
+const PRELOAD_EVERY_MS = 160;
+/** A turn-round counts once it is this fast (px/ms) or has lasted two
+ *  frames: one frame of a trackpad's wobble no longer throws away pictures
+ *  on their way. */
+const REVERSE_PX_MS = 0.5;
 /** Faster than this (px/ms), two frames running, is a jump — the scrollbar
  *  dragged, End pressed — not a scroll: nothing on the way will be looked at,
  *  so nothing is fetched until it lands. The scrubber says so itself. */
@@ -85,56 +100,6 @@ const ICON = {
   // A Live Photo: a still that moves (its short video is played in the viewer).
   live: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="5.5"/><circle cx="12" cy="12" r="9" stroke-dasharray="1.6 2.4"/></svg>',
 };
-
-/**
- * Thumbnails fetched ahead of the scroll into the browser's cache, a few at a
- * time and at low priority, so a tile mounted there later has nothing to wait
- * for. Changing what is wanted cancels what no longer is.
- */
-class Prefetcher {
-  /** `idle`: whether the page is ready for more; asked before each start. */
-  constructor(limit = 4, idle = () => true) {
-    this.limit = limit;
-    this.idle = idle;
-    this.queue = [];
-    this.active = new Map();     // url -> Image in flight
-    this.done = new Set();
-  }
-
-  /** `keep`: pictures the page now shows itself — a download already under
-   *  way for one is left to finish rather than started again from nothing. */
-  want(urls, keep = null) {
-    const wanted = new Set(urls);
-    for (const [url, image] of this.active) {
-      if (!wanted.has(url) && !keep?.has(url)) {
-        this.active.delete(url);
-        image.removeAttribute('src');      // stops the download
-      }
-    }
-    if (this.done.size > 4000) this.done.clear();
-    this.queue = urls.filter((url) => !this.active.has(url) && !this.done.has(url));
-    this.pump();
-  }
-
-  pump() {
-    while (this.active.size < this.limit && this.queue.length && this.idle()) {
-      const url = this.queue.shift();
-      const image = new Image();
-      image.decoding = 'async';
-      if ('fetchPriority' in image) image.fetchPriority = 'low';
-      const finish = () => {
-        if (this.active.get(url) !== image) return;
-        this.active.delete(url);
-        this.done.add(url);
-        this.pump();
-      };
-      image.onload = finish;
-      image.onerror = finish;
-      this.active.set(url, image);
-      image.src = url;
-    }
-  }
-}
 
 /** The sign for an item's kind, standing in for a picture it does not have. */
 function glyphFor(kind) {
@@ -204,7 +169,16 @@ export class Grid extends EventTarget {
     this.lastTime = 0;
     this.fast = false;
     this.settleTimer = null;
-    this.prefetcher = new Prefetcher(4, () => !this.tilesLoading());
+    // Fetched ahead into the browser's cache, never while a tile on the
+    // screen still waits for its picture (preload-policy.js).
+    this.prefetcher = new AdaptivePreloader({ idle: () => !this.tilesLoading() });
+    // Frames the scroll has gone the other way, before it counts as turned.
+    this.turning = 0;
+    this.reversed = false;
+    // Tiles waiting to be sharpened after a stop, the middle of the screen
+    // first (see sharpen).
+    this.sharpenQueue = new Map();
+    this.sharpenFrame = null;
     this.scrolling = false;
     // The pointer, for telling a real move of the mouse from the one a
     // browser makes up when the page scrolls under it.
@@ -318,8 +292,12 @@ export class Grid extends EventTarget {
     this.rangeBase = null;
     if (resetScroll) this.scroller.scrollTop = 0;
     // What was being fetched ahead belongs to the last result set.
-    this.prefetcher.want([]);
+    this.prefetcher.want([], { cancel: 'all' });
     this.relayout(!resetScroll);
+    // The few hundred either way of where it opens are fetched once the
+    // page is idle, as after any stop: a gallery opened and then scrolled
+    // finds them there.
+    if (!this.scrolling) this.preload(true);
     // Say so, or the selection bar goes on offering to act on photos that are
     // no longer selected.
     if (hadSelection) this.emitSelection();
@@ -334,7 +312,10 @@ export class Grid extends EventTarget {
    */
   appendData(segments) {
     const added = mergeSegments(this.segments, segments);
-    if (added) this.relayout(true);
+    if (added) {
+      this.relayout(true);
+      if (!this.scrolling) this.preload(true);
+    }
     return added;
   }
 
@@ -495,8 +476,10 @@ export class Grid extends EventTarget {
   measureSpeed(now = performance.now()) {
     const { top } = this.viewport();
     const elapsed = now - this.lastTime;
+    let instant = 0;
     if (this.lastTime && elapsed > 0 && elapsed < 250) {
       const speed = (top - this.lastTop) / elapsed;
+      instant = speed;
       this.velocity = this.velocity * 0.4 + speed * 0.6;
       // A jump is going on when it was asked for (the scrubber, scrollToRatio)
       // or the scroll has gone faster than any finger for two frames running:
@@ -506,13 +489,23 @@ export class Grid extends EventTarget {
       this.velocity = 0;
       this.overJump = 0;
     }
-    const direction = this.velocity < 0 ? -1 : this.velocity > 0 ? 1 : this.direction;
-    // Turned round: what was fetched ahead is now behind.
-    const turned = direction !== this.direction;
-    this.direction = direction;
+    // Turned round: what was fetched ahead is now behind, and what is still
+    // on its way that way is called off. Only a real turn: faster than
+    // REVERSE_PX_MS, or two frames running, not one frame of wobble.
+    const way = instant < -0.12 ? -1 : instant > 0.12 ? 1 : this.direction;
+    if (way !== this.direction) {
+      this.turning += 1;
+      if (Math.abs(instant) > REVERSE_PX_MS || this.turning >= 2) {
+        this.direction = way;
+        this.turning = 0;
+        this.reversed = true;
+        this.lastPreload = 0;
+      }
+    } else {
+      this.turning = 0;
+    }
     this.lastTop = top;
     this.lastTime = now;
-    if (turned) this.lastPreload = 0;
     this.fast = Math.abs(this.velocity) > FLING;
     if (!this.scrolling) {
       this.scrolling = true;
@@ -526,7 +519,9 @@ export class Grid extends EventTarget {
   band() {
     const { top, height: view } = this.viewport();
     const speed = Math.abs(this.velocity);
-    const ahead = Math.min(OVERSCAN + speed * LOOKAHEAD_MS, OVERSCAN + view * MAX_AHEAD_SCREENS);
+    // At least a screen beyond the edge, on a tall window too.
+    const lead = Math.max(OVERSCAN, view);
+    const ahead = Math.min(lead + speed * LOOKAHEAD_MS, lead + view * MAX_AHEAD_SCREENS);
     const behind = this.fast ? TRAILING : OVERSCAN;
     return this.direction >= 0
       ? [top - behind, top + view + ahead]
@@ -536,8 +531,9 @@ export class Grid extends EventTarget {
   /**
    * The scroll has stopped. Tiles that took the small thumbnail while it went
    * on get the sharp one — fetched on the side and put in only once decoded,
-   * so nothing blinks (see sharpen) — and the next screen and a half in the
-   * direction it was going is fetched, so carrying on finds it ready. The
+   * so nothing blinks (see sharpen), the middle of the screen first — and
+   * the nearest PREFETCH_COUNT thumbnails each way are fetched once the page
+   * is idle, so carrying on and turning round both find them ready. The
    * hover look stays off until the mouse itself moves (see hoverBack).
    */
   settle() {
@@ -553,12 +549,10 @@ export class Grid extends EventTarget {
   }
 
   /**
-   * Fetch, into the browser's cache, the thumbnails the scroll is about to
-   * reach: beyond the tiles already on the page, as far as it will go in the
-   * next PRELOAD_SECONDS at its present speed, nearest first, and a little
-   * the other way. Run every PRELOAD_EVERY_MS while scrolling, and once when
-   * it stops (`now`), when the sharp pictures are fetched in place of the
-   * small ones a fast scroll gets.
+   * Fetch, into the browser's cache, the thumbnails the gallery is about to
+   * need. While the scroll moves (every PRELOAD_EVERY_MS): the next stretch
+   * the way it is going, beyond the tiles already on the page. Once it has
+   * stopped (`now`, from settle): the nearest PREFETCH_COUNT each way.
    */
   preload(now = false) {
     if (this.holds.size) return;
@@ -571,51 +565,115 @@ export class Grid extends EventTarget {
   preloadNow() {
     const { top, height: view } = this.viewport();
     const speed = Math.abs(this.velocity);
+    const reversed = this.reversed;
+    this.reversed = false;
     if (!view || this.jumpAsked || this.overJump >= 2) {
       this.lookahead = 0;
-      this.prefetcher.want([], this.shownUrls());
+      this.prefetcher.want([], { cancel: true, keep: this.shownUrls() });
       return;
     }
+    const profile = connectionProfile();
     const bottom = top + view;
-    const [bandTop, bandBottom] = this.band();
     const down = this.direction >= 0;
-    // Measured from the screen's edge (where the scroll will have travelled),
-    // but always some way past the tiles already on the page.
-    const onPage = down ? bandBottom - bottom : top - bandTop;
-    // A phone that asked to save data gets half the reach.
-    const thrift = navigator.connection?.saveData ? 0.5 : 1;
-    const ahead = Math.max(
-      onPage + thrift * view * (this.scrolling ? PRELOAD_MIN_SCREENS : PREFETCH_SCREENS),
-      thrift * Math.min(view * PRELOAD_MAX_SCREENS, speed * PRELOAD_SECONDS * 1000));
-    const behind = thrift * view * (this.fast ? PRELOAD_BEHIND_FAST : PRELOAD_BEHIND_SCREENS);
-    this.lookahead = ahead;
+    const thrift = profile.lean ? 0.5 : 1;
 
-    const ranges = down
-      ? [[bandBottom, bottom + ahead, bottom, 1], [bandTop - behind, bandTop, top, 3]]
-      : [[top - ahead, bandTop, top, 1], [bandBottom, bandBottom + behind, bottom, 3]];
-    const picks = [];
-    for (const [from, to, edge, weight] of ranges) {
-      if (to <= from) continue;
-      for (const cell of visibleRange(this.layout, from, to).cells) {
-        if (this.mounted.has(cell.n)) continue;
-        const url = this.cellThumbUrl(cell, this.scrolling);
-        // The far side of the band ahead, or the near side behind: the
-        // distance the scroll has to travel to reach it. Behind counts for
-        // more, since the scroll is going the other way.
-        if (url) picks.push([Math.abs((cell.y + cell.h / 2) - edge) * weight, url]);
-      }
+    if (!this.scrolling) {
+      // Stopped: the nearest few hundred each way, once the page is idle.
+      // What is already on its way is let finish (A255): cancelled at every
+      // short pause, the tiles the next stretch of the scroll put there
+      // waited for them from the start, blank.
+      this.lookahead = thrift * view * (profile.lean ? profile.aheadScreens : 3);
+      this.prefetcher.want(this.readyAround(top, bottom, down, profile),
+                           { idleOnly: !profile.lean, priority: 'speculative' });
+      return;
     }
-    picks.sort((a, b) => a[0] - b[0]);
-    const urls = picks.slice(0, PRELOAD_MAX).map((pick) => pick[1]);
-    // Tiles on screen still waiting for their picture come first: while any
-    // is, nothing ahead is started (the prefetcher asks tilesLoading), and
-    // the tiles' own load events start it again.
-    const keep = this.shownUrls();
-    // A255: stopped, the small pictures already on their way are let
-    // finish: cancelled at every short pause, the tiles the next stretch of
-    // the scroll put there waited for them from the start, blank.
-    if (!this.scrolling) for (const url of this.prefetcher.active.keys()) keep.add(url);
-    this.prefetcher.want(urls, keep);
+
+    const [bandTop, bandBottom] = this.band();
+    // The next piece of the gallery is asked for as far ahead as the scroll
+    // will go in the next few seconds, a fling included (see loadMoreIfNear).
+    const onPage = down ? bandBottom - bottom : top - bandTop;
+    this.lookahead = Math.max(onPage + view,
+      thrift * Math.min(view * PRELOAD_MAX_SCREENS, speed * PRELOAD_SECONDS * 1000));
+    if (this.fast || profile.lean) {
+      // Nothing queued where a fling is going; what is on its way may land.
+      this.prefetcher.want([]);
+      return;
+    }
+    const reach = Math.min(view * WARM_MAX_SCREENS, Math.max(view, speed * predictionMs(speed)));
+    this.lookahead = Math.max(this.lookahead, onPage + reach);
+    const urls = down
+      ? this.unmountedUrls(bandBottom, bandBottom + reach)
+      : this.unmountedUrls(bandTop - reach, bandTop).reverse();
+    // Called off only when the scroll has really turned round.
+    this.prefetcher.want(urls, { cancel: reversed, keep: this.shownUrls() });
+  }
+
+  /** The small thumbnails of tiles not on the page, from *from* to *to*,
+   *  top to bottom. */
+  unmountedUrls(from, to) {
+    if (to <= from) return [];
+    const urls = [];
+    for (const cell of visibleRange(this.layout, Math.max(0, from), to).cells) {
+      if (this.mounted.has(cell.n)) continue;
+      const url = this.cellThumbUrl(cell, true);
+      if (url) urls.push(url);
+    }
+    return urls;
+  }
+
+  /** Up to *count* thumbnails of tiles not on the page, from *y* on in the
+   *  direction *step* (1 down, -1 up), nearest first. The stretch looked at
+   *  doubles until it holds enough or reaches the end of the grid. */
+  nearestUrls(y, step, count) {
+    const height = this.layout.height || 0;
+    let span = Math.max(this.viewport().height, 400);
+    for (;;) {
+      const from = step > 0 ? y : Math.max(0, y - span);
+      const to = step > 0 ? Math.min(height, y + span) : y;
+      const urls = this.unmountedUrls(from, to);
+      const reachedEnd = step > 0 ? to >= height : from <= 0;
+      if (urls.length >= count || reachedEnd) {
+        return step > 0 ? urls.slice(0, count) : urls.reverse().slice(0, count);
+      }
+      span *= 2;
+    }
+  }
+
+  /**
+   * The thumbnails to keep ready around a stretch of the grid: the nearest
+   * PREFETCH_COUNT below it and the nearest above, two the way it is going
+   * for every one behind, so carrying on and turning round both find them
+   * there. A lean link gets a screen and a half the way it is going.
+   */
+  readyAround(top, bottom, down = true, profile = connectionProfile()) {
+    if (profile.lean) {
+      const view = Math.max(1, this.viewport().height);
+      return down
+        ? this.unmountedUrls(bottom, bottom + view * profile.aheadScreens)
+        : this.unmountedUrls(Math.max(0, top - view * profile.aheadScreens), top).reverse();
+    }
+    const count = profile.lowMemory ? PREFETCH_COUNT / 2 : PREFETCH_COUNT;
+    const below = this.nearestUrls(bottom, 1, count);
+    const above = this.nearestUrls(top, -1, count);
+    const [ahead, behind] = down ? [below, above] : [above, below];
+    return interleaveDirectional(ahead, behind, 2);
+  }
+
+  /**
+   * Get the pictures ready around a place the pointer is about to take the
+   * grid to: the date rail under the mouse, a month in Jump to. *y* is where
+   * the top of the screen would be. Not on a lean link, not under an open
+   * photo, and not while a scroll is under way, which fetches for itself.
+   */
+  prefetchAround(y) {
+    const profile = connectionProfile();
+    if (this.scrolling || this.holds.size || profile.lean) return;
+    this.withViewport(() => {
+      const view = this.viewport().height;
+      const top = Math.max(0, Math.min(y, Math.max(0, (this.layout.height || 0) - view)));
+      this.prefetcher.want(this.readyAround(top, top + view, true, profile),
+                           { cancel: true, idleOnly: true, priority: 'speculative' });
+    });
   }
 
   /**
@@ -630,7 +688,8 @@ export class Grid extends EventTarget {
     if (on) {
       this.holds.add(reason);
       this.lookahead = 0;
-      this.prefetcher.want([], this.shownUrls());
+      this.prefetcher.want([], { cancel: 'all', keep: this.shownUrls() });
+      this.sharpenQueue.clear();
       // A253: and the sharp pictures being fetched for tiles that have a
       // small one (see swapIn). A photo opened just after a scroll stopped
       // waited behind a screenful of them (850 KB on a phone, measured);
@@ -715,8 +774,44 @@ export class Grid extends EventTarget {
     }
     const { top, height: view } = this.viewport();
     if (cell.y + cell.h < top - view / 2 || cell.y > top + view * 1.5) return;
-    this.swapIn(node, cell, full);
-    node.blurry = false;
+    // Gathered for the frame and started from the middle of the screen out
+    // (flushSharpen), the ones on screen first: the photograph being looked
+    // at is not left waiting behind the row above it. (From Ninaivu 1.10.10.)
+    this.sharpenQueue.set(cell.n, { node, cell, full });
+    if (this.sharpenFrame == null) {
+      this.sharpenFrame = requestAnimationFrame(() => this.flushSharpen());
+    }
+  }
+
+  flushSharpen() {
+    this.sharpenFrame = null;
+    if (this.scrolling || this.holds.size || !this.sharpenQueue.size) {
+      this.sharpenQueue.clear();
+      return;
+    }
+    const jobs = [...this.sharpenQueue.values()];
+    this.sharpenQueue.clear();
+    const { top, height } = this.withViewport(() => this.viewport());
+    const center = top + height / 2;
+    const on = (cell) => cell.y + cell.h > top && cell.y < top + height;
+    const distance = (cell) => Math.abs(cell.y + cell.h / 2 - center);
+    jobs.sort((a, b) => (on(b.cell) - on(a.cell)) || distance(a.cell) - distance(b.cell));
+    const start = ({ node, cell, full }) => {
+      // Still that tile, still waiting, and the grid still in view.
+      if (this.scrolling || this.holds.size || !node.blurry) return;
+      if (this.mounted.get(cell.n) !== node || node.dataset.id !== String(cell.id)) return;
+      this.swapIn(node, cell, full);
+      node.blurry = false;
+    };
+    const nearby = [];
+    for (const job of jobs) {
+      if (on(job.cell)) start(job);
+      else nearby.push(job);
+    }
+    if (!nearby.length) return;
+    const later = () => { for (const job of nearby) start(job); };
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(later, { timeout: 500 });
+    else setTimeout(later, 80);
   }
 
   /** Fetch and decode `url` on the side, then show it in the tile — which
@@ -1401,6 +1496,31 @@ export class Grid extends EventTarget {
     this.render();
   }
 
+  /** Where the screen is, as the photograph at its top and how far it sits
+   *  from the top: what stays true when the window or the zoom changes.
+   *  At the very top, the top (id null). */
+  anchor() {
+    const top = this.scroller.scrollTop;
+    if (top <= 0) return { id: null, offset: 0 };
+    const cell = this.layout.cells.find((c) => c.y + c.h > top);
+    return cell ? { id: cell.id, offset: Math.round(cell.y - top) } : null;
+  }
+
+  /** Back to a place `anchor()` gave; false when that photograph is not in
+   *  the grid (any more, or not yet: a later piece of a long gallery). */
+  scrollToAnchor(place) {
+    if (!place) return false;
+    if (place.id == null) {
+      this.scroller.scrollTop = 0;
+      return true;
+    }
+    const cell = this.layout.cells.find((c) => c.id === place.id);
+    if (!cell) return false;
+    this.scroller.scrollTop = Math.max(0, cell.y - (place.offset || 0));
+    this.render();
+    return true;
+  }
+
   scrollToIndex(index) {
     const cell = this.layout.cells[index];
     if (!cell) return;
@@ -1433,7 +1553,9 @@ export class Grid extends EventTarget {
     clearTimeout(this.settleTimer);
     if (this.topUp) cancelAnimationFrame(this.topUp);
     document.removeEventListener('visibilitychange', this.onVisibility);
-    this.prefetcher.want([]);
+    if (this.sharpenFrame != null) cancelAnimationFrame(this.sharpenFrame);
+    this.sharpenQueue.clear();
+    this.prefetcher.destroy();
   }
 }
 

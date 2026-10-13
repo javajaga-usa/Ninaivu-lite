@@ -361,6 +361,11 @@ SCROLL = """async ([speed, busy]) => {
   look();
   // Each time the grid works out what to fetch ahead: how far it looked (px).
   const grid = window.__mv.grid, preload = grid.preload.bind(grid), reach = [];
+  // An opened gallery has its next 300 thumbnails fetched already, which here
+  // is nearly all 360: forgotten, as in a gallery longer than that, so the
+  // scroll's own fetching ahead is what is measured.
+  grid.prefetcher.want([], { cancel: 'all' });
+  grid.prefetcher.done.clear();
   grid.preload = (now) => { const before = grid.lastPreload; preload(now);
     if (grid.lastPreload !== before && grid.scrolling) reach.push(grid.lookahead); };
   const started = performance.now();

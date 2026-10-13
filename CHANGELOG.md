@@ -2,8 +2,40 @@
 
 ## Unreleased
 
-Fixes from Ninaivu's changes of 10 to 12 October 2026 that apply to Ninaivu Lite. The index
+Fixes and the new scrolling from Ninaivu's changes of 10 to 12 October 2026. The index
 stays at version 11. The photographs and videos are never moved, changed or deleted.
+
+### Scrolling like a phone's own photo app (from Ninaivu 1.10.10)
+
+- **The next 300 photographs either way are ready.** When the gallery stops, and when it
+  opens, the nearest 300 thumbnails below and the 300 above are fetched once the page is
+  idle, two the way it was going for every one behind, counted in photographs so small
+  tiles get as many as large ones. A device with 2 GB of memory or less gets half; Data
+  Saver or a 2G link a screen and a half on and nothing behind. Resting the mouse on the
+  date rail, or on a month in *Jump to*, does the same for the place it would go.
+- **Smarter fetching ahead while scrolling.** The next stretch the way it is going, further
+  the slower it goes; nothing during a fling, where what is already on its way may still
+  land. A fetch is called off only when the scroll really turns round (not on a trackpad's
+  wobble), is never made twice, waits while any picture on screen is still loading, and
+  goes four at a time on a computer, two on a phone, one on Data Saver. Pictures fetched
+  ahead go into the browser's cache without being decoded until a tile shows them. After a
+  stop, the pictures in the middle of the screen are sharpened first.
+- **Going back finds the pictures there.** More tiles are kept with their pictures after
+  they leave the screen: 1,200 on a computer, 600 on a phone or tablet (400 on a device
+  with 2 GB or less, as before).
+- **Each view remembers its place.** All media, an album, a folder or a search comes back to
+  the same photograph after another view, a reload or opening the app again, on that
+  device (the last 40 views).
+- **The viewer opens sharp**, on the gallery's own picture in exactly the place the full
+  photograph takes, instead of a blurred sketch; a neighbour let go of while paging is
+  fetched again on the way back.
+- Measured in Chromium on 2,000 photographs over a 250 ms, 600 KB/s link, the tiles still
+  blank on screen while scrolling: a phone scrolling 2,500 px a second, 19.8% before and
+  0.3% now (20.9% and 2.4% with its processor slowed four times); a phone scrolling down
+  and back, 18.7% and 0.1%; a computer, 0.7% and none. Ready at the top of a gallery: 326
+  thumbnails (was 26); after stopping half-way down, 529 more (was 48).
+
+### Fixes from Ninaivu
 
 - **The top of the screen is no longer blurred on an iPhone or iPad (Safari on iOS 26).** Safari
   draws a soft blur over the top of a page unless something fixed there gives it a colour, and
