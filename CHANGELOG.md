@@ -1,5 +1,71 @@
 # Changelog
 
+## 1.15.0 — 2026-10-13
+
+The gallery scrolls like a phone's own photo app, each view remembers its place, and the fixes
+from Ninaivu's changes of 10 to 12 October 2026 that apply to Ninaivu Lite. The index stays at
+version 11, so 1.13.0 and 1.14.0 can open this version's data folder. Before installing 1.15.0,
+stop Ninaivu Lite: in the Control Panel press **Stop**, then close it (on a Linux server, `sudo
+systemctl stop ninaivu-lite`); the photos, people, settings, index and backups are kept. The
+photographs and videos are never moved, changed or deleted.
+
+### Scrolling like a phone's own photo app (from Ninaivu 1.10.10)
+
+- **The next 300 photographs either way are ready.** When the gallery stops, and when it
+  opens, the nearest 300 thumbnails below and the 300 above are fetched once the page is
+  idle, two the way it was going for every one behind, counted in photographs so small
+  tiles get as many as large ones. A device with 2 GB of memory or less gets half; Data
+  Saver or a 2G link a screen and a half on and nothing behind. Resting the mouse on the
+  date rail, or on a month in *Jump to*, does the same for the place it would go.
+- **Smarter fetching ahead while scrolling.** The next stretch the way it is going, further
+  the slower it goes; nothing during a fling, where what is already on its way may still
+  land. A fetch is called off only when the scroll really turns round (not on a trackpad's
+  wobble), is never made twice, waits while any picture on screen is still loading, and
+  goes four at a time on a computer, two on a phone, one on Data Saver. Pictures fetched
+  ahead go into the browser's cache without being decoded until a tile shows them. After a
+  stop, the pictures in the middle of the screen are sharpened first.
+- **Going back finds the pictures there.** More tiles are kept with their pictures after
+  they leave the screen: 1,200 on a computer, 600 on a phone or tablet (400 on a device
+  with 2 GB or less, as before).
+- **Each view remembers its place.** All media, an album, a folder or a search comes back to
+  the same photograph after another view, a reload or opening the app again, on that
+  device (the last 40 views).
+- **The viewer opens sharp**, on the gallery's own picture in exactly the place the full
+  photograph takes, instead of a blurred sketch; a neighbour let go of while paging is
+  fetched again on the way back.
+- Measured in Chromium on 2,000 photographs over a 250 ms, 600 KB/s link, the tiles still
+  blank on screen while scrolling: a phone scrolling 2,500 px a second, 19.8% before and
+  0.3% now (20.9% and 2.4% with its processor slowed four times); a phone scrolling down
+  and back, 18.7% and 0.1%; a computer, 0.7% and none. Ready at the top of a gallery: 326
+  thumbnails (was 26); after stopping half-way down, 529 more (was 48).
+
+### Fixes from Ninaivu
+
+- **The top of the screen is no longer blurred on an iPhone or iPad (Safari on iOS 26).** Safari
+  draws a soft blur over the top of a page unless something fixed there gives it a colour, and
+  it smeared the logo, the buttons and the avatar in the gallery and the console. Both pages
+  now start with a solid strip the colour of their bars, as tall as the status bar (at least
+  6px in a Safari tab), on touch screens and narrow windows only; the page's root has a colour
+  of its own too, since Safari takes a transparent one for white.
+- **The gallery stays quick while a scan is busy.** Reading a page of the gallery handed
+  Python's lock back and forth once per photograph, and a busy scan held it each time, so the
+  first page could take seconds instead of a fraction of one. The page now comes out of SQLite
+  as one value (falling back to the row-by-row read where that cannot be done).
+- **The index's write-ahead log shrinks after a burst.** A first scan or a large import grew it
+  to hundreds of megabytes and it stayed that size on disk; it is now cut back to 64 MB the
+  next time it starts over.
+- **Large answers are compressed.** An answer built in memory over 4 MB (the whole layout of a
+  large library) went out uncompressed; such answers are now gzipped up to 64 MB. Files keep
+  the 4 MB ceiling.
+- **Paging quickly in the viewer no longer queues downloads.** Holding an arrow key through
+  forty photographs left their full-size pictures downloading ahead of the one on screen;
+  pictures fetched ahead are now let go of once paged past, and a photograph left before it
+  arrived stops downloading.
+- **Adding to a large album is quicker**: the album's new count is one query instead of reading
+  every photograph in it back.
+- **First-time setup makes exactly one administrator**, even when two browsers send the setup
+  form in the same instant.
+
 ## 1.14.0 — 2026-10-11
 
 The seventh complete audit (32 problems fixed, 2 of them High), albums that scroll like a film

@@ -23,6 +23,8 @@ from typing import Any
 log = logging.getLogger(__name__)
 
 DB_FILE = "ninaivu-lite.db"
+#: The most the write-ahead log keeps on disk once it starts over (bytes).
+JOURNAL_SIZE_LIMIT = 64 * 1024 * 1024
 
 # Visibility levels (Ninaivu's numbers).
 VIS_PUBLIC, VIS_FAMILY, VIS_HIDDEN = 0, 1, 2
@@ -351,7 +353,13 @@ def connect(data_dir: str | Path) -> sqlite3.Connection:
             # Network drives and some old filesystems cannot do WAL. The classic
             # journal is slower with many readers but always works.
             conn.execute("PRAGMA journal_mode=DELETE")
-        version = conn.execute("PRAGMA user_version").fetchone()[0]
+        # SQLite reuses the write-ahead log rather than shrinking it, so it
+        # stayed the size of its largest burst for good (a first scan or an
+        # import of a big library left hundreds of megabytes on the disk that
+        # holds the index). With a limit, it is cut back to this size the
+        # next time it starts over. (From Ninaivu 1.10.8.)
+        conn.execute(f"PRAGMA journal_size_limit={JOURNAL_SIZE_LIMIT}")
+        version =conn.execute("PRAGMA user_version").fetchone()[0]
         if 0 < version < len(MIGRATIONS):
             # The first start after an update: a recovery zip of the index as
             # the earlier version left it, before anything in it is changed.

@@ -12,9 +12,8 @@ from ninaivu_lite import auth
 
 pytest.importorskip("playwright.sync_api")
 
-# Every picture asked for with `new Image()` (grid.js's prefetcher and its
-# side fetches for sharpening both use one), so a test can tell them from a
-# tile's own <img>.
+# Every picture asked for with `new Image()` (grid.js's side fetches for
+# sharpening use one), so a test can tell them from a tile's own <img>.
 SIDE = """
 window.__sideUrls = new Set();
 const Real = window.Image;
@@ -145,7 +144,9 @@ def test_a_short_pause_lets_the_small_pictures_on_their_way_finish(browser, long
           // tiles well past the page.
           const top = grid.scroller.scrollTop, view = grid.scroller.clientHeight;
           const far = grid.layout.cells.filter((c) => c.y > top + view * 4)
-            .slice(0, 4).map((c) => grid.cellThumbUrl(c, true));
+            .slice(0, 4).map((c) => `${grid.cellThumbUrl(c, true)}&paused=1`);
+          // (At addresses of their own: the gallery, opened, fetched its next
+          // 300 already, these among them, and the browser has them.)
           p.want(far, grid.shownUrls());
           const coming = far.filter((u) => p.active.has(u));
           // The pause: the grid settles, and fetches the sharp pictures ahead.

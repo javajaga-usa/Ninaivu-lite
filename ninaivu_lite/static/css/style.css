@@ -128,7 +128,9 @@
    clicks. This keeps `hidden` authoritative everywhere. */
 [hidden] { display: none !important; }
 
-html { height: 100%; }
+/* A colour of its own: Safari on iOS 26 reads the root's background for the
+   area around the page, and a transparent root counts as white. */
+html { height: 100%; background-color: var(--bg); }
 
 body {
   height: 100%;
@@ -205,6 +207,25 @@ button { background: none; border: 0; cursor: pointer; }
   border-bottom: 1px solid var(--border-soft);
   position: relative; z-index: 40;
 }
+/* Safari on iOS 26 draws its own soft blur over the top of a page, under the
+   status bar and a little below it, and it smeared the logo, the buttons and
+   the avatar in both the gallery and the console. Safari takes the status
+   bar's colour only from an element fixed at the top of the screen, and
+   neither page's bar is fixed (the gallery's sits in its layout, the
+   console's sticks as the page scrolls). This strip is that element, the
+   colour of the bars, as tall as the status bar and at least 6px (in a
+   Safari tab the inset is 0, and a 1px strip is not taken for a header).
+   On a computer there is no status bar and it is not drawn. It takes no
+   clicks and sits under dialogs and the viewer. (From Ninaivu 1.10.9.) */
+.status-backdrop { display: none; }
+@media (hover: none), (max-width: 1099px) {
+  .status-backdrop {
+    display: block; position: fixed; top: 0; left: 0; right: 0; z-index: 41;
+    height: max(env(safe-area-inset-top, 0px), 6px);
+    background: var(--bg-elev); pointer-events: none;
+  }
+}
+
 /* Every background tinted with color-mix() sits behind @supports like this, with
    a plain one in the rule before it. A declaration that uses var() is never
    dropped by a browser without color-mix() (Safari before 16.2, Chrome before
@@ -1101,6 +1122,14 @@ button.job-row:focus-visible { outline: 2px solid var(--accent); outline-offset:
   position: absolute; inset: 0; margin: auto;
   filter: blur(18px); transform: scale(1.06); opacity: .9;
   transition: opacity .3s var(--ease);
+}
+/* The gallery's own picture, standing in until the full one arrives: sharp,
+   and in the very place the photograph will be drawn (the stage's one grid
+   cell, at the same contain-fit), so nothing moves when it does — a phone's
+   photo app opening a photograph. (From Ninaivu 1.10.10.) */
+.viewer-stage > img.placeholder.sharp {
+  position: static; inset: auto; margin: 0; grid-area: 1 / 1;
+  filter: none; transform: none; opacity: 1; cursor: default;
 }
 
 .audio-hero {

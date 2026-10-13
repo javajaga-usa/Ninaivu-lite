@@ -15,7 +15,8 @@ from ninaivu_lite import auth
 pytest.importorskip("playwright.sync_api")
 
 # What a tile's <img> was pointed at, in order, and which pictures were loaded
-# on the side (grid.js swapIn and the prefetcher both use a plain Image).
+# on the side (grid.js swapIn uses a plain Image; the prefetcher fetches into the
+# browser's cache, preload-policy.js).
 WATCH = """
 window.__sideLoaded = new Set();
 const Real = window.Image;

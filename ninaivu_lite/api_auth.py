@@ -34,6 +34,8 @@ throttle_short = auth.Throttle(limit=8, window=300)
 throttle_long = auth.Throttle(limit=20, window=1800)
 throttle_day = auth.Throttle(limit=60, window=86400)
 throttle_setup = auth.Throttle(limit=10, window=300)
+#: Held from "is there an administrator yet?" to making the first one.
+_SETUP_LOCK = threading.Lock()
 #: And per address whatever the account: a different made-up username each
 #: time used to cost a full password check every time, without end. Forty
 #: in five minutes is far more than a household behind one router gets
@@ -132,13 +134,20 @@ def auth_setup():
     language = str(data.get("language") or "").strip().lower()
     if language and language not in LANGUAGES:
         fail(400, "The language must be en or ta.")
-    try:
-        who = auth.create_user(conn(), str(data.get("username") or ""),
-                               password=str(data.get("password") or ""),
-                               name=str(data.get("name") or ""), role=auth.ROLE_ADMIN,
-                               language=language or cfg().language)
-    except auth.AccountError as exc:
-        fail(400, str(exc))
+    # From the check to the insert under one lock: two browsers sending the
+    # setup form in the same instant (a double tap, two phones) used to make
+    # two first administrators, each with a password the other never chose.
+    # (From Ninaivu 1.10.4.)
+    with _SETUP_LOCK:
+        if not auth.needs_setup(conn()):
+            fail(409, "This library already has an administrator.")
+        try:
+            who = auth.create_user(conn(), str(data.get("username") or ""),
+                                   password=str(data.get("password") or ""),
+                                   name=str(data.get("name") or ""), role=auth.ROLE_ADMIN,
+                                   language=language or cfg().language)
+        except auth.AccountError as exc:
+            fail(400, str(exc))
     if language and language != cfg().language:
         cfg().update(language=language)
     return _signed_in(who)
