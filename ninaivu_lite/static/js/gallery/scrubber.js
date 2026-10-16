@@ -7,12 +7,15 @@ import { $, grid } from './state.js';
 /** The rail's height when the marks were placed: read once there, not on
  *  every scroll frame, where reading it would force a layout. */
 let scrubberRail = 0;
+/** Each month mark, with where it sits on the rail in pixels. */
+let scrubberMarks = [];
 
 export function buildScrubber() {
   const scrubber = $('#scrubber');
   const track = $('#scrubber-track');
   const headers = grid.layout.headers;
   track.innerHTML = '';
+  scrubberMarks = [];
   if (headers.length < 3 || grid.layout.height < grid.scroller.clientHeight * 2) {
     scrubber.hidden = true;
     return;
@@ -45,6 +48,7 @@ export function buildScrubber() {
       mark.textContent = tick.key === 'match' ? i18n.t('Top') : i18n.t('Undated');
     }
     track.appendChild(mark);
+    scrubberMarks.push({ mark, y: Math.max(7, Math.min(railHeight - 7, tick.frac * railHeight)) });
   }
   positionScrubber(grid.scroller.scrollTop /
     Math.max(1, grid.layout.height - grid.scroller.clientHeight));
@@ -74,14 +78,14 @@ export function positionScrubber(ratio) {
   const thumb = $('#scrubber-thumb');
   const at = Math.max(0, Math.min(1, ratio));
   // Clamped like the marks, so the marker's own label is never cut in half
-  // at either end of the rail.
-  thumb.style.top = `clamp(12px, ${at * 100}%, calc(100% - 12px))`;
-  // The marker carries the month it is on; a mark it would sit on top of
-  // gives way, rather than showing through half-covered.
+  // at either end of the rail. Moved with a transform: moving it with `top`
+  // laid the page out again on every frame of a scroll or a drag.
   const rail = scrubberRail || 1;
   const thumbY = Math.max(12, Math.min(rail - 12, at * rail));
-  for (const mark of $('#scrubber-track').children) {
-    const y = Math.max(7, Math.min(rail - 7, Number(mark.dataset.frac) * rail));
+  thumb.style.transform = `translateY(${thumbY}px) translateY(-50%)`;
+  // The marker carries the month it is on; a mark it would sit on top of
+  // gives way, rather than showing through half-covered.
+  for (const { mark, y } of scrubberMarks) {
     mark.classList.toggle('covered', Math.abs(y - thumbY) < 20);
   }
 }
@@ -90,6 +94,7 @@ export function wireScrubber() {
   const scrubber = $('#scrubber');
   const thumb = $('#scrubber-thumb');
   let dragging = false;
+  let hoverTimer = 0;
 
   // The rail runs beside the grid itself, not beside the bars above it. Over
   // the selection bar or the On this day row, its marker sat at the top of
@@ -115,18 +120,36 @@ export function wireScrubber() {
     grid.scrollToRatio((clientY - rect.top) / rect.height);
   };
 
+  // While the handle is held the grid follows it showing each tile's colour,
+  // and the pictures are fetched for where it is let go, or held still
+  // (Grid.beginScrub) — not for every month it passes on the way. The rail
+  // is measured once when the handle is taken hold of: it does not move
+  // during a drag. (From Ninaivu 1.11.0.)
+  let rail = null;
   thumb.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
     dragging = true;
+    clearTimeout(hoverTimer);
+    rail = scrubber.getBoundingClientRect();
     scrubber.classList.add('active');
     thumb.setPointerCapture(event.pointerId);
+    grid.beginScrub();
+    event.preventDefault();
   });
-  thumb.addEventListener('pointermove', (event) => dragging && seek(event.clientY));
+  thumb.addEventListener('pointermove', (event) => {
+    if (!dragging || !rail) return;
+    grid.scrubTo((event.clientY - rail.top) / Math.max(1, rail.height));
+  });
   const release = () => {
+    if (!dragging) return;
     dragging = false;
+    rail = null;
     scrubber.classList.remove('active');
+    grid.endScrub();
   };
   thumb.addEventListener('pointerup', release);
   thumb.addEventListener('pointercancel', release);
+  thumb.addEventListener('lostpointercapture', release);
   scrubber.addEventListener('click', (event) => {
     if (event.target === thumb || thumb.contains(event.target)) return;
     seek(event.clientY);
@@ -134,7 +157,6 @@ export function wireScrubber() {
   // A mouse resting on the rail is about to take the grid there: the
   // pictures around that place are fetched while it rests, so the jump lands
   // on a screen already drawn. (From Ninaivu 1.10.10.)
-  let hoverTimer = 0;
   scrubber.addEventListener('pointermove', (event) => {
     if (dragging || event.pointerType !== 'mouse') return;
     clearTimeout(hoverTimer);

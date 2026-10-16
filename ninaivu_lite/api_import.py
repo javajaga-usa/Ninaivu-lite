@@ -16,7 +16,7 @@ from typing import Any
 from flask import Blueprint, Response, current_app, jsonify, request
 
 from . import folders, importer, takeout
-from .common import body, cfg, conn, fail, importer as engine, require_admin, scanner
+from .common import body, cfg, conn, fail, importer as engine, refuse, require_admin, scanner
 
 bp = Blueprint("api_import", __name__)
 
@@ -162,7 +162,7 @@ def start():
         try:
             os.makedirs(destination, exist_ok=True)
         except OSError as exc:
-            fail(409, f"The destination folder cannot be made: {exc}")
+            refuse(409, "The destination folder cannot be made: {reason}", {"reason": exc})
     try:
         engine().start(sources, destination, kinds, mode, library=list(cfg().folders))
     except ValueError as exc:

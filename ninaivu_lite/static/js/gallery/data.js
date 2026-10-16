@@ -155,14 +155,59 @@ export async function refreshCounts() {
   } catch { /* the numbers are a nicety; the photographs are not */ }
 }
 
+/**
+ * The sidebar's lists: years and folders (one question) and albums.
+ *
+ * Each is asked for and drawn on its own. Albums used to be asked for only
+ * once the year/folder answer had come back, and not at all when it failed —
+ * so one failed or slow answer at sign-in left the family app with no Years,
+ * Folders or Albums until the next sign-in. A failure is asked again twice, a
+ * little later each time (see sidebarAsk). (From Ninaivu 1.11.0.)
+ */
 export async function refreshFacets() {
-  if (!state.status?.has_library) return;
-  try {
-    state.facets = await api.facets();
-  } catch { return; }
+  // Not set up yet: there is nothing to list. Not known (the status question
+  // itself failed): ask anyway, the server knows.
+  if (state.status && !state.status.has_library) return;
+  await Promise.all([loadFacetLists(), loadAlbums()]);
+}
+
+/** Who the sidebar is being drawn for. Moves at every sign-in and sign-out,
+ *  so an answer asked for under the last one is not drawn for this one. */
+let sidebarViewer = 0;
+
+/** A new person is viewing: answers on their way for the last are dropped. */
+export function newSidebarViewer() {
+  sidebarViewer += 1;
+}
+
+/**
+ * *ask* with up to two more tries after a failure, 1.5 s and then 4 s
+ * later. Undefined when it never answered, or when the viewer changed
+ * meanwhile. Refused (401/403) is an answer, not a failure to retry.
+ */
+export async function sidebarAsk(ask) {
+  const viewer = sidebarViewer;
+  for (const wait of [0, 1500, 4000]) {
+    if (wait) await new Promise((done) => { setTimeout(done, wait); });
+    if (viewer !== sidebarViewer) return undefined;
+    try {
+      const answer = await ask();
+      return viewer === sidebarViewer ? answer : undefined;
+    } catch (error) {
+      if (viewer !== sidebarViewer) return undefined;
+      if (error?.status === 401 || error?.status === 403) return null;
+      console.warn('[sidebar] asking again', error?.status || '', error?.message || error);
+    }
+  }
+  return null;
+}
+
+async function loadFacetLists() {
+  const facets = await sidebarAsk(() => api.facets());
+  if (facets === undefined) return;
+  state.facets = facets || state.facets || {};
   renderYears();
   renderFolders();
-  loadAlbums();
 }
 
 export function currentFilters() {
@@ -261,6 +306,31 @@ export async function reload({ resetScroll = false } = {}) {
   renderFilterBar();
   onThisDay?.refresh();
   loadMoreIfNear();
+  fillTimeline();
+}
+
+function scrubbing() {
+  return Boolean($('#scrubber')?.classList.contains('active'));
+}
+
+/**
+ * The rest of a large view, fetched as soon as its first piece is on screen
+ * rather than when the scroll comes near the end of it. The date rail is
+ * drawn from what is held, so until then it covered only the newest piece and
+ * drew itself again — longer — when the next arrived. In large pieces: each
+ * one lays the grid out again. A failed piece is left to loadMoreIfNear's own
+ * retries. (From Ninaivu 1.11.0.)
+ */
+function fillTimeline() {
+  const page = paging;
+  if (page.next == null) return;
+  const go = async () => {
+    while (page === paging && page.next != null && !page.signal?.aborted) {
+      if (!await loadMoreIfNear({ force: true, limit: GALLERY_MAX_PAGE / 2 })) return;
+    }
+  };
+  if ('requestIdleCallback' in window) requestIdleCallback(go, { timeout: 600 });
+  else setTimeout(go, 200);
 }
 
 /**
@@ -269,7 +339,9 @@ export async function reload({ resetScroll = false } = {}) {
  * to a month further down), waiting for a piece already on its way. True
  * when a piece came.
  */
-export async function loadMoreIfNear({ force = false, top = null, view: height = null } = {}) {
+export async function loadMoreIfNear({
+  force = false, top = null, view: height = null, limit = GALLERY_PAGE,
+} = {}) {
   const page = paging;
   if (page !== loadMoreFailed.page) showLoadMoreFailed(null);
   if (page.next == null || !page.signal || page.signal.aborted) return false;
@@ -290,10 +362,14 @@ export async function loadMoreIfNear({ force = false, top = null, view: height =
 
   try {
     page.loading = api.segments(page.filters, page.signal, {
-      limit: GALLERY_PAGE, offset: page.next,
+      limit, offset: page.next,
     });
     const data = await page.loading;
     if (page !== paging) return false;     // a reload replaced this result set
+    // Not under a hand on the date rail: the rail is drawn again for the
+    // longer timeline, and doing that mid-drag moved the months under it.
+    while (scrubbing() && page === paging) await new Promise((r) => { setTimeout(r, 150); });
+    if (page !== paging) return false;
     page.next = data.next_offset;
     page.retryAt = 0;
     page.retryDelay = 0;

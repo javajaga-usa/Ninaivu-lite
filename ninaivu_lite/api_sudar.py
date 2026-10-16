@@ -21,7 +21,7 @@ from flask import Blueprint, Response, jsonify, request
 from PIL import Image, ImageOps
 
 from . import dates
-from .common import asset_path, asset_public, conn, fail, require_admin, scanner, visible_asset
+from .common import asset_path, asset_public, conn, fail, refuse, require_admin, scanner, visible_asset
 from .dates import long_path
 
 log = logging.getLogger(__name__)
@@ -107,7 +107,8 @@ def save_edited_copy(asset_id: int):
             has_alpha = "A" in uploaded.getbands() or "transparency" in uploaded.info
             edited = uploaded.convert("RGBA" if has_alpha and fmt != "JPEG" else "RGB")
     except (ValueError, OSError, Image.DecompressionBombError):
-        fail(400, f"Use a valid {fmt.title() if fmt == 'WEBP' else fmt} image of up to 24 megapixels.")
+        refuse(400, "Use a valid {kind} image of up to 24 megapixels.",
+               {"kind": fmt.title() if fmt == "WEBP" else fmt})
     save_args = {"quality": 95} if fmt in ("JPEG", "WEBP") else {}
 
     stem = os.path.splitext(row["name"])[0][:100]

@@ -35,7 +35,7 @@ async function json(url, options = {}) {
   const data = text ? JSON.parse(text) : null;
   if (!response.ok) {
     if (response.status === 401) reportUnauthorized(url);
-    throw Object.assign(new Error(i18n.t(data?.error || response.statusText)),
+    throw Object.assign(new Error(i18n.fromServer(data, response.statusText)),
       { status: response.status, data });
   }
   return data;

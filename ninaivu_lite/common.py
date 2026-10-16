@@ -114,6 +114,22 @@ def fail(status: int, message: str, **extra: Any) -> NoReturn:
     raise ApiError(status, message, **extra)
 
 
+def refuse(status: int, template: str, params: dict[str, Any], **extra: Any) -> NoReturn:
+    """A refusal with a name or a number in it, said so a page can translate it.
+
+    ``error`` is the English with the values filled in, as ever; ``said`` is
+    the sentence it was made from and ``params`` what went into it, so the
+    page can look the sentence up in Tamil and put each value where Tamil puts
+    it (see i18n.fromServer). Built as an f-string, the sentence was never
+    the same twice and no translation could match it. (From Ninaivu 1.11.0.)
+    """
+    values = {name: str(value) for name, value in params.items()}
+    text = template
+    for name, value in values.items():
+        text = text.replace("{" + name + "}", value)
+    raise ApiError(status, text, said=template, params=values, **extra)
+
+
 #: The largest id (or count) SQLite can hold; one past it was a 500 (A152).
 MAX_ROW_ID = 2 ** 63 - 1
 

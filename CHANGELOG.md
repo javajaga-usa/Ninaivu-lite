@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+The fixes from Ninaivu 1.11.0 (16 October 2026) that apply to Ninaivu Lite.
+
+### The gallery (from Ninaivu 1.11.0)
+
+- **Dragging the date rail is smooth.** While the handle moves, the gallery shows the screen
+  under it, each photograph in its own colour, and fetches nothing; let go, or hold still
+  for a moment, and the screen it stopped on is fetched first. It used to start the
+  pictures of every screen it passed and leave a queue of downloads for places already
+  gone by.
+- **The date rail spans the whole library at once.** A large library arrives in pieces of
+  25,000 photographs so the first screen is quick; the rail covered only the first piece,
+  then folded itself to a longer timeline when a scroll near the end fetched the next. The
+  rest is now fetched as soon as the first screen is up, and never redrawn under a hand
+  dragging the rail.
+- **Years, Folders and Albums appear on the first sign-in.** Each is asked for on its own
+  and asked again if the first answer fails; one failed or slow answer used to leave the
+  sidebar without them until the next sign-in. A question asked before signing in is no
+  longer handed to the person who signed in as their own answer.
+- **Hiding a photograph from the viewer shows on its thumbnail at once**, as hiding a
+  selection already did; closing the viewer brings the Hidden and Public views up to date.
+
+### Audit (from Ninaivu 1.11.0)
+
+- **Temporary passwords are harder to guess:** three words and three digits from the
+  browser's cryptographic generator, instead of two words and two digits from a
+  predictable one.
+- **Every refusal from the server is in Tamil.** The few that put a name, a folder or a
+  reason into the sentence reached a Tamil page in English; they now send the sentence
+  they were made from, and the page puts the name where Tamil puts it.
+
 ## 1.15.0 — 2026-10-13
 
 The gallery scrolls like a phone's own photo app, each view remembers its place, and the fixes

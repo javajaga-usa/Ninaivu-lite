@@ -3201,5 +3201,12 @@
   "Where each one is": "Where each one is",
   "Copies in more than one place": "Copies in more than one place",
   "The same file, byte for byte, in more than one folder of the library. Ninaivu Lite only shows where they are: it never moves or deletes a file. To tidy up, remove the copies you do not want in the folders themselves; the next scan updates this list.": "The same file, byte for byte, in more than one folder of the library. Ninaivu Lite only shows where they are: it never moves or deletes a file. To tidy up, remove the copies you do not want in the folders themselves; the next scan updates this list.",
-  "Pages of copies": "Pages of copies"
+  "Pages of copies": "Pages of copies",
+  "{names} is assigned to that folder. Reassign them first, or confirm to remove it anyway: they will see nothing until they are reassigned.": "{names} is assigned to that folder. Reassign them first, or confirm to remove it anyway: they will see nothing until they are reassigned.",
+  "{names} are assigned to that folder. Reassign them first, or confirm to remove it anyway: they will see nothing until they are reassigned.": "{names} are assigned to that folder. Reassign them first, or confirm to remove it anyway: they will see nothing until they are reassigned.",
+  "{key} must be true or false.": "{key} must be true or false.",
+  "“{folder}” is not inside any library folder. Add it on the Library tab first.": "“{folder}” is not inside any library folder. Add it on the Library tab first.",
+  "{name} has no password, and an administrator signs in with one. Give them a password when making them an administrator.": "{name} has no password, and an administrator signs in with one. Give them a password when making them an administrator.",
+  "The destination folder cannot be made: {reason}": "The destination folder cannot be made: {reason}",
+  "Use a valid {kind} image of up to 24 megapixels.": "Use a valid {kind} image of up to 24 megapixels."
 }

@@ -20,7 +20,7 @@ from flask import Blueprint, Response, jsonify, request
 from . import auth, backups, copies, db, export, folders, media
 from . import importer as importer_rules
 from .api_auth import public_of, sweep_avatar_sources
-from .common import (body, cfg, conn, counted, drop_avatar, fail, folder_ids, human_size,
+from .common import (body, cfg, conn, counted, drop_avatar, fail, refuse, folder_ids, human_size,
                      importer, library_exists, require_admin, row_id, scanner, split_library, subtree,
                      visible)
 from .config import clean_house_name
@@ -400,9 +400,12 @@ def remove_library():
         "ORDER BY display_name COLLATE NOCASE") if _inside(r["library"], path)]
     if assigned and request.args.get("force") not in ("1", "true", "yes"):
         names = ", ".join(assigned[:5])
-        fail(409, f"{names} {'is' if len(assigned) == 1 else 'are'} assigned to that "
-                  f"folder. Reassign them first, or confirm to remove it anyway: they "
-                  f"will see nothing until they are reassigned.", assigned=assigned)
+        refuse(409, "{names} is assigned to that folder. Reassign them first, or confirm "
+                    "to remove it anyway: they will see nothing until they are reassigned."
+               if len(assigned) == 1 else
+               "{names} are assigned to that folder. Reassign them first, or confirm "
+               "to remove it anyway: they will see nothing until they are reassigned.",
+               {"names": names}, assigned=assigned)
     # A copy first: removing is undone by adding the folder back, but a
     # restore is there too if that is not enough.
     backups.before_change(c.data_dir, "removing-folder")
@@ -532,7 +535,7 @@ def settings():
     for key in ("open_browsing", "watch", "video_originals"):
         if key in data:
             if not isinstance(data[key], bool):
-                fail(400, f"{key} must be true or false.")
+                refuse(400, "{key} must be true or false.", {"key": key})
             updates[key] = data[key]
     for key in ("language", "default_language"):
         if key in data:
@@ -607,7 +610,8 @@ def _library_assignment(value: Any) -> str | None:
         return None
     path = os.path.normpath(text)
     if not os.path.isabs(path) or split_library(path) is None:
-        fail(400, f"“{text}” is not inside any library folder. Add it on the Library tab first.")
+        refuse(400, "“{folder}” is not inside any library folder. Add it on the Library tab first.",
+               {"folder": text})
     return path
 
 
@@ -668,8 +672,9 @@ def update_person(user_id: int):
             fail(409, "This is the only administrator — promote someone else first.")
         if role == auth.ROLE_ADMIN and not target.is_admin \
                 and not target.has_password and not password:
-            fail(400, f"{target.display_name} has no password, and an administrator signs "
-                      f"in with one. Give them a password when making them an administrator.")
+            refuse(400, "{name} has no password, and an administrator signs in with one. "
+                        "Give them a password when making them an administrator.",
+                   {"name": target.display_name})
         if role != target.role:
             fields["role"] = role
 

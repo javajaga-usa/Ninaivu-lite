@@ -2,7 +2,7 @@
 
 import { api, thumbUrl } from '../api.js';
 import * as i18n from '../i18n.js';
-import { reload } from './data.js';
+import { reload, sidebarAsk } from './data.js';
 import { syncChips } from './filters.js';
 import { $, grid, state, viewer } from './state.js';
 import { toast } from './toast.js';
@@ -72,12 +72,9 @@ export async function loadAlbums() {
     renderAlbums();
     return;
   }
-  try {
-    const data = await api.albums();
-    state.albums = data.albums || [];
-  } catch {
-    state.albums = [];
-  }
+  const data = await sidebarAsk(() => api.albums());
+  if (data === undefined) return;
+  state.albums = data?.albums || [];
   renderAlbums();
 }
 
