@@ -3303,5 +3303,12 @@
   "Where each one is": "ஒவ்வொன்றும் இருக்கும் இடம்",
   "Copies in more than one place": "ஒன்றுக்கு மேற்பட்ட இடங்களில் உள்ள நகல்கள்",
   "The same file, byte for byte, in more than one folder of the library. Ninaivu Lite only shows where they are: it never moves or deletes a file. To tidy up, remove the copies you do not want in the folders themselves; the next scan updates this list.": "ஒவ்வொரு பைட்டும் ஒன்றாக உள்ள அதே கோப்பு, நூலகத்தின் ஒன்றுக்கு மேற்பட்ட கோப்புறைகளில். அவை எங்கே உள்ளன என்பதை மட்டுமே நினைவு லைட் காட்டும்: அது ஒருபோதும் ஒரு கோப்பை நகர்த்துவதோ நீக்குவதோ இல்லை. ஒழுங்குபடுத்த, வேண்டாத நகல்களைக் கோப்புறைகளிலேயே நீக்குங்கள்; அடுத்த ஸ்கேன் இந்தப் பட்டியலைப் புதுப்பிக்கும்.",
-  "Pages of copies": "நகல்களின் பக்கங்கள்"
+  "Pages of copies": "நகல்களின் பக்கங்கள்",
+  "{names} is assigned to that folder. Reassign them first, or confirm to remove it anyway: they will see nothing until they are reassigned.": "{names} அந்தக் கோப்புறைக்கு ஒதுக்கப்பட்டுள்ளார். முதலில் அவரை மாற்றி ஒதுக்குங்கள், அல்லது எப்படியும் நீக்க உறுதிப்படுத்துங்கள்: மாற்றி ஒதுக்கப்படும் வரை அவர் எதையும் பார்க்க மாட்டார்.",
+  "{names} are assigned to that folder. Reassign them first, or confirm to remove it anyway: they will see nothing until they are reassigned.": "{names} அந்தக் கோப்புறைக்கு ஒதுக்கப்பட்டுள்ளனர். முதலில் அவர்களை மாற்றி ஒதுக்குங்கள், அல்லது எப்படியும் நீக்க உறுதிப்படுத்துங்கள்: மாற்றி ஒதுக்கப்படும் வரை அவர்கள் எதையும் பார்க்க மாட்டார்கள்.",
+  "{key} must be true or false.": "{key} என்பது true அல்லது false ஆக இருக்க வேண்டும்.",
+  "“{folder}” is not inside any library folder. Add it on the Library tab first.": "“{folder}” எந்த நூலகக் கோப்புறைக்குள்ளும் இல்லை. முதலில் நூலகம் தாவலில் அதைச் சேருங்கள்.",
+  "{name} has no password, and an administrator signs in with one. Give them a password when making them an administrator.": "{name}-க்குக் கடவுச்சொல் இல்லை, நிர்வாகி கடவுச்சொல்லுடன் உள்நுழைவார். நிர்வாகி ஆக்கும்போது அவருக்கு ஒரு கடவுச்சொல் கொடுங்கள்.",
+  "The destination folder cannot be made: {reason}": "சேருமிடக் கோப்புறையை உருவாக்க முடியவில்லை: {reason}",
+  "Use a valid {kind} image of up to 24 megapixels.": "24 மெகாபிக்சல் வரையிலான சரியான {kind} படத்தைப் பயன்படுத்துங்கள்."
 }

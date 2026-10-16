@@ -41,7 +41,7 @@ export async function json(url, options = {}) {
     // ended. See api.js: the same 401 means two different things, and
     // only one of them should raise the sign-in screen.
     if (response.status === 401 && !data?.needs_password) reportUnauthorized(url);
-    throw Object.assign(new Error(i18n.t(data?.error || response.statusText)),
+    throw Object.assign(new Error(i18n.fromServer(data, response.statusText)),
       { status: response.status, data });
   }
   return data;

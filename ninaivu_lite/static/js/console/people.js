@@ -409,9 +409,25 @@ function input(name, placeholder) {
   return node;
 }
 
+/**
+ * A temporary password to hand somebody: three words and three digits from
+ * the browser's cryptographic generator (about 28 bits from 64 words). Two
+ * of twelve words and two digits from Math.random() was a few thousand
+ * guesses. (From Ninaivu 1.11.0.)
+ */
 function randomPassword() {
   const words = ['river', 'maple', 'copper', 'lantern', 'harbour', 'meadow',
-    'cedar', 'amber', 'summit', 'willow', 'cobalt', 'ember'];
-  const pick = () => words[Math.floor(Math.random() * words.length)];
-  return `${pick()}-${pick()}-${Math.floor(10 + Math.random() * 89)}`;
+    'cedar', 'amber', 'summit', 'willow', 'cobalt', 'ember', 'falcon', 'orchid',
+    'pebble', 'saffron', 'tamarind', 'monsoon', 'jasmine', 'coconut', 'mango',
+    'banyan', 'lotus', 'peacock', 'kestrel', 'granite', 'thistle', 'juniper',
+    'canyon', 'glacier', 'meteor', 'harvest', 'lagoon', 'compass', 'quartz',
+    'violet', 'cinder', 'breeze', 'marble', 'aurora', 'nectar', 'tundra',
+    'velvet', 'walnut', 'zephyr', 'cypress', 'heron', 'indigo', 'kettle',
+    'lilac', 'magnet', 'nutmeg', 'olive', 'pepper', 'quill', 'raven', 'sparrow',
+    'tulip', 'umber', 'vanilla', 'wicker', 'yarrow', 'acorn', 'basil'];
+  const random = new Uint32Array(4);
+  crypto.getRandomValues(random);
+  const pick = (i) => words[random[i] % words.length];
+  const digits = String(random[3] % 1000).padStart(3, '0');
+  return `${pick(0)}-${pick(1)}-${pick(2)}-${digits}`;
 }

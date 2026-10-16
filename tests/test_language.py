@@ -60,7 +60,9 @@ def used_keys() -> dict[str, str]:
 
 
 def server_messages() -> dict[str, str]:
-    """Every literal message in a ``fail()`` or ``ApiError()`` of the server."""
+    """Every literal message in a ``fail()``, ``refuse()`` or ``ApiError()`` of
+    the server. ``refuse()``'s is a sentence with ``{placeholders}``, and may be
+    one of two (``"… is …" if one else "… are …"``)."""
     found: dict[str, str] = {}
     for path in sorted(PACKAGE.glob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -71,11 +73,42 @@ def server_messages() -> dict[str, str]:
             message = node.args[1]
             status = node.args[0]
             # fail(status, message): a throttle's fail(key, bucket) is not one.
-            if name in ("fail", "ApiError") and isinstance(status, ast.Constant) \
-                    and isinstance(status.value, int) and isinstance(message, ast.Constant) \
-                    and isinstance(message.value, str):
-                found.setdefault(message.value, f"{path.name}:{node.lineno}")
+            if name not in ("fail", "refuse", "ApiError") or not isinstance(status, ast.Constant) \
+                    or not isinstance(status.value, int):
+                continue
+            choices = [message.body, message.orelse] if isinstance(message, ast.IfExp) else [message]
+            for choice in choices:
+                if isinstance(choice, ast.Constant) and isinstance(choice.value, str):
+                    found.setdefault(choice.value, f"{path.name}:{node.lineno}")
     return found
+
+
+def test_a_refusal_with_a_name_in_it_is_a_literal_sentence():
+    """refuse(status, "…{name}…", {...}): an f-string or a variable there
+    cannot be found in the locale files, and reaches a Tamil page in English."""
+    loose = []
+    for path in sorted(PACKAGE.glob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "refuse" \
+                    and len(node.args) >= 2:
+                message = node.args[1]
+                choices = [message.body, message.orelse] if isinstance(message, ast.IfExp) else [message]
+                if not all(isinstance(c, ast.Constant) and isinstance(c.value, str) for c in choices):
+                    loose.append(f"{path.name}:{node.lineno}")
+            if isinstance(node, ast.Call) and getattr(node.func, "id", None) in ("fail", "ApiError") \
+                    and len(node.args) >= 2 and isinstance(node.args[1], ast.JoinedStr):
+                loose.append(f"{path.name}:{node.lineno} (an f-string: use refuse)")
+    assert not loose, loose
+
+
+def test_refuse_sends_the_sentence_and_its_values():
+    from ninaivu_lite.common import ApiError, refuse  # noqa: PLC0415
+    with pytest.raises(ApiError) as caught:
+        refuse(400, "{key} must be true or false.", {"key": "watch"})
+    body = json.loads(caught.value.get_response().get_data())
+    assert body["error"] == "watch must be true or false."
+    assert body["said"] == "{key} must be true or false."
+    assert body["params"] == {"key": "watch"}
 
 
 def locale(code: str) -> dict[str, str]:

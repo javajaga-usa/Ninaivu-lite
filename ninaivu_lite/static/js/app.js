@@ -1,7 +1,9 @@
 /** Application shell: startup, who is viewing, the chrome, and everything wired
     together. The gallery's parts are in gallery/. */
 
-import { api, onUnauthorized, sessionRestored, setAnonymousViewer } from './api.js';
+import {
+  api, forgetInflight, onUnauthorized, sessionRestored, setAnonymousViewer,
+} from './api.js';
 import * as i18n from './i18n.js';
 import { Grid } from './grid.js';
 import { Viewer } from './viewer.js';
@@ -17,7 +19,7 @@ import { wireAlbums } from './gallery/albums.js';
 import { bootDone, bootStep } from './gallery/boot.js';
 import { checkConnection, markStarted, setServerOffline, setupNetworkStatusListeners } from './gallery/connection.js';
 import {
-  anyFilter, currentFilters, dropResults, loadMoreIfNear, paging, refreshCounts, refreshFacets,
+  anyFilter, currentFilters, dropResults, loadMoreIfNear, newSidebarViewer, paging, refreshCounts, refreshFacets,
   refreshStatus, reload, renderLibraryName,
 } from './gallery/data.js';
 import { clearFilters, watchSearchHint, wireSearch } from './gallery/filters.js';
@@ -32,7 +34,7 @@ import {
   $, grid, setGrid, setJump, setOnThisDay, setViewer, state, store, viewer,
 } from './gallery/state.js';
 import { toast } from './gallery/toast.js';
-import { syncViewerVisibility, wireVisibility } from './gallery/visibility.js';
+import { syncViewerVisibility, viewerClosed, wireVisibility } from './gallery/visibility.js';
 
 let posters;
 
@@ -248,6 +250,9 @@ export async function finishStartup(auth) {
 
 async function start(user) {
   state.user = user || { role: 'guest', anonymous: true, can: {} };
+  // Somebody new is viewing: what was asked for the last viewer is not theirs.
+  newSidebarViewer();
+  forgetInflight();
   // The language follows the person: what they chose once, on any device,
   // wins over what this browser asks for. A device with no choice saved
   // for this person keeps the browser's language until they pick one.
@@ -717,6 +722,7 @@ function wireViewer() {
   viewer.addEventListener('open', () => grid.hold('viewer', true));
   viewer.addEventListener('close', (event) => {
     grid.hold('viewer', false);
+    viewerClosed();
     const index = grid.indexOfId(event.detail.id);
     if (index >= 0) {
       grid.cursor = index;

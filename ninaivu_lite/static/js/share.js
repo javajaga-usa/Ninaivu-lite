@@ -40,7 +40,7 @@ function askForPassword(message) {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        error.textContent = body.error ? i18n.t(body.error) : i18n.t('That did not work.');
+        error.textContent = i18n.fromServer(body, i18n.t('That did not work.'));
         button.scrollIntoView({ block: 'nearest' });
         return;
       }
@@ -225,7 +225,7 @@ async function load() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       main.replaceChildren(el('p', 'empty',
-        data.error ? i18n.t(data.error) : i18n.t('This link is no longer available.')));
+        i18n.fromServer(data, i18n.t('This link is no longer available.'))));
       return;
     }
     const one = Number(new URLSearchParams(location.hash.slice(1)).get('item'));

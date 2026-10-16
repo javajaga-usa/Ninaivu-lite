@@ -229,7 +229,8 @@ def test_a55_install_banner_share_page_and_offline_page_are_translated():
     assert "desc.innerHTML = 'Tap" not in app_js
     assert "i18n.t('Tap {share} Share below" in app_js
     share_js = read(JS / "share.js")
-    assert "i18n.t(body.error)" in share_js and "i18n.t(data.error)" in share_js
+    # Through i18n.fromServer, which also puts names back where Tamil puts them.
+    assert "i18n.fromServer(body," in share_js and "i18n.fromServer(data," in share_js
     sw = read(STATIC / "sw.js")
     assert "Ninaivu is offline" in sw and "நினைவுடன் இணைப்பு இல்லை" in sw
     ta = json.loads(read(STATIC / "i18n" / "ta.json"))

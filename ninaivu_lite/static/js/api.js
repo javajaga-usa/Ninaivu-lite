@@ -103,6 +103,18 @@ function sessionEnded() {
 /** Called once the viewer is back in, so a later expiry is noticed again. */
 export function sessionRestored() {
   sessionAlreadyLost = false;
+  forgetInflight();
+}
+
+/**
+ * Let go of the questions still on their way. Somebody new is viewing (a
+ * sign-in, a guest, the picker over an ended session): a question asked for
+ * the last one, under the last one's cookie, must not be handed to the next as
+ * its own answer — a 401, or the last person's list, in place of theirs.
+ * (From Ninaivu 1.11.0.)
+ */
+export function forgetInflight() {
+  inflight.clear();
 }
 
 async function request(url, options = {}) {
@@ -124,7 +136,7 @@ async function request(url, options = {}) {
     // dialog doing the asking, and signed somebody out of their own gallery
     // for mistyping a password into a delete box.
     if (response.status === 401 && !data?.needs_password) reportUnauthorized(url, !!data?.private);
-    throw Object.assign(new Error(i18n.t(data?.error || response.statusText)), {
+    throw Object.assign(new Error(i18n.fromServer(data, response.statusText)), {
       status: response.status,
       data,
     });
@@ -146,7 +158,7 @@ export async function mediaRefusal(url) {
     const response = await fetch(url, { headers: { Range: 'bytes=0-0', Accept: 'application/json' } });
     if (response.ok) return '';
     const data = await response.json().catch(() => null);
-    return data?.error ? i18n.t(data.error) : '';
+    return i18n.fromServer(data);
   } catch {
     return '';
   }
