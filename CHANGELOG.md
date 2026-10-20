@@ -1,8 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.15.1 — 2026-10-20
 
-The fixes from Ninaivu 1.11.0 (16 October 2026) that apply to Ninaivu Lite.
+The fixes from Ninaivu 1.11.0 (16 October 2026) that apply to Ninaivu Lite. The index stays at
+version 11, so 1.13.0 to 1.15.0 can open this version's data folder. Before installing 1.15.1,
+stop Ninaivu Lite: in the Control Panel press **Stop**, then close it (on a Linux server, `sudo
+systemctl stop ninaivu-lite`); the photos, people, settings, index and backups are kept. The
+photographs and videos are never moved, changed or deleted.
 
 ### The gallery (from Ninaivu 1.11.0)
 
