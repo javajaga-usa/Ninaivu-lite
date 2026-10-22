@@ -77,7 +77,10 @@ jobs:
   browser:
     name: Lint and browser
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The installs alone (Chromium's system libraries, ffmpeg, Xvfb) took ten
+    # minutes each on a slow runner on 2026-10-22, twice, and the 1.15.2
+    # release stopped before the tests had run four minutes.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
