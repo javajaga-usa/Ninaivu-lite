@@ -45,7 +45,16 @@ function onProgress(scan) {
     if (strapline) strapline.textContent = text;
   }
   const phase = `${scan.status}:${scan.added}:${scan.removed}:${scan.unreadable || 0}`;
-  if (phase !== lastPhase && (scan.status === 'done' || scan.status === 'error')) {
+  const ended = scan.status === 'done' || scan.status === 'error';
+  if (lastPhase === null && ended) {
+    // A scan that ended before the console opened: the page has just read
+    // what it found. Refreshing on the first tick read the counts, People
+    // and Albums twice on every open. (From Ninaivu 2.1.0.)
+    lastPhase = phase;
+    if (scan.unreadable) toast(i18n.t('Some folders could not be read, so their photos were kept as they were. Check that this computer may read them, then rescan.'), true);
+    return;
+  }
+  if (phase !== lastPhase && ended) {
     lastPhase = phase;
     if (scan.unreadable) toast(i18n.t('Some folders could not be read, so their photos were kept as they were. Check that this computer may read them, then rescan.'), true);
     refresh();

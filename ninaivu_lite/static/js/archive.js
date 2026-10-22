@@ -380,7 +380,12 @@ export class ArchivePanel {
     this.estimateTimer = setInterval(ask, 500);
 
     try {
-      const result = await archiveApi.capacity({ ...job, progress_token: token });
+      let result = await archiveApi.capacity({ ...job, progress_token: token });
+      // A long count answers "pending" every twenty seconds rather than
+      // holding a server thread for the whole walk: ask again, same token.
+      while (result.pending && this.estimateToken === token) {
+        result = await archiveApi.capacity({ ...job, progress_token: token });
+      }
       // A newer estimate started while this one was walking: its answer is
       // the right one, and this one must not overwrite it.
       if (this.estimateToken !== token) return;

@@ -1,5 +1,42 @@
 # Changelog
 
+## Unreleased
+
+The fixes from Ninaivu 1.12.0 to 2.1.0 (19 to 22 October 2026) that apply to Ninaivu Lite. Most of
+Ninaivu 2.x is new systems Ninaivu Lite does not have (the job engine, the on-device AI, the Pi
+copy, the recycle bin, faces); what is here is the Import page and two quieter pages.
+
+### Importing a drive (from Ninaivu 2.1.0)
+
+- **A count no longer stops at 200,000 files.** The count on the Import page gave up there and
+  said "at least"; it now counts every file.
+- **A drive is counted once, however many pages ask.** Reloading the Import page, or opening it
+  in a second tab, started another walk of the same drive while the first went on, for nobody,
+  to the end. A count of the same folders already under way is now joined, so the reloaded page
+  shows it where it has got to; a finished count is handed back for ten minutes, until a run
+  starts; and a walk no page has asked about for half a minute is stopped. Pressing Start stops a
+  count under way, since the run counts for itself.
+- **The console stays responsive while a large drive is counted.** The count was made inside the
+  page's request, which held one of the server's few threads for as long as the drive took to
+  walk (most of an hour for a big USB drive), so after a few reloads the console stopped
+  answering. The page is now told "still counting" every twenty seconds and asks again, while its
+  progress line keeps moving as before.
+- **Dry run is quick.** It read every byte of every file to see duplicates among its own
+  predictions, so on a whole drive it took as long as the copy it was meant to foretell. It now
+  reads only a file whose size matches one already archived or already predicted, as a real run
+  does, and predicts the same names and duplicates.
+- **The manifest never lets a spreadsheet run a cell as a formula.** A cell that starts with `=`,
+  `+`, `-` or `@` gets a leading apostrophe.
+
+### Quieter pages (from Ninaivu 1.12.0 and 2.1.0)
+
+- **The console no longer reads everything twice when it opens.** Its first look at the scan,
+  finding one that had finished before the page opened, refreshed the overview, People and
+  folders straight after the page had read them.
+- **Closing the viewer straight after changing who can see a photograph brings the gallery up to
+  date.** Closed in the moment before the change was saved, the viewer left the gallery as it was,
+  so a photograph made public stayed out of the Public view until the next reload.
+
 ## 1.15.1 — 2026-10-20
 
 The fixes from Ninaivu 1.11.0 (16 October 2026) that apply to Ninaivu Lite. The index stays at

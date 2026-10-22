@@ -22,6 +22,19 @@ bp = Blueprint("api_import", __name__)
 
 _TOKEN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
+#: What a spreadsheet reads as the start of a formula.
+_FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
+
+
+def cell(value: Any) -> Any:
+    """*value* as a spreadsheet will show it, not run it: a file named
+    ``=HYPERLINK(...).jpg`` on a drive would otherwise be a live formula in
+    the manifest once it is opened. Text that starts like one gets a leading
+    apostrophe; numbers pass as they are. (From Ninaivu 2.0.0.)"""
+    if isinstance(value, str) and value.startswith(_FORMULA_START):
+        return "'" + value
+    return value
+
 
 def _job(data: dict[str, Any]) -> tuple[list[str], str, list[str]]:
     sources = importer.clean_sources(data.get("source_dirs"))
@@ -105,8 +118,10 @@ def validate():
 
 @bp.post("/api/archive/capacity")
 def capacity():
-    """Count what the job would take, in the request: the page polls
-    ``capacity/progress`` with the same token while it runs."""
+    """Count what the job would take. The page polls ``capacity/progress``
+    with the same token while it runs; a count not finished within twenty
+    seconds answers ``pending`` and the page asks again, so no request holds
+    one of the server's threads for as long as a drive takes to walk."""
     require_admin()
     data = body()
     sources, destination, kinds = _job(data)
@@ -116,8 +131,8 @@ def capacity():
     token = str(data.get("progress_token") or "")
     if not _TOKEN.match(token):
         token = f"est-{int(time.time() * 1000)}"
-    return jsonify(engine().estimate(sources, destination, kinds, token,
-                                     library=list(cfg().folders)))
+    return jsonify(engine().ask_estimate(sources, destination, kinds, token,
+                                         library=list(cfg().folders)))
 
 
 @bp.get("/api/archive/capacity/progress")
@@ -221,7 +236,7 @@ def manifest():
     writer = csv.writer(out)
     writer.writerow(["source", "destination", "size", "sha256", "status", "date"])
     for row in importer.manifest_rows(conn()):
-        writer.writerow(row)
+        writer.writerow([cell(value) for value in row])
     stamp = time.strftime("%Y%m%d-%H%M")
     return Response(out.getvalue().encode("utf-8-sig"), mimetype="text/csv",
                     headers={"Content-Disposition":

@@ -34,7 +34,7 @@ from typing import Any
 
 from . import db, parallel
 from .import_plan import (  # noqa: F401 — the importer's names, where they always were
-    ARCHIVE_NAME, CHUNK, ESTIMATE_CAP, IGNORE_DIRS, KINDS, LIVE_CLIP_EXTS, LIVE_STILL_EXTS,
+    ARCHIVE_NAME, CHUNK, IGNORE_DIRS, KINDS, LIVE_CLIP_EXTS, LIVE_STILL_EXTS,
     MARKER, MIN_BYTES, MODES, NEVER_MEDIA_EXTS, PACKED_EXTS, PARTIAL_DIR, PLAN, SHOW_EVERY,
     SIDECAR_EXTS, TERMINAL, UNDATED, _say, Cancelled, capture_date, clean_kinds, clean_sources,
     default_destination, free_space, Gate, hash_file, human_size, Incomplete, is_sidecar,
@@ -75,6 +75,10 @@ class Importer(Walking, Copying):
         """Begin a run. Raises ValueError with a sentence when it cannot.
         *library* is the library's folders: never walked as a source (their
         photographs are in the gallery already)."""
+        with self._lock:
+            if self.running:
+                raise ValueError("A run is already going. Stop it first.")
+        self.forget_estimates()
         with self._lock:
             if self.running:
                 raise ValueError("A run is already going. Stop it first.")
