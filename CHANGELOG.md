@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased
+## 1.15.2 — 2026-10-22
 
 The fixes from Ninaivu 1.12.0 to 2.1.0 (19 to 22 October 2026) that apply to Ninaivu Lite. Most of
 Ninaivu 2.x is new systems Ninaivu Lite does not have (the job engine, the on-device AI, the Pi
-copy, the recycle bin, faces); what is here is the Import page and two quieter pages.
+copy, the recycle bin, faces); what is here is the Import page and two quieter pages. The index
+stays at version 11, so 1.13.0 to 1.15.1 can open this version's data folder. Before installing
+1.15.2, stop Ninaivu Lite: in the Control Panel press **Stop**, then close it (on a Linux server,
+`sudo systemctl stop ninaivu-lite`); the photos, people, settings, index and backups are kept. The
+photographs and videos are never moved, changed or deleted.
 
 ### Importing a drive (from Ninaivu 2.1.0)
 
