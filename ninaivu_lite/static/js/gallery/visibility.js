@@ -51,8 +51,15 @@ export function wireVisibility() {
     button.onclick = async () => {
       const item = viewer.item;
       if (!item) return;
+      // Closing the viewer brings the gallery up to date. Marked before the
+      // answer comes back, and the reload waits for it, so a viewer closed
+      // in that moment neither skips the reload nor reads the old setting.
+      // (From Ninaivu 1.12.0.)
+      const change = accountsApi.setVisibility([item.id], button.dataset.vis);
+      visibilitySaving = change.catch(() => {});
+      visibilityChanged = true;
       try {
-        await accountsApi.setVisibility([item.id], button.dataset.vis);
+        await change;
         item.visibility = button.dataset.vis;
         syncViewerVisibility();
         // The tile behind the viewer shows it at once: its badge was left as
@@ -60,7 +67,6 @@ export function wireVisibility() {
         // gallery. Whether the photograph still belongs in this view (Hidden,
         // Public) is settled when the viewer closes. (From Ninaivu 1.11.0.)
         showTileVisibility(item.id, button.dataset.vis);
-        visibilityChanged = true;
         toast(i18n.t('Now visible to {audience}.', { audience: visLabel(button.dataset.vis) }));
         refreshStatus();
       } catch (exc) { toast(exc.message, true); }
@@ -70,6 +76,8 @@ export function wireVisibility() {
 
 /** Set since the viewer opened, so closing it brings the gallery up to date. */
 let visibilityChanged = false;
+/** The last change asked for from the viewer, settled or not. */
+let visibilitySaving = Promise.resolve();
 
 /** The visibility badge on one tile (flags 64 = public, 128 = hidden). */
 function showTileVisibility(id, visibility) {
@@ -85,7 +93,7 @@ function showTileVisibility(id, visibility) {
 export function viewerClosed() {
   if (!visibilityChanged) return;
   visibilityChanged = false;
-  reload();
+  visibilitySaving.then(() => reload());
 }
 
 export function visLabel(visibility) {

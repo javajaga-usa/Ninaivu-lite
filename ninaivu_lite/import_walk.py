@@ -11,9 +11,9 @@ from typing import Any
 
 from . import db
 from .dates import long_path
-from .import_plan import (ESTIMATE_CAP, IGNORE_DIRS, MARKER, MIN_BYTES, NEVER_MEDIA_EXTS,
-                          PACKED_EXTS, Gate, _ext, free_space, is_sidecar, is_within,
-                          kind_by_extension, norm, sniff_media)
+from .import_plan import (ESTIMATE_ABANDONED, ESTIMATE_KEEP, ESTIMATE_WAIT, IGNORE_DIRS, MARKER,
+                          MIN_BYTES, NEVER_MEDIA_EXTS, PACKED_EXTS, Gate, _ext, free_space,
+                          is_sidecar, is_within, kind_by_extension, norm, sniff_media)
 
 # Logged under the importer's name, as these lines always were.
 log = logging.getLogger("ninaivu_lite.importer")
@@ -128,23 +128,95 @@ class Walking:
 
     def estimate(self, sources: list[str], destination: str, kinds: list[str],
                  token: str, library: list[str] | None = None) -> dict[str, Any]:
-        stop = threading.Event()
-        # Cancelling stops the walk at the next folder, not after the next
-        # 200 photographs: a drive of many folders and few photos never got there.
-        snapshot = {"running": True, "finished": False, "cancelled": False, "stop": stop,
-                    "files": 0, "bytes": 0, "folder": "", "started": time.time()}
+        """Count what a run would take, here and now, and return the answer."""
+        snapshot = self._new_estimate(sources, destination, kinds, library, watched=False)
         with self._lock:
             self._estimates[token] = snapshot
-            self._estimates = {k: v for k, v in self._estimates.items()
-                               if v["running"] or time.time() - v["started"] < 600}
+            snapshot["tokens"].add(token)
+        return self._count(snapshot, sources, destination, kinds, library)
+
+    def ask_estimate(self, sources: list[str], destination: str, kinds: list[str],
+                     token: str, library: list[str] | None = None,
+                     wait: float = ESTIMATE_WAIT) -> dict[str, Any]:
+        """The console's question: the count of these folders, or, while it
+        is still being made, ``{"ok": False, "pending": True}`` after *wait*
+        seconds, and the page asks again with the same token.
+
+        The count used to be made inside the request, so a page held one of
+        the web server's few threads for as long as the drive took to walk
+        (most of an hour for a large USB drive), and every reload of the
+        Import page started a second walk of the same drive while the first
+        went on, for nobody, to the end. Now a count of the same folders
+        already under way is joined (a reload, a second tab), a finished one
+        is handed back for ten minutes until a run starts, and a walk nobody
+        has asked about for half a minute is stopped. (From Ninaivu 2.1.0.)"""
+        key = self._estimate_key(sources, destination, kinds, library)
+        with self._lock:
+            self._prune_estimates()
+            snapshot = self._estimates.get(token)
+            if snapshot is None or snapshot["key"] != key or snapshot["cancelled"]:
+                snapshot = next((s for s in self._estimates.values()
+                                 if s["key"] == key and s["watched"] and not s["cancelled"]),
+                                None)
+            fresh = snapshot is None
+            if fresh:
+                snapshot = self._new_estimate(sources, destination, kinds, library, watched=True)
+            self._estimates[token] = snapshot
+            snapshot["tokens"].add(token)
+            snapshot["seen"] = time.time()
+        if fresh:
+            threading.Thread(target=self._count, name="import-estimate", daemon=True,
+                             args=(snapshot, sources, destination, kinds, library)).start()
+        snapshot["done"].wait(max(0.0, wait))
+        with self._lock:
+            snapshot["seen"] = time.time()
+            result = snapshot.get("result")
+        return result if result is not None else {"ok": False, "pending": True}
+
+    def _estimate_key(self, sources: list[str], destination: str, kinds: list[str],
+                      library: list[str] | None) -> tuple:
+        return (tuple(norm(s) for s in sources), norm(destination) if destination else "",
+                tuple(sorted(kinds)), tuple(sorted(norm(f) for f in library or ())))
+
+    def _new_estimate(self, sources: list[str], destination: str, kinds: list[str],
+                      library: list[str] | None, watched: bool) -> dict[str, Any]:
+        now = time.time()
+        return {"running": True, "finished": False, "cancelled": False,
+                "stop": threading.Event(), "done": threading.Event(), "result": None,
+                "files": 0, "bytes": 0, "folder": "", "started": now, "seen": now,
+                "ended": None, "watched": watched, "tokens": set(),
+                "key": self._estimate_key(sources, destination, kinds, library)}
+
+    def _prune_estimates(self) -> None:
+        """Drop counts that ended more than ten minutes ago (under the lock)."""
+        now = time.time()
+        self._estimates = {k: v for k, v in self._estimates.items()
+                           if v["running"] or now - (v["ended"] or now) < ESTIMATE_KEEP}
+
+    def forget_estimates(self) -> None:
+        """A run is starting: it counts for itself, so a count under way is
+        stopped (two walks of one slow drive slow each other), and a finished
+        one is out of date once the run has copied something."""
+        with self._lock:
+            for s in self._estimates.values():
+                s["cancelled"] = True
+                s["stop"].set()
+            self._estimates = {k: v for k, v in self._estimates.items() if v["running"]}
+
+    def _count(self, snapshot: dict[str, Any], sources: list[str], destination: str,
+               kinds: list[str], library: list[str] | None) -> dict[str, Any]:
+        stop = snapshot["stop"]
         counters: dict[str, Any] = {}
         files = size = 0
         by_kind: dict[str, int] = {}
         bytes_by_kind: dict[str, int] = {}
-        truncated = False
+        result: dict[str, Any] = {"ok": False, "cancelled": True}
         try:
             # The library folders are stepped over as the real run will
-            # (A142), not taken from whatever the last run had.
+            # (A142), not taken from whatever the last run had. Every file is
+            # counted: the count used to stop at 200,000 and say "at least".
+            # Cancelling stops the walk at the next folder, not after the next
+            # 200 photographs: a drive of many folders and few photos never got there.
             for _path, st, kind in self._walk(sources, kinds, destination, counters=counters,
                                              cancelled=stop, library=list(library or ())):
                 files += 1
@@ -154,38 +226,47 @@ class Walking:
                 if files % 200 == 0:
                     with self._lock:
                         snapshot.update(files=files, bytes=size, folder=counters.get("folder", ""))
+                        if snapshot["watched"] and time.time() - snapshot["seen"] > ESTIMATE_ABANDONED:
+                            # The page that asked has gone (a reload, a closed tab).
+                            log.info("import: count of %s stopped: nobody is watching it",
+                                     ", ".join(sources))
+                            snapshot["cancelled"] = True
                         if snapshot["cancelled"]:
                             stop.set()
-                if files >= ESTIMATE_CAP:
-                    truncated = True
-                    break
+            if not snapshot["cancelled"]:
+                free = free_space(destination)
+                needed = int(max(0, size - self._done_bytes(sources, destination)) * 1.1)
+                result = {
+                    "ok": True, "files": files, "bytes": size, "by_kind": by_kind,
+                    "bytes_by_kind": bytes_by_kind, "too_small": counters.get("too_small", 0),
+                    "left_out": counters.get("left_out", 0),
+                    "unreadable": counters.get("unreadable", 0),
+                    "packed": counters.get("packed", 0), "truncated": False, "needed": needed,
+                    "free": free, "fits": free is None or free >= needed,
+                }
         finally:
             with self._lock:
-                snapshot.update(running=False, finished=True, files=files, bytes=size)
-        if snapshot["cancelled"]:
-            return {"ok": False, "cancelled": True}
-        free = free_space(destination)
-        needed = int(max(0, size - self._done_bytes(sources, destination)) * 1.1)
-        return {
-            "ok": True, "files": files, "bytes": size, "by_kind": by_kind,
-            "bytes_by_kind": bytes_by_kind, "too_small": counters.get("too_small", 0),
-            "left_out": counters.get("left_out", 0), "unreadable": counters.get("unreadable", 0),
-            "packed": counters.get("packed", 0), "truncated": truncated, "needed": needed, "free": free,
-            "fits": free is None or free >= needed,
-        }
+                snapshot.update(running=False, finished=True, files=files, bytes=size,
+                                ended=time.time(), result=result)
+            snapshot["done"].set()
+        return result
 
     def estimate_progress(self, token: str) -> dict[str, Any]:
         with self._lock:
             s = self._estimates.get(token)
             if not s:
                 return {"running": False, "finished": False, "known": False}
+            s["seen"] = time.time()
             return {"running": s["running"], "finished": s["finished"], "known": True,
                     "files": s["files"], "bytes": s["bytes"], "folder": s["folder"],
-                    "elapsed": time.time() - s["started"]}
+                    "elapsed": (s["ended"] or time.time()) - s["started"]}
 
     def cancel_estimate(self, token: str) -> None:
+        """This page no longer wants the count; it stops once no page does."""
         with self._lock:
-            s = self._estimates.get(token)
+            s = self._estimates.pop(token, None)
             if s:
-                s["cancelled"] = True
-                s["stop"].set()
+                s["tokens"].discard(token)
+                if not s["tokens"] and s["running"]:
+                    s["cancelled"] = True
+                    s["stop"].set()

@@ -173,8 +173,13 @@ class Copying:
             when = taken.strftime("%Y-%m-%d %H:%M:%S") if taken else None
             src_hash = None
             # Hash up front only when it can settle a duplicate now; otherwise
-            # the hash is taken while copying, which reads the file once.
-            if dry or self._size_known(conn, st.st_size):
+            # the hash is taken while copying, which reads the file once. A
+            # dry run asks the same question (it used to read every byte of
+            # every file, as long as the copy it foretells); only then are its
+            # earlier predictions of this size read. (From Ninaivu 2.1.0.)
+            if self._size_known(conn, st.st_size):
+                if dry:
+                    self._hash_earlier_predictions(conn, st.st_size)
                 src_hash = hash_file(src, self.gate)
                 dup = self._duplicate_of(conn, src_hash, src, st.st_size)
                 if dup:
@@ -182,8 +187,9 @@ class Copying:
                          hash=src_hash, taken=when, date_source=source, duplicate_of=dup)
                     return
             if dry:
-                candidate, identical = self._unique_path(conn, folder, name, src_hash,
-                                                         st.st_size, planning=True, source=src)
+                candidate, identical, src_hash = self._unique_path(
+                    conn, folder, name, src_hash, st.st_size, planning=True, source=src,
+                    with_hash=True)
                 if identical:
                     mark("plan-duplicate", hash=src_hash, taken=when, date_source=source,
                          duplicate_of=candidate)
@@ -349,23 +355,61 @@ class Copying:
         return None
 
     def _unique_path(self, conn: sqlite3.Connection, folder: str, name: str, digest: str | None,
-                     size: int, planning: bool = False, source: str = "") -> tuple[str, bool]:
+                     size: int, planning: bool = False, source: str = "",
+                     with_hash: bool = False) -> tuple:
         """A free name in *folder*, or the existing file when its bytes are
-        the same (then nothing needs copying). Returns (path, identical)."""
+        the same (then nothing needs copying). Returns (path, identical).
+
+        A dry run may come without *digest*: the source (*source*) is then
+        read only if a file of its size is found at a candidate name, the one
+        case the answer depends on its bytes. With *with_hash* the digest
+        used, or None, comes back as a third value."""
         stem, ext = os.path.splitext(name)
         counter = 0
+
+        def found(path: str, identical: bool) -> tuple:
+            return (path, identical, digest) if with_hash else (path, identical)
+
         while counter <= 9999:
             self.gate.check()
             candidate = os.path.join(folder, name if counter == 0 else f"{stem}_{counter}{ext}")
             if os.path.exists(long_path(candidate)):
+                if digest is None and source and self._same_size(candidate, size):
+                    digest = hash_file(source, self.gate)
                 if self._same_bytes(conn, candidate, digest, size):
-                    return candidate, True
+                    return found(candidate, True)
             elif not (planning and conn.execute(
                     "SELECT 1 FROM import_files WHERE destination = ? AND status = 'planned' "
                     "AND source != ?", (candidate, source)).fetchone()):
-                return candidate, False
+                return found(candidate, False)
             counter += 1
         raise RuntimeError(f"No free name could be found for {name}.")
+
+    @staticmethod
+    def _same_size(candidate: str, size: int) -> bool:
+        """Whether the file at *candidate* could be these bytes at all."""
+        try:
+            return os.stat(long_path(candidate)).st_size == size
+        except OSError:
+            return False
+
+    def _hash_earlier_predictions(self, conn: sqlite3.Connection, size: int) -> None:
+        """Read the files a dry run predicted at this size without reading
+        them: only now does their digest matter, since this file is the same
+        size and may be the twin of one. A real run never needs this, because
+        every file it copies is hashed on the way."""
+        rows = conn.execute("SELECT source, destination FROM import_files WHERE size = ? "
+                            "AND status = 'planned' AND hash IS NULL", (size,)).fetchall()
+        for row in rows:
+            if not row["destination"] or not is_within(row["destination"], self.job["destination"]):
+                continue
+            try:
+                digest = hash_file(row["source"], self.gate)
+            except OSError:
+                continue
+            with conn:
+                conn.execute("UPDATE import_files SET hash = ? WHERE source = ?",
+                             (digest, row["source"]))
 
     def _same_bytes(self, conn: sqlite3.Connection, candidate: str, digest: str | None,
                     size: int) -> bool:

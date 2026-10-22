@@ -50,7 +50,12 @@ TERMINAL = ("verified", "duplicate", "skipped")
 LIVE_STILL_EXTS = {".heic", ".heif", ".jpg", ".jpeg"}
 LIVE_CLIP_EXTS = {".mov", ".mp4"}
 PLAN = ("planned", "plan-duplicate", "plan-skip")
-ESTIMATE_CAP = 200_000
+#: Seconds a request for a count waits for it before saying "still counting".
+ESTIMATE_WAIT = 20
+#: Seconds without a page asking after a count before its walk is stopped.
+ESTIMATE_ABANDONED = 30
+#: Seconds a finished count is handed back to a page asking for the same folders.
+ESTIMATE_KEEP = 600
 #: Seconds between asking the library to look at what an import brought in.
 SHOW_EVERY = 60
 
