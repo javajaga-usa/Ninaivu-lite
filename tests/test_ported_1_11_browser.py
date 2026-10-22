@@ -164,6 +164,11 @@ def test_hiding_the_photograph_in_the_viewer_shows_on_its_tile(browser, long_gal
         assert page.locator(badge).count() == 0
         cell.click()
         page.wait_for_selector("#viewer:not([hidden])", timeout=15000)
+        # A press does nothing until the viewer has the photograph's details;
+        # on a slow runner the press came first and no change was sent (the
+        # release run of 22 October 2026, as Ninaivu's CI on 19 October).
+        page.wait_for_function(f"() => window.__mv.viewer.item?.id === {int(asset)}",
+                               timeout=15000)
         page.evaluate("document.querySelector('#v-visibility button[data-vis=\"hidden\"]').click()")
         page.wait_for_selector(badge, state="attached", timeout=15000)
         page.keyboard.press("Escape")
@@ -173,6 +178,8 @@ def test_hiding_the_photograph_in_the_viewer_shows_on_its_tile(browser, long_gal
         # Back to the family from the Hidden view: it leaves when the viewer closes.
         page.locator(f'#grid .cell[data-id="{asset}"]').click()
         page.wait_for_selector("#viewer:not([hidden])", timeout=15000)
+        page.wait_for_function(f"() => window.__mv.viewer.item?.id === {int(asset)}",
+                               timeout=15000)
         page.evaluate("document.querySelector('#v-visibility button[data-vis=\"family\"]').click()")
         page.wait_for_timeout(400)
         page.keyboard.press("Escape")
